@@ -1,209 +1,73 @@
 import { useState } from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled, { keyframes, css } from 'styled-components';
 import theme from '../styles/theme';
 import Icon from '../components/ui/Icon';
 
-/**
- * LoginPage — página de autenticación institucional.
- *
- * No hay formulario de email/password: la autenticación es 100% Microsoft OAuth.
- * Esta página existe para:
- *  1. Ser la `redirect_uri` configurada en Azure AD.
- *  2. Gestionar el estado de carga/error del flujo OAuth.
- *  3. Dar un punto de entrada claro al sistema.
- *
- * SRP: solo orquesta el inicio del flujo de autenticación.
- * DIP: recibe `onLogin` desde App; no importa qué librería OAuth se use.
- *
- * @param {Function} onLogin  - dispara loginPopup() o loginRedirect() de MSAL
- * @param {string}   [error]  - mensaje de error proveniente del proceso OAuth
- */
+const fadeIn = keyframes`from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}`;
+const spin = keyframes`to{transform:rotate(360deg)}`;
+const blobFloat = keyframes`0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-20px) scale(1.05)}`;
 
-/* ── Animaciones ── */
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-`;
-
-const spin = keyframes`
-  to { transform: rotate(360deg); }
-`;
-
-const blobFloat = keyframes`
-  0%, 100% { transform: translateY(0) scale(1); }
-  50%       { transform: translateY(-20px) scale(1.05); }
-`;
-
-/* ── Layout ── */
 const Page = styled.div`
-  position: relative;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  background-color: ${theme.colors.surface};
-  overflow: hidden;
+  position:relative;min-height:100vh;display:flex;align-items:center;
+  justify-content:center;padding:1.5rem;
+  background-color:${theme.colors.surface};overflow:hidden;
 `;
-
-/* ── Decoración de fondo ── */
-const BlobTopLeft = styled.div`
-  position: absolute;
-  top: -10%;
-  left: -10%;
-  width: 40%;
-  height: 40%;
-  background-color: ${theme.colors.primaryContainer};
-  opacity: 0.05;
-  border-radius: 50%;
-  filter: blur(120px);
-  animation: ${blobFloat} 10s ease infinite;
-  pointer-events: none;
+const BlobTL = styled.div`
+  position:absolute;top:-10%;left:-10%;width:40%;height:40%;
+  background-color:${theme.colors.primaryContainer};opacity:.05;border-radius:50%;
+  filter:blur(120px);animation:${blobFloat} 10s ease infinite;pointer-events:none;
 `;
-
-const BlobBottomRight = styled.div`
-  position: absolute;
-  bottom: -10%;
-  right: -10%;
-  width: 50%;
-  height: 50%;
-  background-color: ${theme.colors.secondaryContainer};
-  opacity: 0.08;
-  border-radius: 50%;
-  filter: blur(150px);
-  animation: ${blobFloat} 14s ease infinite 4s;
-  pointer-events: none;
+const BlobBR = styled.div`
+  position:absolute;bottom:-10%;right:-10%;width:50%;height:50%;
+  background-color:${theme.colors.secondaryContainer};opacity:.08;border-radius:50%;
+  filter:blur(150px);animation:${blobFloat} 14s ease infinite 4s;pointer-events:none;
 `;
-
 const ArchSvg = styled.svg`
-  position: absolute;
-  top: 5rem;
-  right: 5rem;
-  width: 18rem;
-  height: 18rem;
-  color: ${theme.colors.primaryContainer};
-  opacity: 0.07;
-  pointer-events: none;
-
-  @media (max-width: ${theme.breakpoints.md}) {
-    display: none;
-  }
+  position:absolute;top:5rem;right:5rem;width:18rem;height:18rem;
+  color:${theme.colors.primaryContainer};opacity:.07;pointer-events:none;
+  @media(max-width:${theme.breakpoints.md}){display:none}
 `;
-
-/* ── Contenido principal ── */
 const Main = styled.main`
-  position: relative;
-  z-index: 10;
-  width: 100%;
-  max-width: 28rem;
-  animation: ${fadeIn} 0.6s ease both;
+  position:relative;z-index:10;width:100%;max-width:28rem;
+  animation:${fadeIn} .6s ease both;
 `;
-
-/* ── Logo ── */
-const LogoSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 3rem;
-`;
-
+const LogoSection = styled.div`display:flex;flex-direction:column;align-items:center;margin-bottom:3rem;`;
 const LogoBox = styled.div`
-  width: 4rem;
-  height: 4rem;
-  background-color: ${theme.colors.primary};
-  border-radius: ${theme.radii.lg};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 20px 40px -8px ${theme.colors.primary}33;
-  color: white;
+  width:4rem;height:4rem;background-color:${theme.colors.primary};
+  border-radius:${theme.radii.lg};display:flex;align-items:center;justify-content:center;
+  margin-bottom:1.5rem;box-shadow:0 20px 40px -8px ${theme.colors.primary}33;color:white;
 `;
-
 const AppName = styled.h1`
-  font-family: ${theme.fonts.headline};
-  font-size: ${theme.fontSizes['3xl']};
-  font-weight: ${theme.fontWeights.extrabold};
-  color: ${theme.colors.primary};
-  letter-spacing: -0.03em;
+  font-family:${theme.fonts.headline};font-size:${theme.fontSizes['3xl']};
+  font-weight:${theme.fontWeights.extrabold};color:${theme.colors.primary};letter-spacing:-.03em;
 `;
-
 const AppSubtitle = styled.p`
-  font-size: ${theme.fontSizes.xs};
-  font-weight: ${theme.fontWeights.semibold};
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: ${theme.colors.outline};
-  margin-top: 0.5rem;
+  font-size:${theme.fontSizes.xs};font-weight:${theme.fontWeights.semibold};
+  text-transform:uppercase;letter-spacing:.2em;color:${theme.colors.outline};margin-top:.5rem;
 `;
-
-/* ── Tarjeta de login ── */
 const Card = styled.div`
-  background-color: ${theme.colors.surfaceContainerLowest};
-  border-radius: ${theme.radii.xl};
-  padding: 2.5rem;
-  box-shadow: 0 40px 100px -20px rgba(26, 35, 126, 0.07);
-  /* Ghost border — según DESIGN.md nunca al 100% de opacidad */
-  border: 1px solid ${theme.colors.outlineVariant}26;
-  backdrop-filter: blur(8px);
+  background-color:${theme.colors.surfaceContainerLowest};border-radius:${theme.radii.xl};
+  padding:2.5rem;box-shadow:0 40px 100px -20px rgba(26,35,126,.07);
+  border:1px solid ${theme.colors.outlineVariant}26;backdrop-filter:blur(8px);
 `;
-
 const CardTitle = styled.h2`
-  font-family: ${theme.fonts.headline};
-  font-size: ${theme.fontSizes['2xl']};
-  font-weight: ${theme.fontWeights.bold};
-  color: ${theme.colors.primary};
-  margin-bottom: 0.5rem;
-  letter-spacing: -0.02em;
+  font-family:${theme.fonts.headline};font-size:${theme.fontSizes['2xl']};
+  font-weight:${theme.fontWeights.bold};color:${theme.colors.primary};
+  margin-bottom:.5rem;letter-spacing:-.02em;
 `;
-
-const CardDescription = styled.p`
-  font-size: ${theme.fontSizes.sm};
-  color: ${theme.colors.onSurfaceVariant};
-  line-height: 1.6;
-  margin-bottom: 2rem;
+const CardDesc = styled.p`
+  font-size:${theme.fontSizes.sm};color:${theme.colors.onSurfaceVariant};
+  line-height:1.6;margin-bottom:1.75rem;
+  strong{color:${theme.colors.onSurface};font-weight:${theme.fontWeights.semibold}}
 `;
-
-/* ── Botón Microsoft ── */
 const MicrosoftButton = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.875rem;
-  width: 100%;
-  height: 3.5rem;
-  background-color: ${theme.colors.primary};
-  color: ${theme.colors.onPrimary};
-  font-family: ${theme.fonts.body};
-  font-size: ${theme.fontSizes.base};
-  font-weight: ${theme.fontWeights.semibold};
-  border-radius: ${theme.radii.xl};
-  border: none;
-  cursor: ${({ $loading }) => ($loading ? 'not-allowed' : 'pointer')};
-  opacity: ${({ $loading }) => ($loading ? 0.75 : 1)};
-  box-shadow: 0 4px 24px -4px ${theme.colors.primary}44;
-  transition: all ${theme.transitions.base};
-
-  &:hover:not(:disabled) {
-    box-shadow: 0 8px 32px -4px ${theme.colors.primary}55;
-    transform: translateY(-1px);
-  }
-
-  &:active:not(:disabled) {
-    transform: scale(0.98);
-  }
+  display:flex;align-items:center;justify-content:center;gap:.875rem;
+  width:100%;height:3.5rem;background-color:${theme.colors.surfaceContainerHigh};
+  color:${theme.colors.onSurfaceVariant};font-family:${theme.fonts.body};
+  font-size:${theme.fontSizes.base};font-weight:${theme.fontWeights.semibold};
+  border-radius:${theme.radii.xl};border:1px solid ${theme.colors.outlineVariant}4D;
+  cursor:not-allowed;opacity:.6;box-shadow:${theme.shadows.sm};
 `;
-
-const Spinner = styled.div`
-  width: 1.125rem;
-  height: 1.125rem;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: ${spin} 0.7s linear infinite;
-`;
-
-/* ── Ícono SVG de Microsoft (oficial) ── */
 const MicrosoftIcon = () => (
   <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <rect x="1"  y="1"  width="9" height="9" fill="#f25022"/>
@@ -212,204 +76,133 @@ const MicrosoftIcon = () => (
     <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
   </svg>
 );
-
-/* ── Nota de acceso ── */
+const Spinner = styled.div`
+  width:1.125rem;height:1.125rem;border:2px solid rgba(255,255,255,.3);
+  border-top-color:white;border-radius:50%;animation:${spin} .7s linear infinite;
+`;
+const Divider = styled.div`
+  position:relative;margin:1.5rem 0;
+  &::before{content:'';position:absolute;inset:0;top:50%;height:1px;
+    background-color:${theme.colors.outlineVariant}4D;}
+`;
+const DividerLabel = styled.span`
+  position:relative;z-index:1;display:block;text-align:center;
+  font-size:${theme.fontSizes.xs};font-weight:${theme.fontWeights.semibold};
+  text-transform:uppercase;letter-spacing:.12em;color:${theme.colors.outline};
+  background-color:${theme.colors.surfaceContainerLowest};
+  padding:0 .75rem;width:fit-content;margin:0 auto;
+`;
+const SimBanner = styled.div`
+  background-color:${theme.colors.primaryFixed};border-radius:${theme.radii.lg};
+  padding:.75rem 1rem;margin-bottom:1rem;
+  display:flex;align-items:center;gap:.5rem;
+  font-size:${theme.fontSizes.xs};color:${theme.colors.primary};font-weight:${theme.fontWeights.medium};
+`;
+const RoleGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:.75rem;`;
+const RoleBtn = styled.button`
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.5rem;padding:1.125rem .75rem;border-radius:${theme.radii.xl};
+  border:1px solid ${({ $active }) => $active ? theme.colors.primary : theme.colors.outlineVariant}4D;
+  background-color:${({ $active }) => $active ? theme.colors.primaryFixed : 'white'};
+  color:${({ $active }) => $active ? theme.colors.primary : theme.colors.onSurfaceVariant};
+  font-family:${theme.fonts.body};font-size:${theme.fontSizes.sm};
+  font-weight:${theme.fontWeights.semibold};cursor:pointer;
+  transition:all ${theme.transitions.base};box-shadow:${theme.shadows.sm};
+  &:hover{border-color:${theme.colors.primary}66;background-color:${theme.colors.primaryFixed};color:${theme.colors.primary}}
+  ${({ $loading }) => $loading && css`opacity:.5;pointer-events:none;`}
+`;
+const RoleLabel = styled.span`font-size:${theme.fontSizes.xs};text-transform:uppercase;letter-spacing:.08em;`;
 const AccessNote = styled.p`
-  text-align: center;
-  font-size: ${theme.fontSizes.xs};
-  color: ${theme.colors.outline};
-  margin-top: 1.25rem;
-  line-height: 1.6;
-
-  strong {
-    color: ${theme.colors.onSurfaceVariant};
-    font-weight: ${theme.fontWeights.semibold};
-  }
+  text-align:center;font-size:${theme.fontSizes.xs};color:${theme.colors.outline};
+  margin-top:1.25rem;line-height:1.6;
+  strong{color:${theme.colors.onSurfaceVariant};font-weight:${theme.fontWeights.semibold}}
 `;
-
-/* ── Mensaje de error ── */
-const ErrorBanner = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.875rem 1rem;
-  background-color: ${theme.colors.errorContainer};
-  color: ${theme.colors.onErrorContainer};
-  border-radius: ${theme.radii.lg};
-  font-size: ${theme.fontSizes.sm};
-  font-weight: ${theme.fontWeights.medium};
-  margin-bottom: 1.5rem;
-`;
-
-/* ── Footer ── */
-const PageFooter = styled.footer`
-  text-align: center;
-  margin-top: 3rem;
-`;
-
-const FooterText = styled.p`
-  font-size: ${theme.fontSizes.xs};
-  color: ${theme.colors.outline};
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-`;
-
-const FooterLinks = styled.div`
-  display: flex;
-  justify-content: center;
-  gap: 1.5rem;
-  margin-top: 1rem;
-`;
-
+const PageFooter = styled.footer`text-align:center;margin-top:3rem;`;
+const FooterText = styled.p`font-size:${theme.fontSizes.xs};color:${theme.colors.outline};text-transform:uppercase;letter-spacing:.12em;`;
+const FooterLinks = styled.div`display:flex;justify-content:center;gap:1.5rem;margin-top:1rem;`;
 const FooterLink = styled.a`
-  font-size: ${theme.fontSizes.xs};
-  font-weight: ${theme.fontWeights.semibold};
-  color: ${theme.colors.onSurfaceVariant};
-  opacity: 0.6;
-  transition: all ${theme.transitions.fast};
-
-  &:hover {
-    color: ${theme.colors.primary};
-    opacity: 1;
-  }
+  font-size:${theme.fontSizes.xs};font-weight:${theme.fontWeights.semibold};
+  color:${theme.colors.onSurfaceVariant};opacity:.6;transition:all ${theme.transitions.fast};
+  &:hover{color:${theme.colors.primary};opacity:1}
 `;
-
-/* ── Cita decorativa (solo desktop) ── */
 const AcademicQuote = styled.div`
-  display: none;
-  position: absolute;
-  bottom: 3rem;
-  right: 3rem;
-  flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
-
-  @media (min-width: ${theme.breakpoints.lg}) {
-    display: flex;
-  }
+  display:none;position:absolute;bottom:3rem;right:3rem;
+  flex-direction:column;align-items:flex-end;text-align:right;
+  @media(min-width:${theme.breakpoints.lg}){display:flex}
 `;
-
 const QuoteText = styled.p`
-  font-family: ${theme.fonts.headline};
-  font-style: italic;
-  font-size: ${theme.fontSizes.xs};
-  color: ${theme.colors.onSurfaceVariant};
-  opacity: 0.35;
-  max-width: 14rem;
-  line-height: 1.6;
+  font-family:${theme.fonts.headline};font-style:italic;font-size:${theme.fontSizes.xs};
+  color:${theme.colors.onSurfaceVariant};opacity:.35;max-width:14rem;line-height:1.6;
 `;
-
-/* ── Component ── */
 
 const LoginPage = ({ onLogin, error }) => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [activeRole, setActiveRole] = useState(null);
 
-  const handleLogin = async () => {
+  const handleRoleLogin = async (rol) => {
     setLoading(true);
-    try {
-      await onLogin?.();
-    } finally {
-      // Si falla, MSAL lanza error que el padre captura.
-      // El padre decide si actualiza `error` prop.
-      setLoading(false);
-    }
+    setActiveRole(rol);
+    await new Promise(r => setTimeout(r, 800));
+    try { await onLogin?.(rol); }
+    finally { setLoading(false); setActiveRole(null); }
   };
 
   return (
     <Page>
-      {/* Decoración */}
-      <BlobTopLeft aria-hidden="true" />
-      <BlobBottomRight aria-hidden="true" />
-
-      <ArchSvg
-        viewBox="0 0 100 100"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="0.3"
-        aria-hidden="true"
-      >
-        <circle cx="50" cy="50" r="40" />
-        <path d="M50 10V90M10 50H90" />
-        <rect x="20" y="20" width="60" height="60" />
-        <circle cx="50" cy="50" r="20" />
+      <BlobTL aria-hidden="true" /><BlobBR aria-hidden="true" />
+      <ArchSvg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="0.3" aria-hidden="true">
+        <circle cx="50" cy="50" r="40"/><path d="M50 10V90M10 50H90"/>
+        <rect x="20" y="20" width="60" height="60"/><circle cx="50" cy="50" r="20"/>
       </ArchSvg>
 
       <Main>
-        {/* Logo */}
         <LogoSection>
-          <LogoBox aria-hidden="true">
-            <Icon name="school" size="lg" fill={1} />
-          </LogoBox>
+          <LogoBox><Icon name="school" size="lg" fill={1} /></LogoBox>
           <AppName>SmartClass</AppName>
           <AppSubtitle>Acceso Institucional · UCC Villavicencio</AppSubtitle>
         </LogoSection>
 
-        {/* Tarjeta */}
         <Card>
           <CardTitle>Bienvenido</CardTitle>
-          <CardDescription>
-            Usa tu correo institucional <strong>@ucc.edu.co</strong> para
-            acceder al sistema de gestión de asistencia.
-          </CardDescription>
+          <CardDesc>Usa tu correo <strong>@ucc.edu.co</strong> para acceder al sistema de gestión de asistencia.</CardDesc>
 
-          {/* Error OAuth */}
-          {error && (
-            <ErrorBanner role="alert">
-              <Icon name="error" size="sm" />
-              {error}
-            </ErrorBanner>
-          )}
+          {error && <div role="alert" style={{color:theme.colors.error,fontSize:theme.fontSizes.sm,marginBottom:'1rem'}}>{error}</div>}
 
-          {/* Botón único de autenticación */}
-          <MicrosoftButton
-            onClick={handleLogin}
-            disabled={loading}
-            $loading={loading}
-            aria-label="Iniciar sesión con Microsoft"
-          >
-            {loading ? (
-              <>
-                <Spinner aria-hidden="true" />
-                Autenticando…
-              </>
-            ) : (
-              <>
-                <MicrosoftIcon />
-                Iniciar sesión con Microsoft
-              </>
-            )}
+          <MicrosoftButton disabled title="Pendiente de configuración Azure AD">
+            <MicrosoftIcon />
+            Iniciar sesión con Microsoft
           </MicrosoftButton>
 
-          <AccessNote>
-            Solo cuentas <strong>@ucc.edu.co</strong> tienen acceso.
-            <br />
-            Si no puedes ingresar, contacta al área de sistemas.
-          </AccessNote>
+          <Divider><DividerLabel>o simular acceso</DividerLabel></Divider>
+
+          <SimBanner><Icon name="science" size="sm" />Modo simulación — elige un rol para explorar</SimBanner>
+
+          <RoleGrid>
+            <RoleBtn onClick={() => handleRoleLogin('docente')} $active={activeRole==='docente'} $loading={loading && activeRole!=='docente'} aria-label="Ingresar como docente">
+              {loading && activeRole==='docente' ? <Spinner /> : <Icon name="school" size="md" />}
+              <RoleLabel>Docente</RoleLabel>
+            </RoleBtn>
+            <RoleBtn onClick={() => handleRoleLogin('administrador')} $active={activeRole==='administrador'} $loading={loading && activeRole!=='administrador'} aria-label="Ingresar como administrador">
+              {loading && activeRole==='administrador' ? <Spinner /> : <Icon name="admin_panel_settings" size="md" />}
+              <RoleLabel>Administrador</RoleLabel>
+            </RoleBtn>
+          </RoleGrid>
+
+          <AccessNote>Producción: acceso exclusivo con correo <strong>@ucc.edu.co</strong>.</AccessNote>
         </Card>
 
-        {/* Footer */}
         <PageFooter>
-          <FooterText>
-            © {new Date().getFullYear()} SmartClass RFID · Universidad
-            Cooperativa de Colombia
-          </FooterText>
+          <FooterText>© {new Date().getFullYear()} SmartClass RFID · Universidad Cooperativa de Colombia</FooterText>
           <FooterLinks>
-            <FooterLink href="#">Privacidad Institucional</FooterLink>
-            <FooterLink href="#">Soporte Técnico</FooterLink>
+            <FooterLink href="#">Privacidad</FooterLink>
+            <FooterLink href="#">Soporte</FooterLink>
           </FooterLinks>
         </PageFooter>
       </Main>
 
-      {/* Cita decorativa desktop */}
       <AcademicQuote aria-hidden="true">
-        <Icon
-          name="history_edu"
-          size="xl"
-          style={{ color: `${theme.colors.primaryContainer}33`, marginBottom: '0.5rem' }}
-        />
-        <QuoteText>
-          "La mente no es un recipiente que llenar, sino un fuego que encender."
-        </QuoteText>
+        <Icon name="history_edu" size="xl" style={{color:`${theme.colors.primaryContainer}33`,marginBottom:'.5rem'}}/>
+        <QuoteText>"La mente no es un recipiente que llenar, sino un fuego que encender."</QuoteText>
       </AcademicQuote>
     </Page>
   );

@@ -1,53 +1,77 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import GlobalStyles from './styles/GlobalStyles';
 import theme from './styles/theme';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import AttendancePage from './pages/AttendancePage';
+import AdminPage from './pages/AdminPage';
 
-/**
- * App — raíz de la aplicación SmartClass RFID.
- *
- * Responsabilidades:
- * - Proveer el ThemeProvider de styled-components.
- * - Montar GlobalStyles una sola vez.
- * - Definir las rutas principales con react-router-dom v7.
- *
- * El flujo de autenticación Microsoft OAuth se conecta aquí
- * cuando esté disponible el backend; por ahora es un stub.
- */
-/** @todo: reemplazar por loginRedirect/loginPopup de @azure/msal-browser */
-const handleMicrosoftLogin = async () => {
-  await new Promise((r) => setTimeout(r, 1500));
-  console.log('[Auth] Flujo Microsoft OAuth — pendiente Azure AD (Client ID + Tenant ID de UCC)');
-  alert('Login con Microsoft — pendiente de integración con Azure AD');
+const PrivateRoute = ({ children, allowedRoles }) => {
+  const { user, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (allowedRoles && !allowedRoles.includes(user.rol)) {
+    return <Navigate to={user.rol === 'administrador' ? '/admin' : '/dashboard'} replace />;
+  }
+  return children;
+};
+
+const AppRoutes = () => {
+  const navigate = useNavigate();
+  const { login, logout } = useAuth();
+
+  const handleLogin = async (rol) => {
+    login(rol);
+    navigate(rol === 'administrador' ? '/admin' : '/dashboard', { replace: true });
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/', { replace: true });
+  };
+
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage onLogin={() => navigate('/login')} />} />
+      <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+      <Route
+        path="/dashboard"
+        element={
+          <PrivateRoute allowedRoles={['docente']}>
+            <DashboardPage onLogout={handleLogout} />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/cursos/:cursoId/asistencia"
+        element={
+          <PrivateRoute allowedRoles={['docente']}>
+            <AttendancePage onLogout={handleLogout} />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <PrivateRoute allowedRoles={['administrador']}>
+            <AdminPage onLogout={handleLogout} />
+          </PrivateRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 };
 
 const App = () => (
   <ThemeProvider theme={theme}>
     <GlobalStyles />
     <BrowserRouter>
-      <Routes>
-        <Route
-          path="/"
-          element={<LandingPage onLogin={() => (window.location.href = '/login')} />}
-        />
-        <Route
-          path="/login"
-          element={<LoginPage onLogin={handleMicrosoftLogin} />}
-        />
-        <Route
-          path="/dashboard"
-          element={<DashboardPage onLogout={() => (window.location.href = '/')} />}
-        />
-        {/*
-         * Rutas protegidas — sprints siguientes:
-         * <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-         * <Route path="/cursos/:id/asistencia" element={<PrivateRoute><AttendancePage /></PrivateRoute>} />
-         */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   </ThemeProvider>
 );
