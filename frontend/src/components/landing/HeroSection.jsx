@@ -194,7 +194,7 @@ const HeroSection = ({ onGetStarted, sessionData }) => (
       <Copy>
         <EyebrowBadge>
           <Icon name="school" size="sm" />
-          UCC Villavicencio · Sistema RFID
+          Universidad Cooperativa de Colombia
         </EyebrowBadge>
 
         <Heading>

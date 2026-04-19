@@ -164,7 +164,7 @@ const LoginPage = ({ onLogin, error }) => {
 
         <Card>
           <CardTitle>Bienvenido</CardTitle>
-          <CardDesc>Usa tu correo <strong>@ucc.edu.co</strong> para acceder al sistema de gestión de asistencia.</CardDesc>
+          <CardDesc>Usa tu correo <strong>@campusucc.edu.co</strong> para acceder al sistema de gestión de asistencia.</CardDesc>
 
           {error && <div role="alert" style={{color:theme.colors.error,fontSize:theme.fontSizes.sm,marginBottom:'1rem'}}>{error}</div>}
 
