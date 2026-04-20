@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
-import { FormGroup, Label, Input, Select, FormActions, HelperText } from '../ui/FormElements';
+import { FormGroup, Label, Input, Select, FormRow, FormActions, HelperText } from '../ui/FormElements';
 
 // ─── Modal Facultad ───────────────────────────────────────────────────────────
+/**
+ * Tabla facultad: id, nombre, created_at
+ */
 export const FacultadModal = ({ isOpen, onClose, item = null, onSave }) => {
   const [nombre, setNombre] = useState('');
   const isEditing = !!item;
 
-  useEffect(() => {
-    setNombre(item?.nombre ?? '');
-  }, [item, isOpen]);
+  useEffect(() => { setNombre(item?.nombre ?? ''); }, [item, isOpen]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!nombre.trim()) return;
-    onSave({ ...item, id: item?.id ?? Date.now(), nombre: nombre.trim(), activo: item?.activo ?? true });
+    onSave({ ...item, id: item?.id ?? Date.now(), nombre: nombre.trim() });
     onClose();
   };
 
@@ -42,13 +43,20 @@ export const FacultadModal = ({ isOpen, onClose, item = null, onSave }) => {
 };
 
 // ─── Modal Programa ───────────────────────────────────────────────────────────
+/**
+ * Tabla programa: id, nombre, codigo (UNIQUE, nullable), facultad_id, created_at
+ */
 export const ProgramaModal = ({ isOpen, onClose, item = null, onSave, facultades = [] }) => {
-  const EMPTY = { nombre: '', facultad_id: '' };
+  const EMPTY = { nombre: '', codigo: '', facultad_id: '' };
   const [form, setForm] = useState(EMPTY);
   const isEditing = !!item;
 
   useEffect(() => {
-    setForm(item ? { nombre: item.nombre, facultad_id: item.facultad_id ?? '' } : EMPTY);
+    setForm(item ? {
+      nombre:      item.nombre      ?? '',
+      codigo:      item.codigo      ?? '',
+      facultad_id: item.facultad_id ?? '',
+    } : EMPTY);
   }, [item, isOpen]);
 
   const set = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
@@ -59,11 +67,11 @@ export const ProgramaModal = ({ isOpen, onClose, item = null, onSave, facultades
     const facultad = facultades.find(f => f.id === Number(form.facultad_id));
     onSave({
       ...item,
-      id: item?.id ?? Date.now(),
-      nombre: form.nombre.trim(),
+      id:          item?.id ?? Date.now(),
+      nombre:      form.nombre.trim(),
+      codigo:      form.codigo.trim().toUpperCase() || null,
       facultad_id: Number(form.facultad_id),
-      facultad: facultad?.nombre ?? '',
-      activo: item?.activo ?? true,
+      facultad:    facultad?.nombre ?? '',
     });
     onClose();
   };
@@ -75,21 +83,36 @@ export const ProgramaModal = ({ isOpen, onClose, item = null, onSave, facultades
           <Label htmlFor="prog-fac">Facultad *</Label>
           <Select id="prog-fac" value={form.facultad_id} onChange={set('facultad_id')} required>
             <option value="">— Seleccionar facultad —</option>
-            {facultades.filter(f => f.activo).map(f => (
+            {facultades.map(f => (
               <option key={f.id} value={f.id}>{f.nombre}</option>
             ))}
           </Select>
         </FormGroup>
-        <FormGroup>
-          <Label htmlFor="prog-nombre">Nombre del programa *</Label>
-          <Input
-            id="prog-nombre"
-            value={form.nombre}
-            onChange={set('nombre')}
-            placeholder="Ej. Ingeniería de Sistemas"
-            required
-          />
-        </FormGroup>
+
+        <FormRow>
+          <FormGroup>
+            <Label htmlFor="prog-nombre">Nombre del programa *</Label>
+            <Input
+              id="prog-nombre"
+              value={form.nombre}
+              onChange={set('nombre')}
+              placeholder="Ej. Ingeniería de Sistemas"
+              required
+            />
+          </FormGroup>
+          <FormGroup>
+            <Label htmlFor="prog-codigo">Código</Label>
+            <Input
+              id="prog-codigo"
+              value={form.codigo}
+              onChange={set('codigo')}
+              placeholder="Ej. ING-SIS"
+              maxLength={20}
+            />
+            <HelperText>Opcional, único en BD.</HelperText>
+          </FormGroup>
+        </FormRow>
+
         <FormActions>
           <Button variant="outlined" size="sm" type="button" onClick={onClose}>Cancelar</Button>
           <Button size="sm" type="submit">{isEditing ? 'Guardar' : 'Crear programa'}</Button>

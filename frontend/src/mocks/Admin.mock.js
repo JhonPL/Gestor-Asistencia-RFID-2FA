@@ -1,8 +1,19 @@
 /**
- * admin.mock.js — Datos simulados completos para el panel de administración.
- * Cubre todas las tablas de la BD v5:
- *   facultad, programa, persona, aula, dispositivo_rfid,
- *   dia_semana, horario, curso, aula_curso_horario, lista_estudiantes
+ * admin.mock.js — Datos simulados 100% fieles a BD v5
+ *
+ * Tablas cubiertas:
+ *   rol, facultad, programa, persona,
+ *   dia_semana, horario, aula, dispositivo_rfid,
+ *   curso, aula_curso_horario, lista_estudiantes
+ *
+ * Notas clave de la BD:
+ *   - horario tiene: dia_semana_id + hora_inicio + hora_fin (duración libre)
+ *   - aula tiene: numero (UNIQUE), nombre, edificio, piso, capacidad
+ *   - programa tiene: codigo (UNIQUE opcional) + nombre + facultad_id
+ *   - curso tiene: fecha_inicio + fecha_fin (DATE) + persona_id (docente) + activo
+ *     NO tiene semestre ni programa_id (el programa va por docente/contexto)
+ *   - dispositivo_rfid: ip_address, mac_address, estado_dispositivo_id (FK)
+ *   - aula_curso_horario: solo aula_id + curso_id + horario_id
  */
 
 // ─── Colores de avatar ────────────────────────────────────────────────────────
@@ -16,132 +27,190 @@ const AVATAR_COLORS = [
 ];
 export const avatarColor = (i) => AVATAR_COLORS[i % AVATAR_COLORS.length];
 
-// ─── Facultades ───────────────────────────────────────────────────────────────
-export const MOCK_FACULTADES = [
-  { id: 1, nombre: 'Facultad de Ingeniería', activo: true },
-  { id: 2, nombre: 'Facultad de Ciencias Económicas y Administrativas', activo: true },
-  { id: 3, nombre: 'Facultad de Derecho', activo: true },
-  { id: 4, nombre: 'Facultad de Ciencias de la Salud', activo: true },
-  { id: 5, nombre: 'Facultad de Ciencias Sociales y Humanas', activo: true },
-];
+// ─── Catálogos fijos ──────────────────────────────────────────────────────────
+export const ESTADOS_DISPOSITIVO = ['Activo', 'Inactivo', 'Mantenimiento'];
 
-// ─── Programas ────────────────────────────────────────────────────────────────
-export const MOCK_PROGRAMAS = [
-  { id: 1,  facultad_id: 1, nombre: 'Ingeniería de Sistemas',       activo: true },
-  { id: 2,  facultad_id: 1, nombre: 'Ingeniería Civil',              activo: true },
-  { id: 3,  facultad_id: 1, nombre: 'Ingeniería Electrónica',        activo: true },
-  { id: 4,  facultad_id: 1, nombre: 'Ingeniería Industrial',         activo: true },
-  { id: 5,  facultad_id: 2, nombre: 'Administración de Empresas',    activo: true },
-  { id: 6,  facultad_id: 2, nombre: 'Contaduría Pública',            activo: true },
-  { id: 7,  facultad_id: 2, nombre: 'Economía',                      activo: true },
-  { id: 8,  facultad_id: 3, nombre: 'Derecho',                       activo: true },
-  { id: 9,  facultad_id: 4, nombre: 'Medicina',                      activo: true },
-  { id: 10, facultad_id: 4, nombre: 'Enfermería',                    activo: true },
-  { id: 11, facultad_id: 4, nombre: 'Psicología',                    activo: true },
-  { id: 12, facultad_id: 5, nombre: 'Trabajo Social',                activo: true },
-  { id: 13, facultad_id: 5, nombre: 'Comunicación Social',           activo: false },
-];
-
-// ─── Días de la semana ────────────────────────────────────────────────────────
+// ─── Días de la semana (tabla dia_semana) ─────────────────────────────────────
 export const MOCK_DIAS = [
-  { id: 1, nombre: 'Lunes' },
-  { id: 2, nombre: 'Martes' },
+  { id: 1, nombre: 'Lunes'     },
+  { id: 2, nombre: 'Martes'    },
   { id: 3, nombre: 'Miércoles' },
-  { id: 4, nombre: 'Jueves' },
-  { id: 5, nombre: 'Viernes' },
-  { id: 6, nombre: 'Sábado' },
+  { id: 4, nombre: 'Jueves'    },
+  { id: 5, nombre: 'Viernes'   },
+  { id: 6, nombre: 'Sábado'    },
+  { id: 7, nombre: 'Domingo'   },
 ];
 
-// ─── Horarios ─────────────────────────────────────────────────────────────────
-export const MOCK_HORARIOS = [
-  { id: 1, hora_inicio: '06:00', hora_fin: '08:00' },
-  { id: 2, hora_inicio: '08:00', hora_fin: '10:00' },
-  { id: 3, hora_inicio: '10:00', hora_fin: '12:00' },
-  { id: 4, hora_inicio: '12:00', hora_fin: '14:00' },
-  { id: 5, hora_inicio: '14:00', hora_fin: '16:00' },
-  { id: 6, hora_inicio: '16:00', hora_fin: '18:00' },
-  { id: 7, hora_inicio: '18:00', hora_fin: '20:00' },
-  { id: 8, hora_inicio: '20:00', hora_fin: '22:00' },
+// ─── Facultades (tabla facultad) ──────────────────────────────────────────────
+export const MOCK_FACULTADES = [
+  { id: 1, nombre: 'Facultad de Ingeniería' },
+  { id: 2, nombre: 'Facultad de Ciencias Económicas y Administrativas' },
+  { id: 3, nombre: 'Facultad de Derecho' },
+  { id: 4, nombre: 'Facultad de Ciencias de la Salud' },
+  { id: 5, nombre: 'Facultad de Ciencias Sociales y Humanas' },
 ];
 
-// ─── Aulas ────────────────────────────────────────────────────────────────────
+// ─── Programas (tabla programa) ───────────────────────────────────────────────
+// Campos BD: id, nombre, codigo (UNIQUE, nullable), facultad_id
+export const MOCK_PROGRAMAS = [
+  { id: 1,  nombre: 'Ingeniería de Sistemas',          codigo: 'ING-SIS',  facultad_id: 1 },
+  { id: 2,  nombre: 'Ingeniería Civil',                codigo: 'ING-CIV',  facultad_id: 1 },
+  { id: 3,  nombre: 'Ingeniería Electrónica',          codigo: 'ING-ELC',  facultad_id: 1 },
+  { id: 4,  nombre: 'Ingeniería Industrial',           codigo: 'ING-IND',  facultad_id: 1 },
+  { id: 5,  nombre: 'Administración de Empresas',      codigo: 'ADM-EMP',  facultad_id: 2 },
+  { id: 6,  nombre: 'Contaduría Pública',              codigo: 'CON-PUB',  facultad_id: 2 },
+  { id: 7,  nombre: 'Economía',                        codigo: 'ECO-001',  facultad_id: 2 },
+  { id: 8,  nombre: 'Derecho',                         codigo: 'DER-001',  facultad_id: 3 },
+  { id: 9,  nombre: 'Medicina',                        codigo: 'MED-001',  facultad_id: 4 },
+  { id: 10, nombre: 'Enfermería',                      codigo: 'ENF-001',  facultad_id: 4 },
+  { id: 11, nombre: 'Psicología',                      codigo: 'PSI-001',  facultad_id: 4 },
+  { id: 12, nombre: 'Trabajo Social',                  codigo: 'TRA-SOC',  facultad_id: 5 },
+  { id: 13, nombre: 'Comunicación Social',             codigo: null,        facultad_id: 5 },
+];
+
+// ─── Aulas (tabla aula) ───────────────────────────────────────────────────────
+// Campos BD: id, numero (UNIQUE), nombre, edificio, piso, capacidad
 export const MOCK_AULAS = [
-  { id: 1, nombre: 'Sala 101-A',      edificio: 'Bloque A', capacidad: 40, activo: true },
-  { id: 2, nombre: 'Sala 210-A',      edificio: 'Bloque A', capacidad: 35, activo: true },
-  { id: 3, nombre: 'Sala 305-B',      edificio: 'Bloque B', capacidad: 30, activo: true },
-  { id: 4, nombre: 'Lab Sistemas 1',  edificio: 'Bloque C', capacidad: 25, activo: true },
-  { id: 5, nombre: 'Lab Sistemas 2',  edificio: 'Bloque C', capacidad: 25, activo: true },
-  { id: 6, nombre: 'Auditorio',       edificio: 'Bloque D', capacidad: 200, activo: true },
-  { id: 7, nombre: 'Sala 402-B',      edificio: 'Bloque B', capacidad: 30, activo: false },
+  { id: 1, numero: '101-A', nombre: 'Sala de Sistemas',    edificio: 'Bloque A', piso: 1, capacidad: 40 },
+  { id: 2, numero: '210-A', nombre: 'Sala de Conferencias',edificio: 'Bloque A', piso: 2, capacidad: 35 },
+  { id: 3, numero: '305-B', nombre: 'Aula Magistral',       edificio: 'Bloque B', piso: 3, capacidad: 30 },
+  { id: 4, numero: 'LAB-1', nombre: 'Laboratorio Sistemas 1', edificio: 'Bloque C', piso: 1, capacidad: 25 },
+  { id: 5, numero: 'LAB-2', nombre: 'Laboratorio Sistemas 2', edificio: 'Bloque C', piso: 1, capacidad: 25 },
+  { id: 6, numero: 'AUD-1', nombre: 'Auditorio Principal',  edificio: 'Bloque D', piso: 1, capacidad: 200 },
+  { id: 7, numero: '402-B', nombre: 'Sala de Reuniones',    edificio: 'Bloque B', piso: 4, capacidad: 20 },
 ];
 
-// ─── Dispositivos RFID ────────────────────────────────────────────────────────
-export const MOCK_DISPOSITIVOS = [
-  { id: 1, codigo: 'ESP32-01', aula_id: 3, aula: 'Sala 305-B',     ip: '192.168.1.101', mac: 'AA:BB:CC:11:22:33', estado: 'Activo',        ultimaConexion: 'Hace 5 min' },
-  { id: 2, codigo: 'ESP32-02', aula_id: 4, aula: 'Lab Sistemas 1', ip: '192.168.1.102', mac: 'AA:BB:CC:44:55:66', estado: 'Activo',        ultimaConexion: 'Hace 12 min' },
-  { id: 3, codigo: 'ESP32-03', aula_id: 2, aula: 'Sala 210-A',     ip: '192.168.1.103', mac: 'AA:BB:CC:77:88:99', estado: 'Inactivo',      ultimaConexion: 'Hace 2 días' },
-  { id: 4, codigo: 'ESP32-04', aula_id: 1, aula: 'Sala 101-A',     ip: '192.168.1.104', mac: 'AA:BB:CC:AA:BB:CC', estado: 'Mantenimiento', ultimaConexion: 'Hace 5 días' },
+// ─── Horarios (tabla horario) ─────────────────────────────────────────────────
+// Campos BD: id, dia_semana_id (FK), hora_inicio (TIME), hora_fin (TIME)
+// Duración libre: 1h, 2h, 3h, etc.
+export const MOCK_HORARIOS = [
+  { id: 1,  dia_semana_id: 1, dia: 'Lunes',     hora_inicio: '06:00', hora_fin: '08:00' }, // 2h
+  { id: 2,  dia_semana_id: 1, dia: 'Lunes',     hora_inicio: '08:00', hora_fin: '10:00' }, // 2h
+  { id: 3,  dia_semana_id: 1, dia: 'Lunes',     hora_inicio: '10:00', hora_fin: '12:00' }, // 2h
+  { id: 4,  dia_semana_id: 1, dia: 'Lunes',     hora_inicio: '14:00', hora_fin: '16:00' }, // 2h
+  { id: 5,  dia_semana_id: 1, dia: 'Lunes',     hora_inicio: '16:00', hora_fin: '18:00' }, // 2h
+  { id: 6,  dia_semana_id: 2, dia: 'Martes',    hora_inicio: '07:00', hora_fin: '09:00' }, // 2h
+  { id: 7,  dia_semana_id: 2, dia: 'Martes',    hora_inicio: '09:00', hora_fin: '10:00' }, // 1h
+  { id: 8,  dia_semana_id: 2, dia: 'Martes',    hora_inicio: '14:00', hora_fin: '17:00' }, // 3h
+  { id: 9,  dia_semana_id: 3, dia: 'Miércoles', hora_inicio: '08:00', hora_fin: '10:00' }, // 2h
+  { id: 10, dia_semana_id: 3, dia: 'Miércoles', hora_inicio: '10:00', hora_fin: '13:00' }, // 3h
+  { id: 11, dia_semana_id: 4, dia: 'Jueves',    hora_inicio: '14:00', hora_fin: '16:00' }, // 2h
+  { id: 12, dia_semana_id: 4, dia: 'Jueves',    hora_inicio: '16:00', hora_fin: '19:00' }, // 3h
+  { id: 13, dia_semana_id: 5, dia: 'Viernes',   hora_inicio: '10:00', hora_fin: '12:00' }, // 2h
+  { id: 14, dia_semana_id: 5, dia: 'Viernes',   hora_inicio: '15:00', hora_fin: '16:00' }, // 1h
+  { id: 15, dia_semana_id: 6, dia: 'Sábado',    hora_inicio: '08:00', hora_fin: '12:00' }, // 4h
 ];
 
-// ─── Personas ─────────────────────────────────────────────────────────────────
+// ─── Personas (tabla persona) ─────────────────────────────────────────────────
+// Campos BD: id, microsoft_id, rol_id, nombre, apellido, correo,
+//            codigo_tarjeta, programa_id, activo
 export const MOCK_PERSONAS = [
-  { id: 1, nombre: 'Carlos',    apellido: 'Ramírez',  correo: 'carlos.ramirez@campusucc.edu.co',  rol: 'docente',       programa_id: 1,    programa: 'Ingeniería de Sistemas',    codigoTarjeta: 'RFID-A1B2', activo: true },
-  { id: 2, nombre: 'María',     apellido: 'López',    correo: 'maria.lopez@campusucc.edu.co',      rol: 'estudiante',    programa_id: 1,    programa: 'Ingeniería de Sistemas',    codigoTarjeta: 'RFID-C3D4', activo: true },
-  { id: 3, nombre: 'Jorge',     apellido: 'Peña',     correo: 'jorge.pena@campusucc.edu.co',       rol: 'docente',       programa_id: 2,    programa: 'Ingeniería Civil',          codigoTarjeta: null,        activo: true },
-  { id: 4, nombre: 'Laura',     apellido: 'Vargas',   correo: 'laura.vargas@campusucc.edu.co',     rol: 'estudiante',    programa_id: 5,    programa: 'Administración de Empresas',codigoTarjeta: 'RFID-E5F6', activo: false },
-  { id: 5, nombre: 'Admin',     apellido: 'Sistema',  correo: 'admin@campusucc.edu.co',            rol: 'administrador', programa_id: null, programa: null,                        codigoTarjeta: null,        activo: true },
-  { id: 6, nombre: 'Sandra',    apellido: 'Gómez',    correo: 'sandra.gomez@campusucc.edu.co',     rol: 'estudiante',    programa_id: 8,    programa: 'Derecho',                   codigoTarjeta: 'RFID-G7H8', activo: true },
-  { id: 7, nombre: 'Pedro',     apellido: 'Castro',   correo: 'pedro.castro@campusucc.edu.co',     rol: 'docente',       programa_id: 4,    programa: 'Ingeniería Industrial',     codigoTarjeta: 'RFID-I9J0', activo: true },
-  { id: 8, nombre: 'Valentina', apellido: 'Ruiz',     correo: 'valentina.ruiz@campusucc.edu.co',   rol: 'estudiante',    programa_id: 1,    programa: 'Ingeniería de Sistemas',    codigoTarjeta: 'RFID-K1L2', activo: true },
-  { id: 9, nombre: 'Andrés',    apellido: 'Morales',  correo: 'andres.morales@campusucc.edu.co',   rol: 'estudiante',    programa_id: 1,    programa: 'Ingeniería de Sistemas',    codigoTarjeta: null,        activo: true },
+  {
+    id: 1, microsoft_id: null, rol: 'docente', rol_id: 1,
+    nombre: 'Carlos',    apellido: 'Ramírez',
+    correo: 'carlos.ramirez@campusucc.edu.co',
+    codigo_tarjeta: 'RFID-A1B2', programa_id: 1, programa: 'Ingeniería de Sistemas', activo: true,
+  },
+  {
+    id: 2, microsoft_id: null, rol: 'estudiante', rol_id: 2,
+    nombre: 'María',     apellido: 'López',
+    correo: 'maria.lopez@campusucc.edu.co',
+    codigo_tarjeta: 'RFID-C3D4', programa_id: 1, programa: 'Ingeniería de Sistemas', activo: true,
+  },
+  {
+    id: 3, microsoft_id: null, rol: 'docente', rol_id: 1,
+    nombre: 'Jorge',     apellido: 'Peña',
+    correo: 'jorge.pena@campusucc.edu.co',
+    codigo_tarjeta: null, programa_id: 2, programa: 'Ingeniería Civil', activo: true,
+  },
+  {
+    id: 4, microsoft_id: null, rol: 'estudiante', rol_id: 2,
+    nombre: 'Laura',     apellido: 'Vargas',
+    correo: 'laura.vargas@campusucc.edu.co',
+    codigo_tarjeta: 'RFID-E5F6', programa_id: 5, programa: 'Administración de Empresas', activo: false,
+  },
+  {
+    id: 5, microsoft_id: null, rol: 'administrador', rol_id: 3,
+    nombre: 'Admin',     apellido: 'Sistema',
+    correo: 'admin@campusucc.edu.co',
+    codigo_tarjeta: null, programa_id: null, programa: null, activo: true,
+  },
+  {
+    id: 6, microsoft_id: null, rol: 'estudiante', rol_id: 2,
+    nombre: 'Sandra',    apellido: 'Gómez',
+    correo: 'sandra.gomez@campusucc.edu.co',
+    codigo_tarjeta: 'RFID-G7H8', programa_id: 8, programa: 'Derecho', activo: true,
+  },
+  {
+    id: 7, microsoft_id: null, rol: 'docente', rol_id: 1,
+    nombre: 'Pedro',     apellido: 'Castro',
+    correo: 'pedro.castro@campusucc.edu.co',
+    codigo_tarjeta: 'RFID-I9J0', programa_id: 4, programa: 'Ingeniería Industrial', activo: true,
+  },
+  {
+    id: 8, microsoft_id: null, rol: 'estudiante', rol_id: 2,
+    nombre: 'Valentina', apellido: 'Ruiz',
+    correo: 'valentina.ruiz@campusucc.edu.co',
+    codigo_tarjeta: 'RFID-K1L2', programa_id: 1, programa: 'Ingeniería de Sistemas', activo: true,
+  },
 ];
 
-// ─── Cursos ───────────────────────────────────────────────────────────────────
+// ─── Dispositivos RFID (tabla dispositivo_rfid) ───────────────────────────────
+// Campos BD: id, codigo, aula_id, ip_address, mac_address, estado_dispositivo_id, ultima_conexion
+export const MOCK_DISPOSITIVOS = [
+  { id: 1, codigo: 'ESP32-01', aula_id: 3, aula: '305-B – Aula Magistral',        ip_address: '192.168.1.101', mac_address: 'AA:BB:CC:11:22:33', estado_dispositivo_id: 1, estado: 'Activo',        ultima_conexion: '2025-07-14 08:05:00' },
+  { id: 2, codigo: 'ESP32-02', aula_id: 4, aula: 'LAB-1 – Laboratorio Sistemas 1', ip_address: '192.168.1.102', mac_address: 'AA:BB:CC:44:55:66', estado_dispositivo_id: 1, estado: 'Activo',        ultima_conexion: '2025-07-14 07:58:00' },
+  { id: 3, codigo: 'ESP32-03', aula_id: 2, aula: '210-A – Sala de Conferencias',   ip_address: '192.168.1.103', mac_address: 'AA:BB:CC:77:88:99', estado_dispositivo_id: 2, estado: 'Inactivo',      ultima_conexion: '2025-07-12 14:00:00' },
+  { id: 4, codigo: 'ESP32-04', aula_id: 1, aula: '101-A – Sala de Sistemas',       ip_address: '192.168.1.104', mac_address: 'AA:BB:CC:AA:BB:CC', estado_dispositivo_id: 3, estado: 'Mantenimiento', ultima_conexion: '2025-07-09 09:30:00' },
+];
+
+// ─── Cursos (tabla curso) ─────────────────────────────────────────────────────
+// Campos BD: id, nombre, codigo, fecha_inicio (DATE), fecha_fin (DATE),
+//            persona_id (docente FK), activo
+// NOTA: NO tiene programa_id ni semestre en la BD
 export const MOCK_CURSOS = [
   {
     id: 1, codigo: 'IS-301', nombre: 'Ingeniería de Software II',
-    programa_id: 1, programa: 'Ingeniería de Sistemas',
-    docente_id: 1,  docente: 'Carlos Ramírez',
-    creditos: 3,    semestre: 6,  activo: true,
-    totalEstudiantes: 32,
+    fecha_inicio: '2025-02-03', fecha_fin: '2025-06-15',
+    persona_id: 1, docente: 'Carlos Ramírez',
+    activo: true,
   },
   {
     id: 2, codigo: 'BD-202', nombre: 'Bases de Datos II',
-    programa_id: 1, programa: 'Ingeniería de Sistemas',
-    docente_id: 1,  docente: 'Carlos Ramírez',
-    creditos: 3,    semestre: 4,  activo: true,
-    totalEstudiantes: 28,
+    fecha_inicio: '2025-02-03', fecha_fin: '2025-06-15',
+    persona_id: 1, docente: 'Carlos Ramírez',
+    activo: true,
   },
   {
     id: 3, codigo: 'RS-401', nombre: 'Redes y Seguridad',
-    programa_id: 1, programa: 'Ingeniería de Sistemas',
-    docente_id: 7,  docente: 'Pedro Castro',
-    creditos: 3,    semestre: 7,  activo: true,
-    totalEstudiantes: 19,
+    fecha_inicio: '2025-02-03', fecha_fin: '2025-06-15',
+    persona_id: 7, docente: 'Pedro Castro',
+    activo: true,
   },
   {
     id: 4, codigo: 'IC-201', nombre: 'Cálculo Diferencial',
-    programa_id: 2, programa: 'Ingeniería Civil',
-    docente_id: 3,  docente: 'Jorge Peña',
-    creditos: 4,    semestre: 2,  activo: true,
-    totalEstudiantes: 45,
+    fecha_inicio: '2025-02-03', fecha_fin: '2025-06-15',
+    persona_id: 3, docente: 'Jorge Peña',
+    activo: true,
   },
   {
     id: 5, codigo: 'AD-101', nombre: 'Fundamentos de Administración',
-    programa_id: 5, programa: 'Administración de Empresas',
-    docente_id: null, docente: null,
-    creditos: 3,    semestre: 1,  activo: false,
-    totalEstudiantes: 0,
+    fecha_inicio: '2025-07-14', fecha_fin: '2025-11-30',
+    persona_id: null, docente: null,
+    activo: false,
   },
 ];
 
-// ─── Aula-Curso-Horario (N:M entre curso, aula y horario) ─────────────────────
+// ─── Aula-Curso-Horario (tabla aula_curso_horario) ────────────────────────────
+// Campos BD: id, aula_id, curso_id, horario_id
+// El día de la semana ya está en horario.dia_semana_id
 export const MOCK_AULA_CURSO_HORARIO = [
-  { id: 1, curso_id: 1, aula_id: 3, horario_id: 2, dia_id: 1, curso: 'IS-301 – Ing. Software II', aula: 'Sala 305-B', horario: '08:00–10:00', dia: 'Lunes' },
-  { id: 2, curso_id: 1, aula_id: 3, horario_id: 2, dia_id: 3, curso: 'IS-301 – Ing. Software II', aula: 'Sala 305-B', horario: '08:00–10:00', dia: 'Miércoles' },
-  { id: 3, curso_id: 2, aula_id: 4, horario_id: 5, dia_id: 2, curso: 'BD-202 – Bases de Datos II', aula: 'Lab Sistemas 1', horario: '14:00–16:00', dia: 'Martes' },
-  { id: 4, curso_id: 2, aula_id: 4, horario_id: 5, dia_id: 4, curso: 'BD-202 – Bases de Datos II', aula: 'Lab Sistemas 1', horario: '14:00–16:00', dia: 'Jueves' },
-  { id: 5, curso_id: 3, aula_id: 2, horario_id: 3, dia_id: 5, curso: 'RS-401 – Redes y Seguridad', aula: 'Sala 210-A', horario: '10:00–12:00', dia: 'Viernes' },
+  { id: 1, curso_id: 1, aula_id: 3, horario_id: 2  }, // IS-301 | 305-B | Lunes 08:00-10:00
+  { id: 2, curso_id: 1, aula_id: 3, horario_id: 9  }, // IS-301 | 305-B | Miércoles 08:00-10:00
+  { id: 3, curso_id: 2, aula_id: 4, horario_id: 11 }, // BD-202 | LAB-1 | Jueves 14:00-16:00
+  { id: 4, curso_id: 2, aula_id: 4, horario_id: 6  }, // BD-202 | LAB-1 | Martes 07:00-09:00
+  { id: 5, curso_id: 3, aula_id: 2, horario_id: 13 }, // RS-401 | 210-A | Viernes 10:00-12:00
+  { id: 6, curso_id: 4, aula_id: 1, horario_id: 8  }, // IC-201 | 101-A | Martes 14:00-17:00 (3h)
 ];
 
 // ─── Stats del admin ──────────────────────────────────────────────────────────
