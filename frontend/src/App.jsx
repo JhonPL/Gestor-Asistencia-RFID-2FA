@@ -1,3 +1,6 @@
+// src/App.jsx
+// Cambio clave: handleLogin(token, user) en lugar de handleLogin(rol)
+
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import GlobalStyles from './styles/GlobalStyles';
@@ -14,9 +17,10 @@ const AppRoutes = () => {
   const navigate = useNavigate();
   const { login, logout } = useAuth();
 
-  const handleLogin = async (rol) => {
-    login(rol);
-    navigate(rol === 'administrador' ? '/admin' : '/mis-cursos', { replace: true });
+  // Recibe el token y el usuario ya autenticados desde LoginPage
+  const handleLogin = (token, user) => {
+    login(token, user);
+    navigate(user.rol === 'administrador' ? '/admin' : '/mis-cursos', { replace: true });
   };
 
   const handleLogout = () => {
@@ -40,7 +44,7 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Ruta legada — redirige silenciosamente */}
+      {/* Ruta legada */}
       <Route path="/dashboard" element={<Navigate to="/mis-cursos" replace />} />
 
       <Route

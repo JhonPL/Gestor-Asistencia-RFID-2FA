@@ -1,71 +1,82 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+// src/context/AuthContext.jsx
+// Gestiona la sesión real con JWT del backend.
+// Al iniciar la app valida el token almacenado contra /api/auth/me.
+// En producción reemplazar loginDev por loginConAzure + MSAL.
 
-/**
- * AuthContext — gestiona la sesión simulada de SmartClass.
- *
- * En producción este contexto se reemplaza por los hooks de @azure/msal-react.
- * Por ahora persiste en localStorage para que la sesión sobreviva un refresh.
- *
- * Roles disponibles para simulación: 'docente' | 'administrador'
- */
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getMe } from '../api/authApi';
 
-const STORAGE_KEY = 'smartclass_mock_user';
-
-export const MOCK_USERS = {
-  docente: {
-    nombre: 'Carlos',
-    apellido: 'Ramírez',
-    iniciales: 'CR',
-    correo: 'carlos.ramirez@ucc.edu.co',
-    rol: 'docente',
-  },
-  administrador: {
-    nombre: 'Admin',
-    apellido: 'Sistema',
-    iniciales: 'AS',
-    correo: 'admin@ucc.edu.co',
-    rol: 'administrador',
-  },
-};
+const TOKEN_KEY = 'smartclass_token';
+const USER_KEY  = 'smartclass_user';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
+  const [user,  setUser]  = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(USER_KEY);
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
+  // loading = true mientras validamos el token almacenado al arrancar
+  const [loading, setLoading] = useState(!!localStorage.getItem(TOKEN_KEY));
 
-  // Sincroniza con localStorage cada vez que cambia el usuario
+  // Al montar, si hay token guardado lo validamos contra el backend
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
+    const storedToken = localStorage.getItem(TOKEN_KEY);
+    if (!storedToken) {
+      setLoading(false);
+      return;
     }
-  }, [user]);
 
-  const login = (rol) => {
-    const mockUser = MOCK_USERS[rol];
-    if (!mockUser) throw new Error(`Rol desconocido: ${rol}`);
-    setUser(mockUser);
-    return mockUser;
-  };
+    getMe(storedToken)
+      .then(({ user: backendUser }) => {
+        setUser(backendUser);
+        setToken(storedToken);
+      })
+      .catch(() => {
+        // Token expirado o inválido → limpiar sesión silenciosamente
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        setToken(null);
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
-  const logout = () => setUser(null);
+  /** Guarda el JWT y los datos del usuario tras un login exitoso */
+  const login = useCallback((newToken, newUser) => {
+    localStorage.setItem(TOKEN_KEY, newToken);
+    localStorage.setItem(USER_KEY, JSON.stringify(newUser));
+    setToken(newToken);
+    setUser(newUser);
+  }, []);
+
+  /** Borra la sesión */
+  const logout = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    setToken(null);
+    setUser(null);
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{
+      user,
+      token,
+      login,
+      logout,
+      isAuthenticated: !!user && !!token,
+      loading,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-/** Hook para consumir el contexto de autenticación */
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth debe usarse dentro de <AuthProvider>');
