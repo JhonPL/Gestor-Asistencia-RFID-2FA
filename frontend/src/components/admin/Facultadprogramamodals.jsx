@@ -16,7 +16,7 @@ export const FacultadModal = ({ isOpen, onClose, item = null, onSave }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!nombre.trim()) return;
-    onSave({ ...item, id: item?.id ?? Date.now(), nombre: nombre.trim() });
+    onSave({ ...item, nombre: nombre.trim() });
     onClose();
   };
 
@@ -67,7 +67,6 @@ export const ProgramaModal = ({ isOpen, onClose, item = null, onSave, facultades
     const facultad = facultades.find(f => f.id === Number(form.facultad_id));
     onSave({
       ...item,
-      id:          item?.id ?? Date.now(),
       nombre:      form.nombre.trim(),
       codigo:      form.codigo.trim().toUpperCase() || null,
       facultad_id: Number(form.facultad_id),

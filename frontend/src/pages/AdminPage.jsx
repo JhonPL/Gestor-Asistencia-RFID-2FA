@@ -1,4 +1,10 @@
-import { useState, useMemo } from 'react';
+// src/pages/AdminPage.jsx
+// Cambios respecto al original:
+//   - Tab "académico" usa la API real (getFacultades / getProgramas / CRUD)
+//   - Estado de carga y error por tab
+//   - El resto de tabs siguen usando mocks (se conectarán en siguientes iteraciones)
+
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import theme from '../styles/theme';
 import { useAuth } from '../context/AuthContext';
@@ -15,10 +21,14 @@ import CursoModal from '../components/admin/CursoModal';
 import Button from '../components/ui/Button';
 import Icon from '../components/ui/Icon';
 import {
-  MOCK_PERSONAS, MOCK_DISPOSITIVOS, MOCK_FACULTADES, MOCK_PROGRAMAS,
+  MOCK_PERSONAS, MOCK_DISPOSITIVOS,
   MOCK_AULAS, MOCK_HORARIOS, MOCK_DIAS, MOCK_CURSOS,
   MOCK_AULA_CURSO_HORARIO, ADMIN_STATS,
 } from '../mocks/admin.mock';
+import {
+  getFacultades, createFacultad, updateFacultad, deleteFacultad,
+  getProgramas,  createPrograma,  updatePrograma,  deletePrograma,
+} from '../api/academicoApi';
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 const TABS = [
@@ -100,6 +110,27 @@ const SubTab = styled.button`
   background: ${({ $a }) => $a ? theme.colors.primaryFixed : 'transparent'};
 `;
 
+// ─── Estados de carga / error ─────────────────────────────────────────────────
+const LoadingBox = styled.div`
+  padding: 3rem; text-align: center; color: ${theme.colors.outline};
+  font-size: ${theme.fontSizes.sm};
+  display: flex; flex-direction: column; align-items: center; gap: .75rem;
+`;
+const ErrorBox = styled.div`
+  padding: 1rem 1.25rem; border-radius: ${theme.radii.lg};
+  background: ${theme.colors.errorContainer}; color: ${theme.colors.error};
+  font-size: ${theme.fontSizes.sm}; display: flex; align-items: center; gap: .5rem;
+  margin-bottom: 1rem;
+`;
+const Spinner = styled.div`
+  width: 1.5rem; height: 1.5rem;
+  border: 2px solid ${theme.colors.primaryFixed};
+  border-top-color: ${theme.colors.primary};
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  @keyframes spin { to { transform: rotate(360deg); } }
+`;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const durTexto = (inicio, fin) => {
   if (!inicio || !fin) return '';
@@ -113,27 +144,57 @@ const durTexto = (inicio, fin) => {
 
 // ─── AdminPage ────────────────────────────────────────────────────────────────
 const AdminPage = ({ onLogout }) => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
-  const [tab,       setTab]       = useState('personas');
-  const [acSub,     setAcSub]     = useState('facultades');
-  const [search,    setSearch]    = useState('');
-  const [rolF,      setRolF]      = useState('Todos');
-  const [estadoF,   setEstadoF]   = useState('Todos');
+  const [tab,     setTab]     = useState('personas');
+  const [acSub,   setAcSub]   = useState('facultades');
+  const [search,  setSearch]  = useState('');
+  const [rolF,    setRolF]    = useState('Todos');
+  const [estadoF, setEstadoF] = useState('Todos');
 
-  const [personas,   setPersonas]   = useState(MOCK_PERSONAS);
-  const [devices,    setDevices]    = useState(MOCK_DISPOSITIVOS);
-  const [facultades, setFacultades] = useState(MOCK_FACULTADES);
-  const [programas,  setProgramas]  = useState(MOCK_PROGRAMAS);
-  const [aulas,      setAulas]      = useState(MOCK_AULAS);
-  const [horarios,   setHorarios]   = useState(MOCK_HORARIOS);
-  const [cursos,     setCursos]     = useState(MOCK_CURSOS);
-  const [achs,       setAchs]       = useState(MOCK_AULA_CURSO_HORARIO);
+  // ── Datos mock (otros tabs) ────────────────────────────────────────────────
+  const [personas,  setPersonas]  = useState(MOCK_PERSONAS);
+  const [devices,   setDevices]   = useState(MOCK_DISPOSITIVOS);
+  const [aulas,     setAulas]     = useState(MOCK_AULAS);
+  const [horarios,  setHorarios]  = useState(MOCK_HORARIOS);
+  const [cursos,    setCursos]    = useState(MOCK_CURSOS);
+  const [achs,      setAchs]      = useState(MOCK_AULA_CURSO_HORARIO);
 
+  // ── Datos reales: Académico ────────────────────────────────────────────────
+  const [facultades,    setFacultades]    = useState([]);
+  const [programas,     setProgramas]     = useState([]);
+  const [acLoading,     setAcLoading]     = useState(false);
+  const [acError,       setAcError]       = useState(null);
+
+  // Carga inicial cuando se entra al tab académico
+  const loadAcademico = useCallback(async () => {
+    if (!token) return;
+    setAcLoading(true);
+    setAcError(null);
+    try {
+      const [facs, progs] = await Promise.all([
+        getFacultades(token),
+        getProgramas(token),
+      ]);
+      setFacultades(facs);
+      setProgramas(progs);
+    } catch (err) {
+      setAcError(err.message);
+    } finally {
+      setAcLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (tab === 'academico') loadAcademico();
+  }, [tab, loadAcademico]);
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
   const [modal, setModal] = useState({ type: null, data: null });
-  const openM = (type, data = null) => setModal({ type, data });
+  const openM  = (type, data = null) => setModal({ type, data });
   const closeM = () => setModal({ type: null, data: null });
 
+  // ── Handlers mock (otros tabs) ─────────────────────────────────────────────
   const upsert = (setter, item) =>
     setter(p => p.find(x => x.id === item.id) ? p.map(x => x.id === item.id ? item : x) : [...p, item]);
 
@@ -145,7 +206,91 @@ const AdminPage = ({ onLogout }) => {
       toggleA(setter, item);
   };
 
-  // Filtrado personas
+  // ── Handlers REALES: Facultades ────────────────────────────────────────────
+  const handleSaveFacultad = async (data, item = null) => {
+    try {
+      if (item) {
+        // Edición
+        const updated = await updateFacultad(token, data.id, { nombre: data.nombre });
+        setFacultades(p => p.map(f => f.id === updated.id ? { ...f, ...updated } : f));
+      } else {
+        // Creación
+        const created = await createFacultad(token, { nombre: data.nombre });
+        setFacultades(p => [...p, { ...created, total_programas: 0 }]);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+    closeM();
+  };
+
+  const handleDeleteFacultad = async (item) => {
+    if (!window.confirm(`¿Eliminar la facultad "${item.nombre}" y todos sus programas?`)) return;
+    try {
+      await deleteFacultad(token, item.id);
+      setFacultades(p => p.filter(f => f.id !== item.id));
+      // Quitar también los programas huérfanos del estado local
+      setProgramas(p => p.filter(pr => pr.facultad_id !== item.id));
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // ── Handlers REALES: Programas ─────────────────────────────────────────────
+  const handleSavePrograma = async (data, item = null) => {
+    try {
+      if (item) {
+        // Edición
+        const updated = await updatePrograma(token, data.id, {
+          nombre: data.nombre,
+          codigo: data.codigo || null,
+          facultad_id: data.facultad_id,
+        });
+        setProgramas(p => p.map(pr => pr.id === updated.id ? updated : pr));
+        // Actualizar conteo en facultades
+        setFacultades(prev => prev.map(f => ({
+          ...f,
+          total_programas: programas.filter(pr =>
+            (pr.id === updated.id ? updated.facultad_id : pr.facultad_id) === f.id
+          ).length,
+        })));
+      } else {
+        // Creación
+        const created = await createPrograma(token, {
+          nombre: data.nombre,
+          codigo: data.codigo || null,
+          facultad_id: data.facultad_id,
+        });
+        setProgramas(p => [...p, created]);
+        // Incrementar conteo en la facultad correspondiente
+        setFacultades(prev => prev.map(f =>
+          f.id === created.facultad_id
+            ? { ...f, total_programas: (f.total_programas ?? 0) + 1 }
+            : f
+        ));
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+    closeM();
+  };
+
+  const handleDeletePrograma = async (item) => {
+    if (!window.confirm(`¿Eliminar el programa "${item.nombre}"?`)) return;
+    try {
+      await deletePrograma(token, item.id);
+      setProgramas(p => p.filter(pr => pr.id !== item.id));
+      setFacultades(prev => prev.map(f =>
+        f.id === item.facultad_id
+          ? { ...f, total_programas: Math.max(0, (f.total_programas ?? 1) - 1) }
+          : f
+      ));
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // ── Filtrado personas ──────────────────────────────────────────────────────
   const filtPersonas = useMemo(() => {
     let d = personas;
     if (rolF !== 'Todos')        d = d.filter(p => p.rol === rolF);
@@ -168,24 +313,32 @@ const AdminPage = ({ onLogout }) => {
 
   const docentesList = personas.filter(p => p.rol === 'docente' && p.activo);
 
-  // Columnas de tablas
+  // ── Columnas de tablas ─────────────────────────────────────────────────────
   const colsFacultades = [
     { key: 'nombre', label: 'Nombre' },
-    { key: 'id',     label: 'Programas', render: (v) => {
-      const n = programas.filter(p => p.facultad_id === v).length;
-      return <span style={{ color: theme.colors.outline, fontSize: theme.fontSizes.xs }}>{n} programa{n !== 1 ? 's' : ''}</span>;
-    }},
+    { key: 'total_programas', label: 'Programas', align: 'center', render: (v) => (
+      <span style={{ color: theme.colors.outline, fontSize: theme.fontSizes.xs }}>
+        {v ?? 0} programa{(v ?? 0) !== 1 ? 's' : ''}
+      </span>
+    )},
+    { key: 'created_at', label: 'Creada', render: (v) => v
+      ? new Date(v).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '—'
+    },
   ];
 
   const colsProgramas = [
-    { key: 'nombre',      label: 'Programa' },
-    { key: 'codigo',      label: 'Código', render: (v) => v ? <code style={{ fontSize: theme.fontSizes.xs, background: theme.colors.surfaceContainerLow, padding: '2px 6px', borderRadius: 4 }}>{v}</code> : '—' },
-    { key: 'facultad_id', label: 'Facultad', render: (v) => facultades.find(f => f.id === v)?.nombre ?? '—' },
+    { key: 'nombre',  label: 'Programa' },
+    { key: 'codigo',  label: 'Código', render: (v) => v
+      ? <code style={{ fontSize: theme.fontSizes.xs, background: theme.colors.surfaceContainerLow, padding: '2px 6px', borderRadius: 4 }}>{v}</code>
+      : <span style={{ color: theme.colors.outline }}>—</span>
+    },
+    { key: 'facultad', label: 'Facultad' },
   ];
 
   const colsAulas = [
     { key: 'numero',    label: 'Número' },
-    { key: 'nombre',    label: 'Nombre'   },
+    { key: 'nombre',    label: 'Nombre' },
     { key: 'edificio',  label: 'Edificio' },
     { key: 'piso',      label: 'Piso',      align: 'center' },
     { key: 'capacidad', label: 'Capacidad', align: 'center', render: (v) => v ? `${v} pers.` : '—' },
@@ -214,9 +367,9 @@ const AdminPage = ({ onLogout }) => {
 
   const colsDevices = [
     { key: 'codigo',      label: 'Código' },
-    { key: 'aula',        label: 'Aula'       },
-    { key: 'ip_address',  label: 'IP'         },
-    { key: 'mac_address', label: 'MAC'        },
+    { key: 'aula',        label: 'Aula' },
+    { key: 'ip_address',  label: 'IP' },
+    { key: 'mac_address', label: 'MAC' },
     { key: 'estado',      label: 'Estado', render: (v) => (
       <span style={{
         background: v === 'Activo' ? theme.colors.secondaryFixed : v === 'Mantenimiento' ? theme.colors.tertiaryFixed : theme.colors.errorContainer,
@@ -226,7 +379,6 @@ const AdminPage = ({ onLogout }) => {
     )},
   ];
 
-  // ACH del curso seleccionado (para edición)
   const achDeCurso = (cursoId) => achs.filter(a => a.curso_id === cursoId);
 
   return (
@@ -263,7 +415,6 @@ const AdminPage = ({ onLogout }) => {
               <Icon name="person_add" size="sm" />Nueva persona
             </Button>
           </SectionHeader>
-
           <ControlsRow>
             <SearchWrap>
               <SIcon><Icon name="search" size="sm" /></SIcon>
@@ -279,9 +430,7 @@ const AdminPage = ({ onLogout }) => {
             </FGroup>
             {hayF && <Button variant="ghost" size="sm" onClick={reset}><Icon name="clear" size="sm" />Limpiar</Button>}
           </ControlsRow>
-
           <ResultCount>Mostrando {filtPersonas.length} de {personas.length} personas{hayF && ' (filtrado)'}</ResultCount>
-
           <PersonasTable
             personas={filtPersonas}
             onEdit={(p) => openM('persona', p)}
@@ -306,14 +455,12 @@ const AdminPage = ({ onLogout }) => {
               <Icon name="add" size="sm" />Nuevo curso
             </Button>
           </SectionHeader>
-
           <ControlsRow>
             <SearchWrap>
               <SIcon><Icon name="search" size="sm" /></SIcon>
               <SearchInput placeholder="Buscar por código, nombre o docente…" value={search} onChange={e => setSearch(e.target.value)} />
             </SearchWrap>
           </ControlsRow>
-
           <GenericTable
             columns={colsCursos}
             rows={cursos.filter(c => !search.trim() || [c.codigo, c.nombre, c.docente].some(v => v?.toLowerCase().includes(search.toLowerCase())))}
@@ -326,13 +473,13 @@ const AdminPage = ({ onLogout }) => {
         </section>
       )}
 
-      {/* ══ ACADÉMICO ══ */}
+      {/* ══ ACADÉMICO (API REAL) ══ */}
       {tab === 'academico' && (
         <section>
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Estructura académica</SectionTitle>
-              <SectionDesc>Facultades y programas académicos.</SectionDesc>
+              <SectionDesc>Facultades y programas académicos registrados en la base de datos.</SectionDesc>
             </SectionLeft>
             <Button size="sm" onClick={() => openM(acSub === 'facultades' ? 'facultad' : 'programa')}>
               <Icon name="add" size="sm" />
@@ -340,6 +487,7 @@ const AdminPage = ({ onLogout }) => {
             </Button>
           </SectionHeader>
 
+          {/* Sub-tabs */}
           <SubTabsBar>
             <SubTab $a={acSub === 'facultades'} onClick={() => setAcSub('facultades')}>
               <Icon name="account_balance" size="sm" />Facultades ({facultades.length})
@@ -347,17 +495,79 @@ const AdminPage = ({ onLogout }) => {
             <SubTab $a={acSub === 'programas'} onClick={() => setAcSub('programas')}>
               <Icon name="school" size="sm" />Programas ({programas.length})
             </SubTab>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadAcademico}
+              style={{ marginLeft: 'auto' }}
+              title="Recargar datos"
+            >
+              <Icon name="refresh" size="sm" />
+              Actualizar
+            </Button>
           </SubTabsBar>
 
-          {acSub === 'facultades' && (
-            <GenericTable columns={colsFacultades} rows={facultades}
-              actions={[{ icon: 'edit', title: 'Editar', onClick: (r) => openM('facultad', r) }]}
-              emptyMsg="No hay facultades." />
+          {/* Estado de carga */}
+          {acLoading && (
+            <LoadingBox>
+              <Spinner />
+              Cargando desde la base de datos…
+            </LoadingBox>
           )}
-          {acSub === 'programas' && (
-            <GenericTable columns={colsProgramas} rows={programas}
-              actions={[{ icon: 'edit', title: 'Editar', onClick: (r) => openM('programa', r) }]}
-              emptyMsg="No hay programas." />
+
+          {/* Estado de error */}
+          {!acLoading && acError && (
+            <ErrorBox role="alert">
+              <Icon name="error" size="sm" />
+              {acError}
+              <Button variant="ghost" size="sm" onClick={loadAcademico} style={{ marginLeft: 'auto' }}>
+                Reintentar
+              </Button>
+            </ErrorBox>
+          )}
+
+          {/* Tabla facultades */}
+          {!acLoading && !acError && acSub === 'facultades' && (
+            <>
+              {facultades.length === 0 ? (
+                <LoadingBox>
+                  <Icon name="account_balance" size="lg" style={{ color: theme.colors.outline, opacity: .4 }} />
+                  No hay facultades registradas. Crea la primera.
+                </LoadingBox>
+              ) : (
+                <GenericTable
+                  columns={colsFacultades}
+                  rows={facultades}
+                  actions={[
+                    { icon: 'edit',   title: 'Editar',    onClick: (r) => openM('facultad', r) },
+                    { icon: 'delete', title: 'Eliminar',  danger: true, onClick: handleDeleteFacultad },
+                  ]}
+                  emptyMsg="No hay facultades."
+                />
+              )}
+            </>
+          )}
+
+          {/* Tabla programas */}
+          {!acLoading && !acError && acSub === 'programas' && (
+            <>
+              {programas.length === 0 ? (
+                <LoadingBox>
+                  <Icon name="school" size="lg" style={{ color: theme.colors.outline, opacity: .4 }} />
+                  No hay programas registrados.{facultades.length === 0 && ' Primero crea una facultad.'}
+                </LoadingBox>
+              ) : (
+                <GenericTable
+                  columns={colsProgramas}
+                  rows={programas}
+                  actions={[
+                    { icon: 'edit',   title: 'Editar',   onClick: (r) => openM('programa', r) },
+                    { icon: 'delete', title: 'Eliminar', danger: true, onClick: handleDeletePrograma },
+                  ]}
+                  emptyMsg="No hay programas."
+                />
+              )}
+            </>
           )}
         </section>
       )}
@@ -368,7 +578,7 @@ const AdminPage = ({ onLogout }) => {
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Aulas ({aulas.length})</SectionTitle>
-              <SectionDesc>Salones y laboratorios. El campo <code>numero</code> es único en BD.</SectionDesc>
+              <SectionDesc>Salones y laboratorios.</SectionDesc>
             </SectionLeft>
             <Button size="sm" onClick={() => openM('aula')}><Icon name="add" size="sm" />Nueva aula</Button>
           </SectionHeader>
@@ -384,7 +594,7 @@ const AdminPage = ({ onLogout }) => {
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Franjas horarias ({horarios.length})</SectionTitle>
-              <SectionDesc>Cada franja combina un día de la semana con una hora de inicio y fin. La duración es libre.</SectionDesc>
+              <SectionDesc>Cada franja combina un día de la semana con hora de inicio y fin.</SectionDesc>
             </SectionLeft>
             <Button size="sm" onClick={() => openM('horario')}><Icon name="add" size="sm" />Nueva franja</Button>
           </SectionHeader>
@@ -431,15 +641,20 @@ const AdminPage = ({ onLogout }) => {
         device={modal.data} onSave={(d) => upsert(setDevices, d)}
         aulas={aulas}
       />
+
+      {/* Modales académicos — usan handlers reales */}
       <FacultadModal
         isOpen={modal.type === 'facultad'} onClose={closeM}
-        item={modal.data} onSave={(d) => upsert(setFacultades, d)}
+        item={modal.data}
+        onSave={handleSaveFacultad}
       />
       <ProgramaModal
         isOpen={modal.type === 'programa'} onClose={closeM}
-        item={modal.data} onSave={(d) => upsert(setProgramas, d)}
+        item={modal.data}
+        onSave={handleSavePrograma}
         facultades={facultades}
       />
+
       <AulaModal
         isOpen={modal.type === 'aula'} onClose={closeM}
         item={modal.data} onSave={(d) => upsert(setAulas, d)}
@@ -452,10 +667,7 @@ const AdminPage = ({ onLogout }) => {
       <CursoModal
         isOpen={modal.type === 'curso'} onClose={closeM}
         item={modal.data}
-        onSave={(d) => {
-          upsert(setCursos, d);
-          // En producción aquí se sincronizarían d._asignaciones con el backend
-        }}
+        onSave={(d) => { upsert(setCursos, d); }}
         docentes={docentesList}
         aulas={aulas}
         horarios={horarios}
