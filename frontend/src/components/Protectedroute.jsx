@@ -2,33 +2,19 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 /**
- * ProtectedRoute — redirige si no hay sesión o el rol no coincide.
- *
- * Uso:
- *   <ProtectedRoute roles={['docente']}>
- *     <DashboardPage />
- *   </ProtectedRoute>
- *
- *   <ProtectedRoute roles={['administrador']}>
- *     <AdminPage />
- *   </ProtectedRoute>
+ * ProtectedRoute — redirige a /login si no hay sesión,
+ * o al área correcta si el rol no coincide.
  */
-const ProtectedRoute = ({ children, roles = [] }) => {
-  const { user, loading } = useAuth();
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { user, isAuthenticated } = useAuth();
   const location = useLocation();
 
-  // Mientras carga la sesión (ej. leer localStorage) no redirigir aún
-  if (loading) return null;
-
-  // Sin sesión → ir al login guardando la ruta de origen
-  if (!user) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Con sesión pero rol incorrecto → ir al inicio apropiado
-  if (roles.length > 0 && !roles.includes(user.rol)) {
-    const fallback = user.rol === 'administrador' ? '/admin' : '/mis-cursos';
-    return <Navigate to={fallback} replace />;
+  if (allowedRoles && !allowedRoles.includes(user.rol)) {
+    return <Navigate to={user.rol === 'administrador' ? '/admin' : '/mis-cursos'} replace />;
   }
 
   return children;

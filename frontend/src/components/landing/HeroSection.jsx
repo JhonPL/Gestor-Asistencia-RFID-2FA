@@ -178,7 +178,7 @@ const FEATURES = [
 /* ── Component ── */
 
 const HeroSection = ({ onGetStarted, sessionData }) => (
-  <Section>
+  <Section id="inicio">
     {/* Fondo */}
     <BackgroundImage aria-hidden="true">
       <img
