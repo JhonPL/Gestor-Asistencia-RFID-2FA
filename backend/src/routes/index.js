@@ -9,6 +9,7 @@ import facultadesRoutes    from './facultades.routes.js';
 import programasRoutes     from './programas.routes.js';
 import horariosRoutes      from './horarios.routes.js';
 import dispositivosRoutes  from './dispositivos.routes.js';
+import aulasRoutes         from './aulas.routes.js';
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.use('/facultades',   facultadesRoutes);
 router.use('/programas',    programasRoutes);
 router.use('/horarios',     horariosRoutes);
 router.use('/dispositivos', dispositivosRoutes);
+router.use('/aulas',        aulasRoutes);
 
 router.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
