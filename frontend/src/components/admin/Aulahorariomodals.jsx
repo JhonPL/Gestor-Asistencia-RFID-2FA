@@ -30,8 +30,7 @@ export const AulaModal = ({ isOpen, onClose, item = null, onSave }) => {
     e.preventDefault();
     if (!form.numero.trim()) return;
     onSave({
-      ...item,
-      id:        item?.id ?? Date.now(),
+      ...(item && { id: item.id }),
       numero:    form.numero.trim().toUpperCase(),
       nombre:    form.nombre.trim() || null,
       edificio:  form.edificio.trim() || null,

@@ -2,166 +2,289 @@
 // Tabs conectados a API real: personas, académico, horarios, cursos, dispositivos.
 // Tab aulas: aún mock.
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import styled from 'styled-components';
-import theme from '../styles/theme';
-import { useAuth } from '../context/AuthContext';
-import AppLayout from '../components/layout/AppLayout';
-import AdminStatCard from '../components/admin/AdminStatCard';
-import PersonasTable from '../components/admin/PersonasTable';
-import GenericTable, { StatusDot } from '../components/admin/GenericTable';
-import PersonaFormModal from '../components/admin/PersonaFormModal';
-import LinkCardModal from '../components/admin/LinkCardModal';
-import DeviceFormModal from '../components/admin/DeviceFormModal';
-import { FacultadModal, ProgramaModal } from '../components/admin/FacultadProgramaModals';
-import { AulaModal, HorarioModal } from '../components/admin/AulaHorarioModals';
-import CursoGestionModal from '../components/admin/CursoGestionModal';
-import Button from '../components/ui/Button';
-import Icon from '../components/ui/Icon';
+import { useState, useMemo, useEffect, useCallback } from "react";
+import styled from "styled-components";
+import theme from "../styles/theme";
+import { useAuth } from "../context/AuthContext";
+import AppLayout from "../components/layout/AppLayout";
+import AdminStatCard from "../components/admin/AdminStatCard";
+import PersonasTable from "../components/admin/PersonasTable";
+import GenericTable, { StatusDot } from "../components/admin/GenericTable";
+import PersonaFormModal from "../components/admin/PersonaFormModal";
+import LinkCardModal from "../components/admin/LinkCardModal";
+import DeviceFormModal from "../components/admin/DeviceFormModal";
+import {FacultadModal,ProgramaModal,} from "../components/admin/FacultadProgramaModals";
+import { AulaModal, HorarioModal } from "../components/admin/AulaHorarioModals";
+import CursoGestionModal from "../components/admin/CursoGestionModal";
+import Button from "../components/ui/Button";
+import Icon from "../components/ui/Icon";
+import { MOCK_DIAS, ADMIN_STATS } from "../mocks/admin.mock";
+import { getAulas, createAula, updateAula, deleteAula } from "../api/aulasApi";
+import {getFacultades, createFacultad, updateFacultad, deleteFacultad, getProgramas, createPrograma, updatePrograma, deletePrograma,
+} from "../api/academicoApi";
+import { getHorarios, getDias, createHorario, updateHorario, deleteHorario,} from "../api/horariosApi";
 import {
-  MOCK_AULAS,
-  MOCK_DIAS,
-  ADMIN_STATS,
-} from '../mocks/admin.mock';
+  getPersonas,
+  createPersona,
+  updatePersona,
+  toggleActivoPersona,
+  linkTarjetaPersona,
+} from "../api/personasApi";
 import {
-  getFacultades, createFacultad, updateFacultad, deleteFacultad,
-  getProgramas,  createPrograma,  updatePrograma,  deletePrograma,
-} from '../api/academicoApi';
+  getCursos,
+  createCurso,
+  updateCurso,
+  desactivarCurso,
+  getCurso,
+} from "../api/cursosApi";
 import {
-  getHorarios, getDias, createHorario, updateHorario, deleteHorario,
-} from '../api/horariosApi';
-import {
-  getPersonas, createPersona, updatePersona,
-  toggleActivoPersona, linkTarjetaPersona,
-} from '../api/personasApi';
-import {
-  getCursos, createCurso, updateCurso, desactivarCurso, getCurso,
-} from '../api/cursosApi';
-import {
-  getDispositivos, createDispositivo,
-  updateDispositivo, cambiarEstadoDispositivo,
-} from '../api/dispositivosApi';
+  getDispositivos,
+  createDispositivo,
+  updateDispositivo,
+  cambiarEstadoDispositivo,
+} from "../api/dispositivosApi";
 
 // ─── Tabs ──────────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'personas',     label: 'Personas',    icon: 'group'        },
-  { id: 'cursos',       label: 'Cursos',       icon: 'menu_book'    },
-  { id: 'academico',    label: 'Académico',    icon: 'school'       },
-  { id: 'aulas',        label: 'Aulas',        icon: 'meeting_room' },
-  { id: 'horarios',     label: 'Horarios',     icon: 'schedule'     },
-  { id: 'dispositivos', label: 'Dispositivos', icon: 'sensors'      },
+  { id: "personas", label: "Personas", icon: "group" },
+  { id: "cursos", label: "Cursos", icon: "menu_book" },
+  { id: "academico", label: "Académico", icon: "school" },
+  { id: "aulas", label: "Aulas", icon: "meeting_room" },
+  { id: "horarios", label: "Horarios", icon: "schedule" },
+  { id: "dispositivos", label: "Dispositivos", icon: "sensors" },
 ];
 
-const ROLES_FILTRO  = ['Todos', 'docente', 'estudiante', 'administrador'];
-const ESTADO_FILTRO = ['Todos', 'Activos', 'Inactivos'];
-const ESTADOS_DISPOSITIVO_FILTRO = ['Todos', 'Activo', 'Inactivo', 'Mantenimiento'];
+const ROLES_FILTRO = ["Todos", "docente", "estudiante", "administrador"];
+const ESTADO_FILTRO = ["Todos", "Activos", "Inactivos"];
+const ESTADOS_DISPOSITIVO_FILTRO = [
+  "Todos",
+  "Activo",
+  "Inactivo",
+  "Mantenimiento",
+];
 
 const estadoDevMeta = {
-  Activo:        { bg: theme.colors.secondaryFixed,       color: theme.colors.secondary },
-  Inactivo:      { bg: theme.colors.surfaceContainerHigh, color: theme.colors.outline },
-  Mantenimiento: { bg: theme.colors.tertiaryFixed,        color: '#7b2e12' },
+  Activo: { bg: theme.colors.secondaryFixed, color: theme.colors.secondary },
+  Inactivo: {
+    bg: theme.colors.surfaceContainerHigh,
+    color: theme.colors.outline,
+  },
+  Mantenimiento: { bg: theme.colors.tertiaryFixed, color: "#7b2e12" },
 };
 
 // ─── Styled ────────────────────────────────────────────────────────────────────
-const PageHeader  = styled.header`margin-bottom: 2.5rem;`;
-const Title       = styled.h1`
-  font-family: ${theme.fonts.headline}; font-size: clamp(1.5rem,3vw,2.25rem);
-  font-weight: ${theme.fontWeights.extrabold}; color: ${theme.colors.primary};
-  letter-spacing: -.02em; margin-bottom: .375rem;
+const PageHeader = styled.header`
+  margin-bottom: 2.5rem;
 `;
-const Subtitle    = styled.p`font-size: ${theme.fontSizes.base}; color: ${theme.colors.onSurfaceVariant};`;
-const StatsGrid   = styled.div`
-  display: grid; grid-template-columns: repeat(2,1fr); gap: 1rem; margin-bottom: 2.5rem;
-  @media(min-width:${theme.breakpoints.lg}){ grid-template-columns: repeat(4,1fr); }
+const Title = styled.h1`
+  font-family: ${theme.fonts.headline};
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: ${theme.fontWeights.extrabold};
+  color: ${theme.colors.primary};
+  letter-spacing: -0.02em;
+  margin-bottom: 0.375rem;
 `;
-const TabsScroll  = styled.div`overflow-x: auto; margin-bottom: 1.75rem; padding-bottom: .25rem;`;
-const TabsBar     = styled.div`
-  display: flex; gap: .25rem; background: ${theme.colors.surfaceContainerHigh};
-  border-radius: ${theme.radii.xl}; padding: .3rem; width: fit-content; min-width: 100%;
+const Subtitle = styled.p`
+  font-size: ${theme.fontSizes.base};
+  color: ${theme.colors.onSurfaceVariant};
+`;
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+  @media (min-width: ${theme.breakpoints.lg}) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+`;
+const TabsScroll = styled.div`
+  overflow-x: auto;
+  margin-bottom: 1.75rem;
+  padding-bottom: 0.25rem;
+`;
+const TabsBar = styled.div`
+  display: flex;
+  gap: 0.25rem;
+  background: ${theme.colors.surfaceContainerHigh};
+  border-radius: ${theme.radii.xl};
+  padding: 0.3rem;
+  width: fit-content;
+  min-width: 100%;
 `;
 const Tab = styled.button`
-  display: flex; align-items: center; gap: .5rem; padding: .625rem 1.125rem;
-  border-radius: ${theme.radii.lg}; font-size: ${theme.fontSizes.sm};
-  font-weight: ${theme.fontWeights.semibold}; transition: all ${theme.transitions.base};
-  white-space: nowrap; flex-shrink: 0;
-  background: ${({ $a }) => $a ? theme.colors.surfaceContainerLowest : 'transparent'};
-  color:      ${({ $a }) => $a ? theme.colors.primary : theme.colors.onSurfaceVariant};
-  box-shadow: ${({ $a }) => $a ? theme.shadows.sm : 'none'};
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: ${theme.radii.lg};
+  font-size: ${theme.fontSizes.sm};
+  font-weight: ${theme.fontWeights.semibold};
+  transition: all ${theme.transitions.base};
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: ${({ $a }) =>
+    $a ? theme.colors.surfaceContainerLowest : "transparent"};
+  color: ${({ $a }) =>
+    $a ? theme.colors.primary : theme.colors.onSurfaceVariant};
+  box-shadow: ${({ $a }) => ($a ? theme.shadows.sm : "none")};
 `;
-const SectionHeader  = styled.div`
-  display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start;
-  justify-content: space-between; margin-bottom: 1.25rem;
+const SectionHeader = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
 `;
-const SectionLeft    = styled.div``;
-const SectionTitle   = styled.h2`
-  font-family: ${theme.fonts.headline}; font-size: ${theme.fontSizes.xl};
-  font-weight: ${theme.fontWeights.bold}; color: ${theme.colors.primary};
+const SectionLeft = styled.div``;
+const SectionTitle = styled.h2`
+  font-family: ${theme.fonts.headline};
+  font-size: ${theme.fontSizes.xl};
+  font-weight: ${theme.fontWeights.bold};
+  color: ${theme.colors.primary};
 `;
-const SectionDesc    = styled.p`font-size: ${theme.fontSizes.sm}; color: ${theme.colors.onSurfaceVariant}; margin-top: .25rem;`;
-const ControlsRow    = styled.div`display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: 1rem;`;
-const SearchWrap     = styled.div`position: relative; flex: 1; min-width: 220px; max-width: 26rem;`;
-const SIcon          = styled.span`
-  position: absolute; left: .875rem; top: 50%; transform: translateY(-50%);
-  color: ${theme.colors.outline}; pointer-events: none; display: flex;
+const SectionDesc = styled.p`
+  font-size: ${theme.fontSizes.sm};
+  color: ${theme.colors.onSurfaceVariant};
+  margin-top: 0.25rem;
 `;
-const SearchInput    = styled.input`
-  width: 100%; padding: .75rem 1rem .75rem 2.75rem;
-  background: ${theme.colors.surfaceContainerLow}; border: none;
-  border-radius: ${theme.radii.xl}; font-family: ${theme.fonts.body};
-  font-size: ${theme.fontSizes.sm}; color: ${theme.colors.onSurface}; outline: none;
-  &::placeholder { color: ${theme.colors.outline}; opacity: .6; }
-  &:focus { box-shadow: 0 0 0 2px ${theme.colors.primary}33; }
+const ControlsRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
 `;
-const FGroup         = styled.div`display: flex; align-items: center; gap: .375rem; flex-wrap: wrap;`;
-const FLabel         = styled.span`font-size: ${theme.fontSizes.xs}; color: ${theme.colors.outline}; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;`;
-const FChip          = styled.button`
-  padding: .3rem .875rem; border-radius: ${theme.radii.full};
-  font-size: ${theme.fontSizes.xs}; font-weight: 600; text-transform: capitalize;
-  transition: all ${theme.transitions.fast}; border: none; cursor: pointer;
-  background: ${({ $a }) => $a ? theme.colors.primary : theme.colors.surfaceContainerHigh};
-  color:      ${({ $a }) => $a ? 'white' : theme.colors.onSurfaceVariant};
+const SearchWrap = styled.div`
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 26rem;
 `;
-const ResultCount    = styled.p`font-size: ${theme.fontSizes.xs}; color: ${theme.colors.outline}; margin-bottom: .75rem;`;
-const SubTabsBar     = styled.div`
-  display: flex; gap: .5rem; margin-bottom: 1.5rem;
-  border-bottom: 2px solid ${theme.colors.surfaceContainerHigh}; padding-bottom: .5rem;
+const SIcon = styled.span`
+  position: absolute;
+  left: 0.875rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: ${theme.colors.outline};
+  pointer-events: none;
+  display: flex;
+`;
+const SearchInput = styled.input`
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.75rem;
+  background: ${theme.colors.surfaceContainerLow};
+  border: none;
+  border-radius: ${theme.radii.xl};
+  font-family: ${theme.fonts.body};
+  font-size: ${theme.fontSizes.sm};
+  color: ${theme.colors.onSurface};
+  outline: none;
+  &::placeholder {
+    color: ${theme.colors.outline};
+    opacity: 0.6;
+  }
+  &:focus {
+    box-shadow: 0 0 0 2px ${theme.colors.primary}33;
+  }
+`;
+const FGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+`;
+const FLabel = styled.span`
+  font-size: ${theme.fontSizes.xs};
+  color: ${theme.colors.outline};
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+`;
+const FChip = styled.button`
+  padding: 0.3rem 0.875rem;
+  border-radius: ${theme.radii.full};
+  font-size: ${theme.fontSizes.xs};
+  font-weight: 600;
+  text-transform: capitalize;
+  transition: all ${theme.transitions.fast};
+  border: none;
+  cursor: pointer;
+  background: ${({ $a }) =>
+    $a ? theme.colors.primary : theme.colors.surfaceContainerHigh};
+  color: ${({ $a }) => ($a ? "white" : theme.colors.onSurfaceVariant)};
+`;
+const ResultCount = styled.p`
+  font-size: ${theme.fontSizes.xs};
+  color: ${theme.colors.outline};
+  margin-bottom: 0.75rem;
+`;
+const SubTabsBar = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid ${theme.colors.surfaceContainerHigh};
+  padding-bottom: 0.5rem;
 `;
 const SubTab = styled.button`
-  display: flex; align-items: center; gap: .375rem; padding: .5rem 1rem;
-  border-radius: ${theme.radii.lg} ${theme.radii.lg} 0 0; font-size: ${theme.fontSizes.sm};
-  font-weight: 600; transition: all ${theme.transitions.fast};
-  border-bottom: 3px solid ${({ $a }) => $a ? theme.colors.primary : 'transparent'};
-  color:      ${({ $a }) => $a ? theme.colors.primary : theme.colors.onSurfaceVariant};
-  background: ${({ $a }) => $a ? theme.colors.primaryFixed : 'transparent'};
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  border-radius: ${theme.radii.lg} ${theme.radii.lg} 0 0;
+  font-size: ${theme.fontSizes.sm};
+  font-weight: 600;
+  transition: all ${theme.transitions.fast};
+  border-bottom: 3px solid
+    ${({ $a }) => ($a ? theme.colors.primary : "transparent")};
+  color: ${({ $a }) =>
+    $a ? theme.colors.primary : theme.colors.onSurfaceVariant};
+  background: ${({ $a }) => ($a ? theme.colors.primaryFixed : "transparent")};
 `;
 const LoadingBox = styled.div`
-  padding: 3rem; text-align: center; color: ${theme.colors.outline};
+  padding: 3rem;
+  text-align: center;
+  color: ${theme.colors.outline};
   font-size: ${theme.fontSizes.sm};
-  display: flex; flex-direction: column; align-items: center; gap: .75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
 `;
 const ErrorBox = styled.div`
-  padding: 1rem 1.25rem; border-radius: ${theme.radii.lg};
-  background: ${theme.colors.errorContainer}; color: ${theme.colors.error};
-  font-size: ${theme.fontSizes.sm}; display: flex; align-items: center; gap: .5rem;
+  padding: 1rem 1.25rem;
+  border-radius: ${theme.radii.lg};
+  background: ${theme.colors.errorContainer};
+  color: ${theme.colors.error};
+  font-size: ${theme.fontSizes.sm};
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-bottom: 1rem;
 `;
 const Spinner = styled.div`
-  width: 1.5rem; height: 1.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border: 2px solid ${theme.colors.primaryFixed};
   border-top-color: ${theme.colors.primary};
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
-  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 `;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const durTexto = (inicio, fin) => {
-  if (!inicio || !fin) return '';
-  const [h1, m1] = inicio.split(':').map(Number);
-  const [h2, m2] = fin.split(':').map(Number);
-  const min = (h2 * 60 + m2) - (h1 * 60 + m1);
-  if (min <= 0) return '';
-  const h = Math.floor(min / 60), m = min % 60;
+  if (!inicio || !fin) return "";
+  const [h1, m1] = inicio.split(":").map(Number);
+  const [h2, m2] = fin.split(":").map(Number);
+  const min = h2 * 60 + m2 - (h1 * 60 + m1);
+  if (min <= 0) return "";
+  const h = Math.floor(min / 60),
+    m = min % 60;
   return m === 0 ? `${h}h` : `${h}h${m}min`;
 };
 
@@ -169,7 +292,7 @@ function normalizePersona(p) {
   return {
     ...p,
     codigoTarjeta: p.codigo_tarjeta ?? null,
-    programa_id:   p.programa_id   ?? null,
+    programa_id: p.programa_id ?? null,
   };
 }
 
@@ -177,46 +300,48 @@ function normalizePersona(p) {
 const AdminPage = ({ onLogout }) => {
   const { user, token } = useAuth();
 
-  const [tab,     setTab]     = useState('personas');
-  const [acSub,   setAcSub]   = useState('facultades');
-  const [search,  setSearch]  = useState('');
-  const [rolF,    setRolF]    = useState('Todos');
-  const [estadoF, setEstadoF] = useState('Todos');
+  const [tab, setTab] = useState("personas");
+  const [acSub, setAcSub] = useState("facultades");
+  const [search, setSearch] = useState("");
+  const [rolF, setRolF] = useState("Todos");
+  const [estadoF, setEstadoF] = useState("Todos");
 
   // ── Estado: Personas ───────────────────────────────────────────────────────
-  const [personas,    setPersonas]    = useState([]);
+  const [personas, setPersonas] = useState([]);
   const [persLoading, setPersLoading] = useState(false);
-  const [persError,   setPersError]   = useState(null);
+  const [persError, setPersError] = useState(null);
 
   // ── Estado: Académico ──────────────────────────────────────────────────────
   const [facultades, setFacultades] = useState([]);
-  const [programas,  setProgramas]  = useState([]);
-  const [acLoading,  setAcLoading]  = useState(false);
-  const [acError,    setAcError]    = useState(null);
+  const [programas, setProgramas] = useState([]);
+  const [acLoading, setAcLoading] = useState(false);
+  const [acError, setAcError] = useState(null);
 
   // ── Estado: Horarios ───────────────────────────────────────────────────────
-  const [horarios,   setHorarios]   = useState([]);
-  const [dias,       setDias]       = useState(MOCK_DIAS);
+  const [horarios, setHorarios] = useState([]);
+  const [dias, setDias] = useState(MOCK_DIAS);
   const [horLoading, setHorLoading] = useState(false);
-  const [horError,   setHorError]   = useState(null);
+  const [horError, setHorError] = useState(null);
 
   // ── Estado: Cursos ─────────────────────────────────────────────────────────
-  const [cursos,        setCursos]        = useState([]);
+  const [cursos, setCursos] = useState([]);
   const [cursosLoading, setCursosLoading] = useState(false);
-  const [cursosError,   setCursosError]   = useState(null);
+  const [cursosError, setCursosError] = useState(null);
 
   // ── Estado: Dispositivos (API real) ───────────────────────────────────────
-  const [devices,    setDevices]    = useState([]);
+  const [devices, setDevices] = useState([]);
   const [devLoading, setDevLoading] = useState(false);
-  const [devError,   setDevError]   = useState(null);
-  const [estadoDevF, setEstadoDevF] = useState('Todos');
+  const [devError, setDevError] = useState(null);
+  const [estadoDevF, setEstadoDevF] = useState("Todos");
 
   // ── Estado: Aulas (mock aún) ───────────────────────────────────────────────
-  const [aulas, setAulas] = useState(MOCK_AULAS);
+  const [aulas, setAulas] = useState([]);
+  const [aulasLoading, setAulasLoading] = useState(false);
+  const [aulasError, setAulasError] = useState(null);
 
   // ── Modal ──────────────────────────────────────────────────────────────────
   const [modal, setModal] = useState({ type: null, data: null });
-  const openM  = (type, data = null) => setModal({ type, data });
+  const openM = (type, data = null) => setModal({ type, data });
   const closeM = () => setModal({ type: null, data: null });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -225,64 +350,124 @@ const AdminPage = ({ onLogout }) => {
 
   const loadPersonas = useCallback(async () => {
     if (!token) return;
-    setPersLoading(true); setPersError(null);
+    setPersLoading(true);
+    setPersError(null);
     try {
       const data = await getPersonas(token);
       setPersonas(data.map(normalizePersona));
-    } catch (err) { setPersError(err.message); }
-    finally { setPersLoading(false); }
+    } catch (err) {
+      setPersError(err.message);
+    } finally {
+      setPersLoading(false);
+    }
   }, [token]);
 
-  useEffect(() => { if (tab === 'personas') loadPersonas(); }, [tab, loadPersonas]);
+  useEffect(() => {
+    if (tab === "personas") loadPersonas();
+  }, [tab, loadPersonas]);
 
   const loadAcademico = useCallback(async () => {
     if (!token) return;
-    setAcLoading(true); setAcError(null);
+    setAcLoading(true);
+    setAcError(null);
     try {
-      const [facs, progs] = await Promise.all([getFacultades(token), getProgramas(token)]);
-      setFacultades(facs); setProgramas(progs);
-    } catch (err) { setAcError(err.message); }
-    finally { setAcLoading(false); }
+      const [facs, progs] = await Promise.all([
+        getFacultades(token),
+        getProgramas(token),
+      ]);
+      setFacultades(facs);
+      setProgramas(progs);
+    } catch (err) {
+      setAcError(err.message);
+    } finally {
+      setAcLoading(false);
+    }
   }, [token]);
 
-  useEffect(() => { if (tab === 'academico') loadAcademico(); }, [tab, loadAcademico]);
+  useEffect(() => {
+    if (tab === "academico") loadAcademico();
+  }, [tab, loadAcademico]);
 
   const loadHorarios = useCallback(async () => {
     if (!token) return;
-    setHorLoading(true); setHorError(null);
+    setHorLoading(true);
+    setHorError(null);
     try {
-      const [diasData, horariosData] = await Promise.all([getDias(token), getHorarios(token)]);
-      setDias(diasData); setHorarios(horariosData);
-    } catch (err) { setHorError(err.message); }
-    finally { setHorLoading(false); }
+      const [diasData, horariosData] = await Promise.all([
+        getDias(token),
+        getHorarios(token),
+      ]);
+      setDias(diasData);
+      setHorarios(horariosData);
+    } catch (err) {
+      setHorError(err.message);
+    } finally {
+      setHorLoading(false);
+    }
   }, [token]);
 
-  useEffect(() => { if (tab === 'horarios') loadHorarios(); }, [tab, loadHorarios]);
+  useEffect(() => {
+    if (tab === "horarios") loadHorarios();
+  }, [tab, loadHorarios]);
 
   const loadCursos = useCallback(async () => {
     if (!token) return;
-    setCursosLoading(true); setCursosError(null);
+    setCursosLoading(true);
+    setCursosError(null);
     try {
       const data = await getCursos(token);
       setCursos(data);
-    } catch (err) { setCursosError(err.message); }
-    finally { setCursosLoading(false); }
+    } catch (err) {
+      setCursosError(err.message);
+    } finally {
+      setCursosLoading(false);
+    }
   }, [token]);
 
-  useEffect(() => { if (tab === 'cursos') loadCursos(); }, [tab, loadCursos]);
+  useEffect(() => {
+    if (tab === "cursos") loadCursos();
+  }, [tab, loadCursos]);
 
   // ── Carga dispositivos ─────────────────────────────────────────────────────
   const loadDispositivos = useCallback(async () => {
     if (!token) return;
-    setDevLoading(true); setDevError(null);
+    setDevLoading(true);
+    setDevError(null);
     try {
       const data = await getDispositivos(token);
       setDevices(data);
-    } catch (err) { setDevError(err.message); }
-    finally { setDevLoading(false); }
+    } catch (err) {
+      setDevError(err.message);
+    } finally {
+      setDevLoading(false);
+    }
   }, [token]);
 
-  useEffect(() => { if (tab === 'dispositivos') loadDispositivos(); }, [tab, loadDispositivos]);
+  useEffect(() => {
+    if (tab === "dispositivos") loadDispositivos();
+  }, [tab, loadDispositivos]);
+
+  // ── Carga aulas ─────────────────────────────────────────────────────────────
+  const loadAulas = useCallback(async () => {
+    if (!token) return;
+    setAulasLoading(true);
+    setAulasError(null);
+    try {
+      const data = await getAulas(token);
+      setAulas(data);
+    } catch (err) {
+      setAulasError(err.message);
+    } finally {
+      setAulasLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    loadAulas();
+  }, [loadAulas]);
+  useEffect(() => {
+    if (tab === "aulas") loadAulas();
+  }, [tab, loadAulas]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // HANDLERS
@@ -293,29 +478,45 @@ const AdminPage = ({ onLogout }) => {
     try {
       if (id) {
         const updated = await updateCurso(token, id, payload);
-        setCursos(p => p.map(c => c.id === updated.id ? updated : c));
+        setCursos((p) => p.map((c) => (c.id === updated.id ? updated : c)));
       } else {
         const created = await createCurso(token, payload);
-        setCursos(p => [...p, created]);
+        setCursos((p) => [...p, created]);
       }
       closeM();
-    } catch (err) { alert(`Error al guardar curso: ${err.message}`); }
+    } catch (err) {
+      alert(`Error al guardar curso: ${err.message}`);
+    }
   };
 
   const handleDesactivarCurso = async (item) => {
-    if (!item.activo) { alert('El curso ya está inactivo.'); return; }
-    if (!window.confirm(`¿Desactivar "${item.nombre}"? Los datos de asistencia se conservarán.`)) return;
+    if (!item.activo) {
+      alert("El curso ya está inactivo.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `¿Desactivar "${item.nombre}"? Los datos de asistencia se conservarán.`,
+      )
+    )
+      return;
     try {
       await desactivarCurso(token, item.id);
-      setCursos(p => p.map(c => c.id === item.id ? { ...c, activo: false } : c));
-    } catch (err) { alert(`Error: ${err.message}`); }
+      setCursos((p) =>
+        p.map((c) => (c.id === item.id ? { ...c, activo: false } : c)),
+      );
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
   };
 
   const handleEditCurso = async (item) => {
     try {
       const fullCurso = await getCurso(token, item.id);
-      openM('curso', fullCurso);
-    } catch { openM('curso', item); }
+      openM("curso", fullCurso);
+    } catch {
+      openM("curso", item);
+    }
   };
 
   // ── Personas ───────────────────────────────────────────────────────────────
@@ -324,71 +525,140 @@ const AdminPage = ({ onLogout }) => {
     try {
       if (isEdit) {
         const { nombre, apellido, correo, activo, programa_id } = formData;
-        const updated = await updatePersona(token, formData.id, { nombre, apellido, correo, activo, programa_id: programa_id || null });
-        setPersonas(prev => prev.map(p => p.id === updated.id ? normalizePersona({ ...p, ...updated }) : p));
+        const updated = await updatePersona(token, formData.id, {
+          nombre,
+          apellido,
+          correo,
+          activo,
+          programa_id: programa_id || null,
+        });
+        setPersonas((prev) =>
+          prev.map((p) =>
+            p.id === updated.id ? normalizePersona({ ...p, ...updated }) : p,
+          ),
+        );
       } else {
         const { nombre, apellido, correo, rol, programa_id } = formData;
-        const created = await createPersona(token, { nombre, apellido, correo, rol, programa_id: programa_id || null });
-        setPersonas(prev => [...prev, normalizePersona(created)]);
+        const created = await createPersona(token, {
+          nombre,
+          apellido,
+          correo,
+          rol,
+          programa_id: programa_id || null,
+        });
+        setPersonas((prev) => [...prev, normalizePersona(created)]);
       }
       closeM();
-    } catch (err) { alert(`Error al guardar persona: ${err.message}`); }
+    } catch (err) {
+      alert(`Error al guardar persona: ${err.message}`);
+    }
   };
 
   const handleToggleActivo = async (persona) => {
-    const accion = persona.activo ? 'Desactivar' : 'Activar';
-    if (!window.confirm(`¿${accion} a ${persona.nombre} ${persona.apellido}?`)) return;
+    const accion = persona.activo ? "Desactivar" : "Activar";
+    if (!window.confirm(`¿${accion} a ${persona.nombre} ${persona.apellido}?`))
+      return;
     try {
-      const updated = await toggleActivoPersona(token, persona.id, !persona.activo);
-      setPersonas(prev => prev.map(p => p.id === updated.id ? normalizePersona({ ...p, ...updated }) : p));
-    } catch (err) { alert(`Error: ${err.message}`); }
+      const updated = await toggleActivoPersona(
+        token,
+        persona.id,
+        !persona.activo,
+      );
+      setPersonas((prev) =>
+        prev.map((p) =>
+          p.id === updated.id ? normalizePersona({ ...p, ...updated }) : p,
+        ),
+      );
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
   };
 
   const handleLinkCard = async (personaId, codigoTarjeta) => {
     try {
       const updated = await linkTarjetaPersona(token, personaId, codigoTarjeta);
-      setPersonas(prev => prev.map(p => p.id === updated.id
-        ? { ...p, codigo_tarjeta: updated.codigo_tarjeta, codigoTarjeta: updated.codigo_tarjeta }
-        : p
-      ));
-    } catch (err) { alert(`Error al vincular tarjeta: ${err.message}`); }
+      setPersonas((prev) =>
+        prev.map((p) =>
+          p.id === updated.id
+            ? {
+                ...p,
+                codigo_tarjeta: updated.codigo_tarjeta,
+                codigoTarjeta: updated.codigo_tarjeta,
+              }
+            : p,
+        ),
+      );
+    } catch (err) {
+      alert(`Error al vincular tarjeta: ${err.message}`);
+    }
   };
 
   // ── Facultades ─────────────────────────────────────────────────────────────
   const handleSaveFacultad = async (data) => {
     try {
       if (data.id) {
-        const updated = await updateFacultad(token, data.id, { nombre: data.nombre });
-        setFacultades(p => p.map(f => f.id === updated.id ? { ...f, ...updated } : f));
+        const updated = await updateFacultad(token, data.id, {
+          nombre: data.nombre,
+        });
+        setFacultades((p) =>
+          p.map((f) => (f.id === updated.id ? { ...f, ...updated } : f)),
+        );
       } else {
         const created = await createFacultad(token, { nombre: data.nombre });
-        setFacultades(p => [...p, { ...created, total_programas: 0 }]);
+        setFacultades((p) => [...p, { ...created, total_programas: 0 }]);
       }
-    } catch (err) { alert(`Error: ${err.message}`); }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
     closeM();
   };
 
   const handleDeleteFacultad = async (item) => {
-    if (!window.confirm(`¿Eliminar la facultad "${item.nombre}" y todos sus programas?`)) return;
+    if (
+      !window.confirm(
+        `¿Eliminar la facultad "${item.nombre}" y todos sus programas?`,
+      )
+    )
+      return;
     try {
       await deleteFacultad(token, item.id);
-      setFacultades(p => p.filter(f => f.id !== item.id));
-      setProgramas(p => p.filter(pr => pr.facultad_id !== item.id));
-    } catch (err) { alert(`Error: ${err.message}`); }
+      setFacultades((p) => p.filter((f) => f.id !== item.id));
+      setProgramas((p) => p.filter((pr) => pr.facultad_id !== item.id));
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
   };
 
   // ── Programas ──────────────────────────────────────────────────────────────
   const handleSavePrograma = async (data) => {
     try {
       if (data.id) {
-        const updated = await updatePrograma(token, data.id, { nombre: data.nombre, codigo: data.codigo || null, facultad_id: data.facultad_id });
-        setProgramas(p => p.map(pr => pr.id === updated.id ? updated : pr));
+        const updated = await updatePrograma(token, data.id, {
+          nombre: data.nombre,
+          codigo: data.codigo || null,
+          facultad_id: data.facultad_id,
+        });
+        setProgramas((p) =>
+          p.map((pr) => (pr.id === updated.id ? updated : pr)),
+        );
       } else {
-        const created = await createPrograma(token, { nombre: data.nombre, codigo: data.codigo || null, facultad_id: data.facultad_id });
-        setProgramas(p => [...p, created]);
-        setFacultades(prev => prev.map(f => f.id === created.facultad_id ? { ...f, total_programas: (f.total_programas ?? 0) + 1 } : f));
+        const created = await createPrograma(token, {
+          nombre: data.nombre,
+          codigo: data.codigo || null,
+          facultad_id: data.facultad_id,
+        });
+        setProgramas((p) => [...p, created]);
+        setFacultades((prev) =>
+          prev.map((f) =>
+            f.id === created.facultad_id
+              ? { ...f, total_programas: (f.total_programas ?? 0) + 1 }
+              : f,
+          ),
+        );
       }
-    } catch (err) { alert(`Error: ${err.message}`); }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
     closeM();
   };
 
@@ -396,32 +666,60 @@ const AdminPage = ({ onLogout }) => {
     if (!window.confirm(`¿Eliminar el programa "${item.nombre}"?`)) return;
     try {
       await deletePrograma(token, item.id);
-      setProgramas(p => p.filter(pr => pr.id !== item.id));
-      setFacultades(prev => prev.map(f => f.id === item.facultad_id ? { ...f, total_programas: Math.max(0, (f.total_programas ?? 1) - 1) } : f));
-    } catch (err) { alert(`Error: ${err.message}`); }
+      setProgramas((p) => p.filter((pr) => pr.id !== item.id));
+      setFacultades((prev) =>
+        prev.map((f) =>
+          f.id === item.facultad_id
+            ? {
+                ...f,
+                total_programas: Math.max(0, (f.total_programas ?? 1) - 1),
+              }
+            : f,
+        ),
+      );
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
   };
 
   // ── Horarios ───────────────────────────────────────────────────────────────
   const handleSaveHorario = async (data) => {
-    const isEdit = data.id && typeof data.id === 'number' && data.id < 1e12;
+    const isEdit = data.id && typeof data.id === "number" && data.id < 1e12;
     try {
       if (isEdit) {
-        const updated = await updateHorario(token, data.id, { dia_semana_id: data.dia_semana_id, hora_inicio: data.hora_inicio, hora_fin: data.hora_fin });
-        setHorarios(p => p.map(h => h.id === updated.id ? updated : h));
+        const updated = await updateHorario(token, data.id, {
+          dia_semana_id: data.dia_semana_id,
+          hora_inicio: data.hora_inicio,
+          hora_fin: data.hora_fin,
+        });
+        setHorarios((p) => p.map((h) => (h.id === updated.id ? updated : h)));
       } else {
-        const created = await createHorario(token, { dia_semana_id: data.dia_semana_id, hora_inicio: data.hora_inicio, hora_fin: data.hora_fin });
-        setHorarios(p => [...p, created]);
+        const created = await createHorario(token, {
+          dia_semana_id: data.dia_semana_id,
+          hora_inicio: data.hora_inicio,
+          hora_fin: data.hora_fin,
+        });
+        setHorarios((p) => [...p, created]);
       }
-    } catch (err) { alert(`Error: ${err.message}`); }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
     closeM();
   };
 
   const handleDeleteHorario = async (item) => {
-    if (!window.confirm(`¿Eliminar la franja "${item.dia} ${item.hora_inicio}–${item.hora_fin}"?`)) return;
+    if (
+      !window.confirm(
+        `¿Eliminar la franja "${item.dia} ${item.hora_inicio}–${item.hora_fin}"?`,
+      )
+    )
+      return;
     try {
       await deleteHorario(token, item.id);
-      setHorarios(p => p.filter(h => h.id !== item.id));
-    } catch (err) { alert(`Error: ${err.message}`); }
+      setHorarios((p) => p.filter((h) => h.id !== item.id));
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
   };
 
   // ── Dispositivos ───────────────────────────────────────────────────────────
@@ -431,22 +729,84 @@ const AdminPage = ({ onLogout }) => {
       if (isEdit) {
         const { id, ...campos } = formData;
         const updated = await updateDispositivo(token, id, campos);
-        setDevices(prev => prev.map(d => d.id === updated.id ? updated : d));
+        setDevices((prev) =>
+          prev.map((d) => (d.id === updated.id ? updated : d)),
+        );
       } else {
         const created = await createDispositivo(token, formData);
-        setDevices(prev => [...prev, created]);
+        setDevices((prev) => [...prev, created]);
       }
       closeM();
-    } catch (err) { alert(`Error al guardar dispositivo: ${err.message}`); }
+    } catch (err) {
+      alert(`Error al guardar dispositivo: ${err.message}`);
+    }
   };
 
   const handleCambiarEstadoDevice = async (device, nuevoEstado) => {
-    const accion = nuevoEstado === 'Inactivo' ? 'desactivar' : `cambiar a "${nuevoEstado}"`;
-    if (!window.confirm(`¿Deseas ${accion} el dispositivo "${device.codigo}"?`)) return;
+    const accion =
+      nuevoEstado === "Inactivo" ? "desactivar" : `cambiar a "${nuevoEstado}"`;
+    if (!window.confirm(`¿Deseas ${accion} el dispositivo "${device.codigo}"?`))
+      return;
     try {
       await cambiarEstadoDispositivo(token, device.id, nuevoEstado);
-      setDevices(prev => prev.map(d => d.id === device.id ? { ...d, estado: nuevoEstado } : d));
-    } catch (err) { alert(`Error: ${err.message}`); }
+      setDevices((prev) =>
+        prev.map((d) =>
+          d.id === device.id ? { ...d, estado: nuevoEstado } : d,
+        ),
+      );
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // ── Aulas ──────────────────────────────────────────────────────────────────
+  const handleSaveAula = async (formData) => {
+    const isEdit = !!formData.id;
+    try {
+      if (isEdit) {
+        const { id, ...campos } = formData;
+        const updated = await updateAula(token, id, campos);
+        setAulas((prev) =>
+          prev.map((a) => (a.id === updated.id ? updated : a)),
+        );
+      } else {
+        const { numero, nombre, edificio, piso, capacidad } = formData;
+        const created = await createAula(token, { numero, nombre, edificio, piso, capacidad });
+        setAulas((prev) => [...prev, created]);
+      }
+      closeM();
+    } catch (err) {
+      alert(`Error al guardar aula: ${err.message}`);
+    }
+  };
+
+  const handleDeleteAula = async (item) => {
+    const bloqueo = item.total_cursos > 0 || item.total_dispositivos > 0;
+    if (bloqueo) {
+      alert(
+        `No se puede eliminar "${item.numero}":\n` +
+          (item.total_cursos > 0
+            ? `• Asignada a ${item.total_cursos} curso(s)\n`
+            : "") +
+          (item.total_dispositivos > 0
+            ? `• Tiene ${item.total_dispositivos} dispositivo(s)\n`
+            : "") +
+          "\nReasigna o elimina esas dependencias primero.",
+      );
+      return;
+    }
+    if (
+      !window.confirm(
+        `¿Eliminar el aula "${item.numero}"? Esta acción no se puede deshacer.`,
+      )
+    )
+      return;
+    try {
+      await deleteAula(token, item.id);
+      setAulas((prev) => prev.filter((a) => a.id !== item.id));
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -455,17 +815,18 @@ const AdminPage = ({ onLogout }) => {
 
   const filtPersonas = useMemo(() => {
     let d = personas;
-    if (rolF !== 'Todos')        d = d.filter(p => p.rol === rolF);
-    if (estadoF === 'Activos')   d = d.filter(p => p.activo);
-    if (estadoF === 'Inactivos') d = d.filter(p => !p.activo);
+    if (rolF !== "Todos") d = d.filter((p) => p.rol === rolF);
+    if (estadoF === "Activos") d = d.filter((p) => p.activo);
+    if (estadoF === "Inactivos") d = d.filter((p) => !p.activo);
     if (search.trim()) {
       const q = search.toLowerCase();
-      d = d.filter(p =>
-        `${p.nombre} ${p.apellido}`.toLowerCase().includes(q) ||
-        p.correo.toLowerCase().includes(q) ||
-        p.rol?.toLowerCase().includes(q) ||
-        p.programa?.toLowerCase().includes(q) ||
-        p.codigoTarjeta?.toLowerCase().includes(q)
+      d = d.filter(
+        (p) =>
+          `${p.nombre} ${p.apellido}`.toLowerCase().includes(q) ||
+          p.correo.toLowerCase().includes(q) ||
+          p.rol?.toLowerCase().includes(q) ||
+          p.programa?.toLowerCase().includes(q) ||
+          p.codigoTarjeta?.toLowerCase().includes(q),
       );
     }
     return d;
@@ -473,11 +834,15 @@ const AdminPage = ({ onLogout }) => {
 
   const cursosFilt = useMemo(() => {
     let d = cursos;
-    if (estadoF === 'Activos')   d = d.filter(c => c.activo);
-    if (estadoF === 'Inactivos') d = d.filter(c => !c.activo);
+    if (estadoF === "Activos") d = d.filter((c) => c.activo);
+    if (estadoF === "Inactivos") d = d.filter((c) => !c.activo);
     if (search.trim()) {
       const q = search.toLowerCase();
-      d = d.filter(c => [c.codigo, c.nombre, c.docente].some(v => v?.toLowerCase().includes(q)));
+      d = d.filter((c) =>
+        [c.codigo, c.nombre, c.docente].some((v) =>
+          v?.toLowerCase().includes(q),
+        ),
+      );
     }
     return d;
   }, [cursos, estadoF, search]);
@@ -485,116 +850,345 @@ const AdminPage = ({ onLogout }) => {
   const filtHorarios = useMemo(() => {
     if (!search.trim()) return horarios;
     const q = search.toLowerCase();
-    return horarios.filter(h => h.dia?.toLowerCase().includes(q) || h.hora_inicio?.includes(q) || h.hora_fin?.includes(q));
+    return horarios.filter(
+      (h) =>
+        h.dia?.toLowerCase().includes(q) ||
+        h.hora_inicio?.includes(q) ||
+        h.hora_fin?.includes(q),
+    );
   }, [horarios, search]);
 
   const devicesFilt = useMemo(() => {
     let d = devices;
-    if (estadoDevF !== 'Todos') d = d.filter(dev => dev.estado === estadoDevF);
+    if (estadoDevF !== "Todos")
+      d = d.filter((dev) => dev.estado === estadoDevF);
     if (search.trim()) {
       const q = search.toLowerCase();
-      d = d.filter(dev =>
-        dev.codigo?.toLowerCase().includes(q) ||
-        dev.aula?.toLowerCase().includes(q) ||
-        dev.ip_address?.toLowerCase().includes(q) ||
-        dev.mac_address?.toLowerCase().includes(q)
+      d = d.filter(
+        (dev) =>
+          dev.codigo?.toLowerCase().includes(q) ||
+          dev.aula?.toLowerCase().includes(q) ||
+          dev.ip_address?.toLowerCase().includes(q) ||
+          dev.mac_address?.toLowerCase().includes(q),
       );
     }
     return d;
   }, [devices, estadoDevF, search]);
 
-  const hayF = search.trim() || rolF !== 'Todos' || estadoF !== 'Todos';
-  const reset = () => { setSearch(''); setRolF('Todos'); setEstadoF('Todos'); };
+  const hayF = search.trim() || rolF !== "Todos" || estadoF !== "Todos";
+  const reset = () => {
+    setSearch("");
+    setRolF("Todos");
+    setEstadoF("Todos");
+  };
 
-  const docentesList = personas.filter(p => p.rol === 'docente' && p.activo);
+  const docentesList = personas.filter((p) => p.rol === "docente" && p.activo);
 
   // ─────────────────────────────────────────────────────────────────────────
   // COLUMNAS
   // ─────────────────────────────────────────────────────────────────────────
 
   const colsFacultades = [
-    { key: 'nombre', label: 'Nombre' },
-    { key: 'total_programas', label: 'Programas', align: 'center',
-      render: (v) => <span style={{ color: theme.colors.outline, fontSize: theme.fontSizes.xs }}>{v ?? 0} programa{(v ?? 0) !== 1 ? 's' : ''}</span> },
-    { key: 'created_at', label: 'Creada',
-      render: (v) => v ? new Date(v).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+    { key: "nombre", label: "Nombre" },
+    {
+      key: "total_programas",
+      label: "Programas",
+      align: "center",
+      render: (v) => (
+        <span
+          style={{ color: theme.colors.outline, fontSize: theme.fontSizes.xs }}
+        >
+          {v ?? 0} programa{(v ?? 0) !== 1 ? "s" : ""}
+        </span>
+      ),
+    },
+    {
+      key: "created_at",
+      label: "Creada",
+      render: (v) =>
+        v
+          ? new Date(v).toLocaleDateString("es-CO", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "—",
+    },
   ];
 
   const colsProgramas = [
-    { key: 'nombre',   label: 'Programa' },
-    { key: 'codigo', label: 'Código',
-      render: (v) => v
-        ? <code style={{ fontSize: theme.fontSizes.xs, background: theme.colors.surfaceContainerLow, padding: '2px 6px', borderRadius: 4 }}>{v}</code>
-        : <span style={{ color: theme.colors.outline }}>—</span> },
-    { key: 'facultad', label: 'Facultad' },
+    { key: "nombre", label: "Programa" },
+    {
+      key: "codigo",
+      label: "Código",
+      render: (v) =>
+        v ? (
+          <code
+            style={{
+              fontSize: theme.fontSizes.xs,
+              background: theme.colors.surfaceContainerLow,
+              padding: "2px 6px",
+              borderRadius: 4,
+            }}
+          >
+            {v}
+          </code>
+        ) : (
+          <span style={{ color: theme.colors.outline }}>—</span>
+        ),
+    },
+    { key: "facultad", label: "Facultad" },
   ];
 
   const colsHorarios = [
-    { key: 'dia',         label: 'Día' },
-    { key: 'hora_inicio', label: 'Inicio' },
-    { key: 'hora_fin',    label: 'Fin' },
-    { key: 'hora_inicio', label: 'Duración',
+    { key: "dia", label: "Día" },
+    { key: "hora_inicio", label: "Inicio" },
+    { key: "hora_fin", label: "Fin" },
+    {
+      key: "hora_inicio",
+      label: "Duración",
       render: (v, row) => {
         const d = durTexto(row.hora_inicio, row.hora_fin);
-        return d
-          ? <span style={{ background: theme.colors.primaryFixed, color: theme.colors.primary, padding: '2px 8px', borderRadius: 99, fontSize: theme.fontSizes.xs, fontWeight: 600 }}>⏱ {d}</span>
-          : '—';
-      } },
-    { key: 'created_at', label: 'Creado',
-      render: (v) => v ? new Date(v).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+        return d ? (
+          <span
+            style={{
+              background: theme.colors.primaryFixed,
+              color: theme.colors.primary,
+              padding: "2px 8px",
+              borderRadius: 99,
+              fontSize: theme.fontSizes.xs,
+              fontWeight: 600,
+            }}
+          >
+            ⏱ {d}
+          </span>
+        ) : (
+          "—"
+        );
+      },
+    },
+    {
+      key: "created_at",
+      label: "Creado",
+      render: (v) =>
+        v
+          ? new Date(v).toLocaleDateString("es-CO", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "—",
+    },
   ];
 
   const colsAulas = [
-    { key: 'numero',    label: 'Número' },
-    { key: 'nombre',    label: 'Nombre' },
-    { key: 'edificio',  label: 'Edificio' },
-    { key: 'piso',      label: 'Piso',      align: 'center' },
-    { key: 'capacidad', label: 'Capacidad', align: 'center', render: (v) => v ? `${v} pers.` : '—' },
+    { key: "numero", label: "Número" },
+    { key: "nombre", label: "Nombre" },
+    { key: "edificio", label: "Edificio" },
+    { key: "piso", label: "Piso", align: "center" },
+    {
+      key: "capacidad",
+      label: "Capacidad",
+      align: "center",
+      render: (v) => (v ? `${v} pers.` : "—"),
+    },
+    {
+      key: "total_cursos",
+      label: "Cursos",
+      align: "center",
+      render: (v) => (
+        <span
+          style={{
+            background: theme.colors.primaryFixed,
+            color: theme.colors.primary,
+            padding: "2px 8px",
+            borderRadius: 99,
+            fontSize: theme.fontSizes.xs,
+            fontWeight: 700,
+          }}
+        >
+          {v ?? 0}
+        </span>
+      ),
+    },
+    {
+      key: "total_dispositivos",
+      label: "Dispositivos",
+      align: "center",
+      render: (v) => (
+        <span
+          style={{
+            background: theme.colors.surfaceContainerHigh,
+            color: theme.colors.outline,
+            padding: "2px 8px",
+            borderRadius: 99,
+            fontSize: theme.fontSizes.xs,
+            fontWeight: 600,
+          }}
+        >
+          {v ?? 0}
+        </span>
+      ),
+    },
   ];
 
   const colsCursos = [
-    { key: 'codigo', label: 'Código', render: (v) => v ? <code style={{ fontSize: theme.fontSizes.xs, background: theme.colors.surfaceContainerLow, padding: '2px 6px', borderRadius: 4 }}>{v}</code> : '—' },
-    { key: 'nombre', label: 'Nombre' },
-    { key: 'docente', label: 'Docente', render: (v) => v ?? <span style={{ color: theme.colors.error, fontSize: theme.fontSizes.xs }}>Sin asignar</span> },
-    { key: 'total_estudiantes', label: 'Inscritos', align: 'center', render: (v) => <span style={{ background: theme.colors.primaryFixed, color: theme.colors.primary, padding: '2px 8px', borderRadius: 99, fontSize: theme.fontSizes.xs, fontWeight: 700 }}>{v ?? 0}</span> },
-    { key: 'fecha_inicio', label: 'Inicio', render: (v) => v?.slice(0, 10) ?? '—' },
-    { key: 'fecha_fin',    label: 'Fin',    render: (v) => v?.slice(0, 10) ?? '—' },
-    { key: 'activo', label: 'Estado', render: (v) => <StatusDot active={v} /> },
+    {
+      key: "codigo",
+      label: "Código",
+      render: (v) =>
+        v ? (
+          <code
+            style={{
+              fontSize: theme.fontSizes.xs,
+              background: theme.colors.surfaceContainerLow,
+              padding: "2px 6px",
+              borderRadius: 4,
+            }}
+          >
+            {v}
+          </code>
+        ) : (
+          "—"
+        ),
+    },
+    { key: "nombre", label: "Nombre" },
+    {
+      key: "docente",
+      label: "Docente",
+      render: (v) =>
+        v ?? (
+          <span
+            style={{ color: theme.colors.error, fontSize: theme.fontSizes.xs }}
+          >
+            Sin asignar
+          </span>
+        ),
+    },
+    {
+      key: "total_estudiantes",
+      label: "Inscritos",
+      align: "center",
+      render: (v) => (
+        <span
+          style={{
+            background: theme.colors.primaryFixed,
+            color: theme.colors.primary,
+            padding: "2px 8px",
+            borderRadius: 99,
+            fontSize: theme.fontSizes.xs,
+            fontWeight: 700,
+          }}
+        >
+          {v ?? 0}
+        </span>
+      ),
+    },
+    {
+      key: "fecha_inicio",
+      label: "Inicio",
+      render: (v) => v?.slice(0, 10) ?? "—",
+    },
+    { key: "fecha_fin", label: "Fin", render: (v) => v?.slice(0, 10) ?? "—" },
+    { key: "activo", label: "Estado", render: (v) => <StatusDot active={v} /> },
   ];
 
   const colsDevices = [
-    { key: 'codigo', label: 'Código',
+    {
+      key: "codigo",
+      label: "Código",
       render: (v) => (
-        <code style={{ fontFamily: 'Courier New, monospace', fontWeight: 700,
-          fontSize: theme.fontSizes.sm, color: theme.colors.onSurface }}>
+        <code
+          style={{
+            fontFamily: "Courier New, monospace",
+            fontWeight: 700,
+            fontSize: theme.fontSizes.sm,
+            color: theme.colors.onSurface,
+          }}
+        >
           {v}
         </code>
       ),
     },
-    { key: 'aula', label: 'Aula', render: (v) => v ?? <span style={{ color: theme.colors.outline }}>—</span> },
-    { key: 'ip_address', label: 'IP',
-      render: (v) => v
-        ? <code style={{ fontFamily: 'Courier New, monospace', fontSize: theme.fontSizes.xs, color: theme.colors.onSurfaceVariant }}>{v}</code>
-        : <span style={{ color: theme.colors.outline }}>—</span> },
-    { key: 'mac_address', label: 'MAC',
-      render: (v) => v
-        ? <code style={{ fontFamily: 'Courier New, monospace', fontSize: theme.fontSizes.xs, color: theme.colors.onSurfaceVariant }}>{v}</code>
-        : <span style={{ color: theme.colors.outline }}>—</span> },
-    { key: 'estado', label: 'Estado',
+    {
+      key: "aula",
+      label: "Aula",
+      render: (v) =>
+        v ?? <span style={{ color: theme.colors.outline }}>—</span>,
+    },
+    {
+      key: "ip_address",
+      label: "IP",
+      render: (v) =>
+        v ? (
+          <code
+            style={{
+              fontFamily: "Courier New, monospace",
+              fontSize: theme.fontSizes.xs,
+              color: theme.colors.onSurfaceVariant,
+            }}
+          >
+            {v}
+          </code>
+        ) : (
+          <span style={{ color: theme.colors.outline }}>—</span>
+        ),
+    },
+    {
+      key: "mac_address",
+      label: "MAC",
+      render: (v) =>
+        v ? (
+          <code
+            style={{
+              fontFamily: "Courier New, monospace",
+              fontSize: theme.fontSizes.xs,
+              color: theme.colors.onSurfaceVariant,
+            }}
+          >
+            {v}
+          </code>
+        ) : (
+          <span style={{ color: theme.colors.outline }}>—</span>
+        ),
+    },
+    {
+      key: "estado",
+      label: "Estado",
       render: (v) => {
         const m = estadoDevMeta[v] ?? estadoDevMeta.Inactivo;
         return (
-          <span style={{ background: m.bg, color: m.color, padding: '2px 8px',
-            borderRadius: 99, fontSize: theme.fontSizes.xs, fontWeight: 700 }}>
+          <span
+            style={{
+              background: m.bg,
+              color: m.color,
+              padding: "2px 8px",
+              borderRadius: 99,
+              fontSize: theme.fontSizes.xs,
+              fontWeight: 700,
+            }}
+          >
             {v}
           </span>
         );
       },
     },
-    { key: 'ultima_conexion', label: 'Última conexión',
-      render: (v) => v
-        ? new Date(v).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        : <span style={{ color: theme.colors.outline }}>—</span> },
+    {
+      key: "ultima_conexion",
+      label: "Última conexión",
+      render: (v) =>
+        v ? (
+          new Date(v).toLocaleString("es-CO", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        ) : (
+          <span style={{ color: theme.colors.outline }}>—</span>
+        ),
+    },
   ];
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -604,76 +1198,132 @@ const AdminPage = ({ onLogout }) => {
     <AppLayout user={user} onLogout={onLogout}>
       <PageHeader>
         <Title>Panel de Administración</Title>
-        <Subtitle>Gestión completa de la base de datos — SmartClass RFID</Subtitle>
+        <Subtitle>
+          Gestión completa de la base de datos — SmartClass RFID
+        </Subtitle>
       </PageHeader>
 
       <StatsGrid>
-        {ADMIN_STATS.map(s => <AdminStatCard key={s.id} stat={s} />)}
+        {ADMIN_STATS.map((s) => (
+          <AdminStatCard key={s.id} stat={s} />
+        ))}
       </StatsGrid>
 
       {/* ── Tabs ── */}
       <TabsScroll>
         <TabsBar>
-          {TABS.map(t => (
-            <Tab key={t.id} $a={tab === t.id} onClick={() => { setTab(t.id); reset(); }}>
-              <Icon name={t.icon} size="sm" />{t.label}
+          {TABS.map((t) => (
+            <Tab
+              key={t.id}
+              $a={tab === t.id}
+              onClick={() => {
+                setTab(t.id);
+                reset();
+              }}
+            >
+              <Icon name={t.icon} size="sm" />
+              {t.label}
             </Tab>
           ))}
         </TabsBar>
       </TabsScroll>
 
       {/* ══ PERSONAS ══ */}
-      {tab === 'personas' && (
+      {tab === "personas" && (
         <section>
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Personas ({personas.length})</SectionTitle>
-              <SectionDesc>Docentes, estudiantes y administradores registrados en el sistema.</SectionDesc>
+              <SectionDesc>
+                Docentes, estudiantes y administradores registrados en el
+                sistema.
+              </SectionDesc>
             </SectionLeft>
-            <div style={{ display: 'flex', gap: '.5rem' }}>
-              <Button variant="outlined" size="sm" onClick={loadPersonas} title="Recargar datos">
+            <div style={{ display: "flex", gap: ".5rem" }}>
+              <Button
+                variant="outlined"
+                size="sm"
+                onClick={loadPersonas}
+                title="Recargar datos"
+              >
                 <Icon name="refresh" size="sm" />
               </Button>
-              <Button size="sm" onClick={() => openM('persona')}>
-                <Icon name="person_add" size="sm" />Nueva persona
+              <Button size="sm" onClick={() => openM("persona")}>
+                <Icon name="person_add" size="sm" />
+                Nueva persona
               </Button>
             </div>
           </SectionHeader>
 
           {!persLoading && persError && (
             <ErrorBox role="alert">
-              <Icon name="error" size="sm" />{persError}
-              <Button variant="ghost" size="sm" onClick={loadPersonas} style={{ marginLeft: 'auto' }}>Reintentar</Button>
+              <Icon name="error" size="sm" />
+              {persError}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadPersonas}
+                style={{ marginLeft: "auto" }}
+              >
+                Reintentar
+              </Button>
             </ErrorBox>
           )}
 
           {persLoading ? (
-            <LoadingBox><Spinner />Cargando personas desde la base de datos…</LoadingBox>
+            <LoadingBox>
+              <Spinner />
+              Cargando personas desde la base de datos…
+            </LoadingBox>
           ) : (
             <>
               <ControlsRow>
                 <SearchWrap>
-                  <SIcon><Icon name="search" size="sm" /></SIcon>
-                  <SearchInput placeholder="Buscar por nombre, correo, rol, programa…" value={search} onChange={e => setSearch(e.target.value)} />
+                  <SIcon>
+                    <Icon name="search" size="sm" />
+                  </SIcon>
+                  <SearchInput
+                    placeholder="Buscar por nombre, correo, rol, programa…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
                 </SearchWrap>
                 <FGroup>
                   <FLabel>Rol:</FLabel>
-                  {ROLES_FILTRO.map(r => <FChip key={r} $a={rolF === r} onClick={() => setRolF(r)}>{r}</FChip>)}
+                  {ROLES_FILTRO.map((r) => (
+                    <FChip key={r} $a={rolF === r} onClick={() => setRolF(r)}>
+                      {r}
+                    </FChip>
+                  ))}
                 </FGroup>
                 <FGroup>
                   <FLabel>Estado:</FLabel>
-                  {ESTADO_FILTRO.map(e => <FChip key={e} $a={estadoF === e} onClick={() => setEstadoF(e)}>{e}</FChip>)}
+                  {ESTADO_FILTRO.map((e) => (
+                    <FChip
+                      key={e}
+                      $a={estadoF === e}
+                      onClick={() => setEstadoF(e)}
+                    >
+                      {e}
+                    </FChip>
+                  ))}
                 </FGroup>
                 {hayF && (
-                  <Button variant="ghost" size="sm" onClick={reset}><Icon name="clear" size="sm" />Limpiar</Button>
+                  <Button variant="ghost" size="sm" onClick={reset}>
+                    <Icon name="clear" size="sm" />
+                    Limpiar
+                  </Button>
                 )}
               </ControlsRow>
-              <ResultCount>Mostrando {filtPersonas.length} de {personas.length} personas{hayF && ' (filtrado)'}</ResultCount>
+              <ResultCount>
+                Mostrando {filtPersonas.length} de {personas.length} personas
+                {hayF && " (filtrado)"}
+              </ResultCount>
               <PersonasTable
                 personas={filtPersonas}
-                onEdit={(p) => openM('persona', p)}
+                onEdit={(p) => openM("persona", p)}
                 onToggleActivo={handleToggleActivo}
-                onLinkCard={(p) => openM('linkCard', p)}
+                onLinkCard={(p) => openM("linkCard", p)}
               />
             </>
           )}
@@ -681,173 +1331,405 @@ const AdminPage = ({ onLogout }) => {
       )}
 
       {/* ══ CURSOS ══ */}
-      {tab === 'cursos' && (
+      {tab === "cursos" && (
         <section>
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Cursos ({cursos.length})</SectionTitle>
-              <SectionDesc>Materias con docente, estudiantes inscritos y asignaciones de aula+horario.</SectionDesc>
+              <SectionDesc>
+                Materias con docente, estudiantes inscritos y asignaciones de
+                aula+horario.
+              </SectionDesc>
             </SectionLeft>
-            <div style={{ display: 'flex', gap: '.5rem' }}>
-              <Button variant="outlined" size="sm" onClick={loadCursos} title="Recargar datos"><Icon name="refresh" size="sm" /></Button>
-              <Button size="sm" onClick={() => openM('curso')}><Icon name="add" size="sm" />Nuevo curso</Button>
+            <div style={{ display: "flex", gap: ".5rem" }}>
+              <Button
+                variant="outlined"
+                size="sm"
+                onClick={loadCursos}
+                title="Recargar datos"
+              >
+                <Icon name="refresh" size="sm" />
+              </Button>
+              <Button size="sm" onClick={() => openM("curso")}>
+                <Icon name="add" size="sm" />
+                Nuevo curso
+              </Button>
             </div>
           </SectionHeader>
           <ControlsRow>
             <SearchWrap>
-              <SIcon><Icon name="search" size="sm" /></SIcon>
-              <SearchInput placeholder="Buscar por código, nombre o docente…" value={search} onChange={e => setSearch(e.target.value)} />
+              <SIcon>
+                <Icon name="search" size="sm" />
+              </SIcon>
+              <SearchInput
+                placeholder="Buscar por código, nombre o docente…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </SearchWrap>
             <FGroup>
               <FLabel>Estado:</FLabel>
-              {['Todos', 'Activos', 'Inactivos'].map(e => <FChip key={e} $a={estadoF === e} onClick={() => setEstadoF(e)}>{e}</FChip>)}
+              {["Todos", "Activos", "Inactivos"].map((e) => (
+                <FChip key={e} $a={estadoF === e} onClick={() => setEstadoF(e)}>
+                  {e}
+                </FChip>
+              ))}
             </FGroup>
-            {search.trim() && <Button variant="ghost" size="sm" onClick={() => setSearch('')}><Icon name="clear" size="sm" />Limpiar</Button>}
+            {search.trim() && (
+              <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
+                <Icon name="clear" size="sm" />
+                Limpiar
+              </Button>
+            )}
           </ControlsRow>
-          {cursosLoading && <LoadingBox><Spinner />Cargando cursos desde la base de datos…</LoadingBox>}
+          {cursosLoading && (
+            <LoadingBox>
+              <Spinner />
+              Cargando cursos desde la base de datos…
+            </LoadingBox>
+          )}
           {!cursosLoading && cursosError && (
-            <ErrorBox role="alert"><Icon name="error" size="sm" />{cursosError}
-              <Button variant="ghost" size="sm" onClick={loadCursos} style={{ marginLeft: 'auto' }}>Reintentar</Button>
+            <ErrorBox role="alert">
+              <Icon name="error" size="sm" />
+              {cursosError}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadCursos}
+                style={{ marginLeft: "auto" }}
+              >
+                Reintentar
+              </Button>
             </ErrorBox>
           )}
           {!cursosLoading && !cursosError && (
             <>
-              <ResultCount>Mostrando {cursosFilt.length} de {cursos.length} curso{cursos.length !== 1 ? 's' : ''}</ResultCount>
-              <GenericTable columns={colsCursos} rows={cursosFilt}
+              <ResultCount>
+                Mostrando {cursosFilt.length} de {cursos.length} curso
+                {cursos.length !== 1 ? "s" : ""}
+              </ResultCount>
+              <GenericTable
+                columns={colsCursos}
+                rows={cursosFilt}
                 actions={[
-                  { icon: 'edit', title: 'Ver / editar + estudiantes', onClick: handleEditCurso },
-                  { icon: 'toggle_off', title: 'Desactivar', danger: true, onClick: handleDesactivarCurso },
+                  {
+                    icon: "edit",
+                    title: "Ver / editar + estudiantes",
+                    onClick: handleEditCurso,
+                  },
+                  {
+                    icon: "toggle_off",
+                    title: "Desactivar",
+                    danger: true,
+                    onClick: handleDesactivarCurso,
+                  },
                 ]}
-                emptyMsg="No hay cursos registrados." />
+                emptyMsg="No hay cursos registrados."
+              />
             </>
           )}
         </section>
       )}
 
       {/* ══ ACADÉMICO ══ */}
-      {tab === 'academico' && (
+      {tab === "academico" && (
         <section>
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Estructura académica</SectionTitle>
-              <SectionDesc>Facultades y programas académicos registrados en la base de datos.</SectionDesc>
+              <SectionDesc>
+                Facultades y programas académicos registrados en la base de
+                datos.
+              </SectionDesc>
             </SectionLeft>
-            <Button size="sm" onClick={() => openM(acSub === 'facultades' ? 'facultad' : 'programa')}>
+            <Button
+              size="sm"
+              onClick={() =>
+                openM(acSub === "facultades" ? "facultad" : "programa")
+              }
+            >
               <Icon name="add" size="sm" />
-              {acSub === 'facultades' ? 'Nueva facultad' : 'Nuevo programa'}
+              {acSub === "facultades" ? "Nueva facultad" : "Nuevo programa"}
             </Button>
           </SectionHeader>
           <SubTabsBar>
-            <SubTab $a={acSub === 'facultades'} onClick={() => setAcSub('facultades')}>
-              <Icon name="account_balance" size="sm" />Facultades ({facultades.length})
+            <SubTab
+              $a={acSub === "facultades"}
+              onClick={() => setAcSub("facultades")}
+            >
+              <Icon name="account_balance" size="sm" />
+              Facultades ({facultades.length})
             </SubTab>
-            <SubTab $a={acSub === 'programas'} onClick={() => setAcSub('programas')}>
-              <Icon name="school" size="sm" />Programas ({programas.length})
+            <SubTab
+              $a={acSub === "programas"}
+              onClick={() => setAcSub("programas")}
+            >
+              <Icon name="school" size="sm" />
+              Programas ({programas.length})
             </SubTab>
-            <Button variant="ghost" size="sm" onClick={loadAcademico} style={{ marginLeft: 'auto' }} title="Recargar datos">
-              <Icon name="refresh" size="sm" />Actualizar
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadAcademico}
+              style={{ marginLeft: "auto" }}
+              title="Recargar datos"
+            >
+              <Icon name="refresh" size="sm" />
+              Actualizar
             </Button>
           </SubTabsBar>
-          {acLoading && <LoadingBox><Spinner />Cargando desde la base de datos…</LoadingBox>}
+          {acLoading && (
+            <LoadingBox>
+              <Spinner />
+              Cargando desde la base de datos…
+            </LoadingBox>
+          )}
           {!acLoading && acError && (
-            <ErrorBox role="alert"><Icon name="error" size="sm" />{acError}
-              <Button variant="ghost" size="sm" onClick={loadAcademico} style={{ marginLeft: 'auto' }}>Reintentar</Button>
+            <ErrorBox role="alert">
+              <Icon name="error" size="sm" />
+              {acError}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadAcademico}
+                style={{ marginLeft: "auto" }}
+              >
+                Reintentar
+              </Button>
             </ErrorBox>
           )}
-          {!acLoading && !acError && acSub === 'facultades' && (
-            facultades.length === 0
-              ? <LoadingBox><Icon name="account_balance" size="lg" style={{ color: theme.colors.outline, opacity: .4 }} />No hay facultades registradas. Crea la primera.</LoadingBox>
-              : <GenericTable columns={colsFacultades} rows={facultades}
-                  actions={[
-                    { icon: 'edit',   title: 'Editar',   onClick: (r) => openM('facultad', r) },
-                    { icon: 'delete', title: 'Eliminar', danger: true, onClick: handleDeleteFacultad },
-                  ]} emptyMsg="No hay facultades." />
-          )}
-          {!acLoading && !acError && acSub === 'programas' && (
-            programas.length === 0
-              ? <LoadingBox><Icon name="school" size="lg" style={{ color: theme.colors.outline, opacity: .4 }} />No hay programas registrados.{facultades.length === 0 && ' Primero crea una facultad.'}</LoadingBox>
-              : <GenericTable columns={colsProgramas} rows={programas}
-                  actions={[
-                    { icon: 'edit',   title: 'Editar',   onClick: (r) => openM('programa', r) },
-                    { icon: 'delete', title: 'Eliminar', danger: true, onClick: handleDeletePrograma },
-                  ]} emptyMsg="No hay programas." />
-          )}
+          {!acLoading &&
+            !acError &&
+            acSub === "facultades" &&
+            (facultades.length === 0 ? (
+              <LoadingBox>
+                <Icon
+                  name="account_balance"
+                  size="lg"
+                  style={{ color: theme.colors.outline, opacity: 0.4 }}
+                />
+                No hay facultades registradas. Crea la primera.
+              </LoadingBox>
+            ) : (
+              <GenericTable
+                columns={colsFacultades}
+                rows={facultades}
+                actions={[
+                  {
+                    icon: "edit",
+                    title: "Editar",
+                    onClick: (r) => openM("facultad", r),
+                  },
+                  {
+                    icon: "delete",
+                    title: "Eliminar",
+                    danger: true,
+                    onClick: handleDeleteFacultad,
+                  },
+                ]}
+                emptyMsg="No hay facultades."
+              />
+            ))}
+          {!acLoading &&
+            !acError &&
+            acSub === "programas" &&
+            (programas.length === 0 ? (
+              <LoadingBox>
+                <Icon
+                  name="school"
+                  size="lg"
+                  style={{ color: theme.colors.outline, opacity: 0.4 }}
+                />
+                No hay programas registrados.
+                {facultades.length === 0 && " Primero crea una facultad."}
+              </LoadingBox>
+            ) : (
+              <GenericTable
+                columns={colsProgramas}
+                rows={programas}
+                actions={[
+                  {
+                    icon: "edit",
+                    title: "Editar",
+                    onClick: (r) => openM("programa", r),
+                  },
+                  {
+                    icon: "delete",
+                    title: "Eliminar",
+                    danger: true,
+                    onClick: handleDeletePrograma,
+                  },
+                ]}
+                emptyMsg="No hay programas."
+              />
+            ))}
         </section>
       )}
 
       {/* ══ AULAS (mock) ══ */}
-      {tab === 'aulas' && (
+      {tab === "aulas" && (
         <section>
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Aulas ({aulas.length})</SectionTitle>
               <SectionDesc>Salones y laboratorios.</SectionDesc>
             </SectionLeft>
-            <Button size="sm" onClick={() => openM('aula')}><Icon name="add" size="sm" />Nueva aula</Button>
+            <Button size="sm" onClick={() => openM("aula")}>
+              <Icon name="add" size="sm" />
+              Nueva aula
+            </Button>
           </SectionHeader>
-          <GenericTable columns={colsAulas} rows={aulas}
-            actions={[{ icon: 'edit', title: 'Editar', onClick: (r) => openM('aula', r) }]}
-            emptyMsg="No hay aulas registradas." />
+          <GenericTable
+            columns={colsAulas}
+            rows={aulas}
+            actions={[
+              {
+                icon: "edit",
+                title: "Editar",
+                onClick: (r) => openM("aula", r),
+              },
+            ]}
+            emptyMsg="No hay aulas registradas."
+          />
         </section>
       )}
 
       {/* ══ HORARIOS ══ */}
-      {tab === 'horarios' && (
+      {tab === "horarios" && (
         <section>
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Franjas horarias ({horarios.length})</SectionTitle>
-              <SectionDesc>Cada franja combina un día de la semana con hora de inicio y fin. Se usan para asignar aulas a cursos en <code>aula_curso_horario</code>.</SectionDesc>
+              <SectionDesc>
+                Cada franja combina un día de la semana con hora de inicio y
+                fin. Se usan para asignar aulas a cursos en{" "}
+                <code>aula_curso_horario</code>.
+              </SectionDesc>
             </SectionLeft>
-            <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
-              <Button variant="ghost" size="sm" onClick={loadHorarios} title="Recargar datos"><Icon name="refresh" size="sm" />Actualizar</Button>
-              <Button size="sm" onClick={() => openM('horario')}><Icon name="add" size="sm" />Nueva franja</Button>
+            <div
+              style={{ display: "flex", gap: ".75rem", alignItems: "center" }}
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadHorarios}
+                title="Recargar datos"
+              >
+                <Icon name="refresh" size="sm" />
+                Actualizar
+              </Button>
+              <Button size="sm" onClick={() => openM("horario")}>
+                <Icon name="add" size="sm" />
+                Nueva franja
+              </Button>
             </div>
           </SectionHeader>
           <ControlsRow>
             <SearchWrap>
-              <SIcon><Icon name="search" size="sm" /></SIcon>
-              <SearchInput placeholder="Buscar por día u hora…" value={search} onChange={e => setSearch(e.target.value)} />
+              <SIcon>
+                <Icon name="search" size="sm" />
+              </SIcon>
+              <SearchInput
+                placeholder="Buscar por día u hora…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </SearchWrap>
-            {search.trim() && <Button variant="ghost" size="sm" onClick={() => setSearch('')}><Icon name="clear" size="sm" />Limpiar</Button>}
+            {search.trim() && (
+              <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
+                <Icon name="clear" size="sm" />
+                Limpiar
+              </Button>
+            )}
           </ControlsRow>
-          {search.trim() && <ResultCount>Mostrando {filtHorarios.length} de {horarios.length} franjas (filtrado)</ResultCount>}
-          {horLoading && <LoadingBox><Spinner />Cargando horarios desde la base de datos…</LoadingBox>}
+          {search.trim() && (
+            <ResultCount>
+              Mostrando {filtHorarios.length} de {horarios.length} franjas
+              (filtrado)
+            </ResultCount>
+          )}
+          {horLoading && (
+            <LoadingBox>
+              <Spinner />
+              Cargando horarios desde la base de datos…
+            </LoadingBox>
+          )}
           {!horLoading && horError && (
-            <ErrorBox role="alert"><Icon name="error" size="sm" />{horError}
-              <Button variant="ghost" size="sm" onClick={loadHorarios} style={{ marginLeft: 'auto' }}>Reintentar</Button>
+            <ErrorBox role="alert">
+              <Icon name="error" size="sm" />
+              {horError}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadHorarios}
+                style={{ marginLeft: "auto" }}
+              >
+                Reintentar
+              </Button>
             </ErrorBox>
           )}
-          {!horLoading && !horError && (
-            horarios.length === 0 && !search.trim()
-              ? <LoadingBox><Icon name="schedule" size="lg" style={{ color: theme.colors.outline, opacity: .4 }} />No hay franjas horarias registradas. Crea la primera.</LoadingBox>
-              : <GenericTable columns={colsHorarios} rows={filtHorarios}
-                  actions={[
-                    { icon: 'edit',   title: 'Editar',   onClick: (r) => openM('horario', r) },
-                    { icon: 'delete', title: 'Eliminar', danger: true, onClick: handleDeleteHorario },
-                  ]}
-                  emptyMsg={search.trim() ? 'No hay resultados para la búsqueda.' : 'No hay franjas horarias.'} />
-          )}
+          {!horLoading &&
+            !horError &&
+            (horarios.length === 0 && !search.trim() ? (
+              <LoadingBox>
+                <Icon
+                  name="schedule"
+                  size="lg"
+                  style={{ color: theme.colors.outline, opacity: 0.4 }}
+                />
+                No hay franjas horarias registradas. Crea la primera.
+              </LoadingBox>
+            ) : (
+              <GenericTable
+                columns={colsHorarios}
+                rows={filtHorarios}
+                actions={[
+                  {
+                    icon: "edit",
+                    title: "Editar",
+                    onClick: (r) => openM("horario", r),
+                  },
+                  {
+                    icon: "delete",
+                    title: "Eliminar",
+                    danger: true,
+                    onClick: handleDeleteHorario,
+                  },
+                ]}
+                emptyMsg={
+                  search.trim()
+                    ? "No hay resultados para la búsqueda."
+                    : "No hay franjas horarias."
+                }
+              />
+            ))}
         </section>
       )}
 
       {/* ══ DISPOSITIVOS (API real) ══ */}
-      {tab === 'dispositivos' && (
+      {tab === "dispositivos" && (
         <section>
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Dispositivos RFID ({devices.length})</SectionTitle>
               <SectionDesc>
-                Lectores ESP32 instalados en las aulas. No existe eliminación física:
-                usa el estado <strong>Inactivo</strong> para retirar un dispositivo.
+                Lectores ESP32 instalados en las aulas. No existe eliminación
+                física: usa el estado <strong>Inactivo</strong> para retirar un
+                dispositivo.
               </SectionDesc>
             </SectionLeft>
-            <div style={{ display: 'flex', gap: '.5rem' }}>
-              <Button variant="outlined" size="sm" onClick={loadDispositivos} title="Recargar datos">
+            <div style={{ display: "flex", gap: ".5rem" }}>
+              <Button
+                variant="outlined"
+                size="sm"
+                onClick={loadDispositivos}
+                title="Recargar datos"
+              >
                 <Icon name="refresh" size="sm" />
               </Button>
-              <Button size="sm" onClick={() => openM('device')}>
-                <Icon name="add" size="sm" />Agregar dispositivo
+              <Button size="sm" onClick={() => openM("device")}>
+                <Icon name="add" size="sm" />
+                Agregar dispositivo
               </Button>
             </div>
           </SectionHeader>
@@ -855,36 +1737,59 @@ const AdminPage = ({ onLogout }) => {
           {/* Filtros */}
           <ControlsRow>
             <SearchWrap>
-              <SIcon><Icon name="search" size="sm" /></SIcon>
+              <SIcon>
+                <Icon name="search" size="sm" />
+              </SIcon>
               <SearchInput
                 placeholder="Buscar por código, aula, IP o MAC…"
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={(e) => setSearch(e.target.value)}
               />
             </SearchWrap>
             <FGroup>
               <FLabel>Estado:</FLabel>
-              {ESTADOS_DISPOSITIVO_FILTRO.map(est => (
-                <FChip key={est} $a={estadoDevF === est} onClick={() => setEstadoDevF(est)}>
+              {ESTADOS_DISPOSITIVO_FILTRO.map((est) => (
+                <FChip
+                  key={est}
+                  $a={estadoDevF === est}
+                  onClick={() => setEstadoDevF(est)}
+                >
                   {est}
                 </FChip>
               ))}
             </FGroup>
-            {(search.trim() || estadoDevF !== 'Todos') && (
-              <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setEstadoDevF('Todos'); }}>
-                <Icon name="clear" size="sm" />Limpiar
+            {(search.trim() || estadoDevF !== "Todos") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearch("");
+                  setEstadoDevF("Todos");
+                }}
+              >
+                <Icon name="clear" size="sm" />
+                Limpiar
               </Button>
             )}
           </ControlsRow>
 
           {devLoading && (
-            <LoadingBox><Spinner />Cargando dispositivos desde la base de datos…</LoadingBox>
+            <LoadingBox>
+              <Spinner />
+              Cargando dispositivos desde la base de datos…
+            </LoadingBox>
           )}
 
           {!devLoading && devError && (
             <ErrorBox role="alert">
-              <Icon name="error" size="sm" />{devError}
-              <Button variant="ghost" size="sm" onClick={loadDispositivos} style={{ marginLeft: 'auto' }}>
+              <Icon name="error" size="sm" />
+              {devError}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={loadDispositivos}
+                style={{ marginLeft: "auto" }}
+              >
                 Reintentar
               </Button>
             </ErrorBox>
@@ -893,29 +1798,30 @@ const AdminPage = ({ onLogout }) => {
           {!devLoading && !devError && (
             <>
               <ResultCount>
-                Mostrando {devicesFilt.length} de {devices.length} dispositivo{devices.length !== 1 ? 's' : ''}
-                {(search.trim() || estadoDevF !== 'Todos') && ' (filtrado)'}
+                Mostrando {devicesFilt.length} de {devices.length} dispositivo
+                {devices.length !== 1 ? "s" : ""}
+                {(search.trim() || estadoDevF !== "Todos") && " (filtrado)"}
               </ResultCount>
               <GenericTable
                 columns={colsDevices}
                 rows={devicesFilt}
                 actions={[
                   {
-                    icon: 'edit',
-                    title: 'Editar dispositivo',
-                    onClick: (r) => openM('device', r),
+                    icon: "edit",
+                    title: "Editar dispositivo",
+                    onClick: (r) => openM("device", r),
                   },
                   {
-                    icon: 'toggle_off',
-                    title: 'Cambiar a Inactivo',
+                    icon: "toggle_off",
+                    title: "Cambiar a Inactivo",
                     danger: true,
-                    onClick: (r) => handleCambiarEstadoDevice(r, 'Inactivo'),
+                    onClick: (r) => handleCambiarEstadoDevice(r, "Inactivo"),
                   },
                 ]}
                 emptyMsg={
                   devices.length === 0
-                    ? 'No hay dispositivos registrados.'
-                    : 'No hay dispositivos con los filtros actuales.'
+                    ? "No hay dispositivos registrados."
+                    : "No hay dispositivos con los filtros actuales."
                 }
               />
             </>
@@ -925,44 +1831,60 @@ const AdminPage = ({ onLogout }) => {
 
       {/* ══ MODALES ══ */}
       <PersonaFormModal
-        isOpen={modal.type === 'persona'} onClose={closeM}
-        persona={modal.data} onSave={handleSavePersona}
-        programas={programas} facultades={facultades}
+        isOpen={modal.type === "persona"}
+        onClose={closeM}
+        persona={modal.data}
+        onSave={handleSavePersona}
+        programas={programas}
+        facultades={facultades}
       />
       <LinkCardModal
-        isOpen={modal.type === 'linkCard'} onClose={closeM}
+        isOpen={modal.type === "linkCard"}
+        onClose={closeM}
         persona={modal.data}
         onSave={(id, code) => handleLinkCard(id, code)}
       />
       <DeviceFormModal
-        isOpen={modal.type === 'device'} onClose={closeM}
+        isOpen={modal.type === "device"}
+        onClose={closeM}
         device={modal.data}
         onSave={handleSaveDevice}
         aulas={aulas}
       />
       <FacultadModal
-        isOpen={modal.type === 'facultad'} onClose={closeM}
-        item={modal.data} onSave={handleSaveFacultad}
+        isOpen={modal.type === "facultad"}
+        onClose={closeM}
+        item={modal.data}
+        onSave={handleSaveFacultad}
       />
       <ProgramaModal
-        isOpen={modal.type === 'programa'} onClose={closeM}
-        item={modal.data} onSave={handleSavePrograma} facultades={facultades}
+        isOpen={modal.type === "programa"}
+        onClose={closeM}
+        item={modal.data}
+        onSave={handleSavePrograma}
+        facultades={facultades}
       />
       <AulaModal
-        isOpen={modal.type === 'aula'} onClose={closeM}
+        isOpen={modal.type === "aula"}
+        onClose={closeM}
         item={modal.data}
-        onSave={(d) => {
-          setAulas(p => p.find(x => x.id === d.id) ? p.map(x => x.id === d.id ? d : x) : [...p, d]);
-        }}
+        onSave={handleSaveAula}
       />
       <HorarioModal
-        isOpen={modal.type === 'horario'} onClose={closeM}
-        item={modal.data} onSave={handleSaveHorario} dias={dias}
+        isOpen={modal.type === "horario"}
+        onClose={closeM}
+        item={modal.data}
+        onSave={handleSaveHorario}
+        dias={dias}
       />
       <CursoGestionModal
-        isOpen={modal.type === 'curso'} onClose={closeM}
-        item={modal.data} onSave={handleSaveCurso}
-        docentes={docentesList} aulas={aulas} horarios={horarios}
+        isOpen={modal.type === "curso"}
+        onClose={closeM}
+        item={modal.data}
+        onSave={handleSaveCurso}
+        docentes={docentesList}
+        aulas={aulas}
+        horarios={horarios}
       />
     </AppLayout>
   );
