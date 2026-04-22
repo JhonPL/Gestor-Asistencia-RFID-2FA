@@ -6,19 +6,19 @@ import { avatarColor } from '../../mocks/Attendance.mock';
 
 /**
  * PersonasTable — tabla de gestión de personas (RF-10, RF-12).
- * SRP: solo renderiza la lista y delega acciones al padre.
- * OCP: acciones inyectadas via callbacks sin modificar el componente.
+ * - Cambiar estado activo/inactivo en lugar de eliminar
+ * - Icono de toggle de estado visual
  *
  * @param {Array}    personas
- * @param {Function} onEdit   - recibe la persona
- * @param {Function} onDelete - recibe la persona
- * @param {Function} onLinkCard - vincular tarjeta RFID (RF-12)
+ * @param {Function} onEdit          - recibe la persona
+ * @param {Function} onToggleActivo  - recibe la persona (activa/desactiva)
+ * @param {Function} onLinkCard      - vincular tarjeta RFID (RF-12)
  */
 
 const ROL_BADGE = {
-  docente:        'default',
-  estudiante:     'success',
-  administrador:  'active',
+  docente:       'default',
+  estudiante:    'success',
+  administrador: 'active',
 };
 
 const Wrapper = styled.div`
@@ -52,6 +52,7 @@ const Th = styled.th`
 
 const Tr = styled.tr`
   transition: background-color ${theme.transitions.fast};
+  opacity: ${({ $inactivo }) => $inactivo ? 0.6 : 1};
   &:hover { background-color: ${theme.colors.surfaceContainerLow}; }
 `;
 
@@ -78,6 +79,7 @@ const Avatar = styled.div`
   font-size: ${theme.fontSizes.xs};
   font-weight: ${theme.fontWeights.bold};
   flex-shrink: 0;
+  filter: ${({ $inactivo }) => $inactivo ? 'grayscale(0.6)' : 'none'};
 `;
 
 const PersonName = styled.span`
@@ -110,25 +112,44 @@ const RfidChip = styled.span`
   border-radius: ${theme.radii.md};
 `;
 
-const ActiveDot = styled.span`
-  display: inline-block;
+/* Toggle switch estilo pill */
+const ToggleWrapper = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: ${theme.radii.full};
+  font-size: ${theme.fontSizes.xs};
+  font-weight: ${theme.fontWeights.bold};
+  cursor: pointer;
+  border: none;
+  transition: all ${theme.transitions.fast};
+  background-color: ${({ $activo }) =>
+    $activo ? `${theme.colors.secondary}22` : `${theme.colors.outline}22`};
+  color: ${({ $activo }) => $activo ? theme.colors.secondary : theme.colors.outline};
+
+  &:hover {
+    background-color: ${({ $activo }) =>
+      $activo ? theme.colors.errorContainer : theme.colors.secondaryFixed};
+    color: ${({ $activo }) => $activo ? theme.colors.error : theme.colors.secondary};
+  }
+`;
+
+const ToggleDot = styled.span`
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
-  background-color: ${({ $active }) => ($active ? theme.colors.secondary : theme.colors.outline)};
-  margin-right: 0.375rem;
+  background-color: currentColor;
 `;
 
 const ActionBtn = styled.button`
   padding: 0.375rem;
   border-radius: ${theme.radii.md};
-  color: ${({ $danger }) => ($danger ? theme.colors.error : theme.colors.onSurfaceVariant)};
+  color: ${theme.colors.onSurfaceVariant};
   transition: all ${theme.transitions.fast};
-
   &:hover {
-    background-color: ${({ $danger }) =>
-      $danger ? theme.colors.errorContainer : theme.colors.surfaceContainerHigh};
-    color: ${({ $danger }) => ($danger ? theme.colors.error : theme.colors.primary)};
+    background-color: ${theme.colors.surfaceContainerHigh};
+    color: ${theme.colors.primary};
   }
 `;
 
@@ -146,7 +167,7 @@ const EmptyCell = styled.td`
   font-size: ${theme.fontSizes.sm};
 `;
 
-const PersonasTable = ({ personas = [], onEdit, onDelete, onLinkCard }) => (
+const PersonasTable = ({ personas = [], onEdit, onToggleActivo, onLinkCard }) => (
   <Wrapper>
     <Table>
       <THead>
@@ -169,10 +190,10 @@ const PersonasTable = ({ personas = [], onEdit, onDelete, onLinkCard }) => (
             const av = avatarColor(i);
             const initials = `${p.nombre[0]}${p.apellido[0]}`;
             return (
-              <Tr key={p.id}>
+              <Tr key={p.id} $inactivo={!p.activo}>
                 <Td>
                   <PersonCell>
-                    <Avatar $bg={av.bg} $color={av.color}>{initials}</Avatar>
+                    <Avatar $bg={av.bg} $color={av.color} $inactivo={!p.activo}>{initials}</Avatar>
                     <div>
                       <PersonName>{p.nombre} {p.apellido}</PersonName>
                       <br />
@@ -204,8 +225,14 @@ const PersonasTable = ({ personas = [], onEdit, onDelete, onLinkCard }) => (
                 </Td>
 
                 <Td>
-                  <ActiveDot $active={p.activo} />
-                  <MonoText>{p.activo ? 'Activo' : 'Inactivo'}</MonoText>
+                  <ToggleWrapper
+                    $activo={p.activo}
+                    onClick={() => onToggleActivo?.(p)}
+                    title={p.activo ? 'Clic para desactivar' : 'Clic para activar'}
+                  >
+                    <ToggleDot />
+                    {p.activo ? 'Activo' : 'Inactivo'}
+                  </ToggleWrapper>
                 </Td>
 
                 <Td>
@@ -218,9 +245,6 @@ const PersonasTable = ({ personas = [], onEdit, onDelete, onLinkCard }) => (
                     </ActionBtn>
                     <ActionBtn onClick={() => onEdit?.(p)} title="Editar">
                       <Icon name="edit" size="sm" />
-                    </ActionBtn>
-                    <ActionBtn $danger onClick={() => onDelete?.(p)} title="Eliminar">
-                      <Icon name="delete" size="sm" />
                     </ActionBtn>
                   </ActionsCell>
                 </Td>

@@ -6,10 +6,10 @@ import Button from '../ui/Button';
 import Icon from '../ui/Icon';
 
 /**
- * Navbar — barra de navegación fija.
- * Usa useNavigate para no recargar la página.
- * En modo autenticado muestra chip del usuario + botón de logout.
- * Si el rol es 'administrador' muestra un link extra al panel admin.
+ * Navbar — igual que el original, solo se cambió:
+ * - El link 'Dashboard' → 'Mis cursos' con path '/mis-cursos'
+ * - Se eliminó el link 'Mis cursos' duplicado que apuntaba a '/cursos'
+ * - goHome del docente apunta a '/mis-cursos'
  */
 
 const Nav = styled.nav`
@@ -84,19 +84,16 @@ const Navbar = ({ authenticated = false, user, onLogout, navLinks }) => {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const goHome = () => navigate(authenticated
-    ? (user?.rol === 'administrador' ? '/admin' : '/dashboard')
+    ? (user?.rol === 'administrador' ? '/admin' : '/mis-cursos')
     : '/'
   );
 
   const defaultLinks = authenticated
     ? user?.rol === 'administrador'
       ? [{ label: 'Panel Admin', path: '/admin' }]
-      : [
-          { label: 'Dashboard', path: '/dashboard' },
-          { label: 'Mis cursos', path: '/cursos' },
-        ]
+      : [{ label: 'Mis cursos', path: '/mis-cursos' }]
     : [
-        { label: 'Inicio', path: '/' },
+        { label: 'Inicio', path: '#inicio' },
         { label: 'Cómo funciona', path: '#como-funciona' },
       ];
 
@@ -114,7 +111,17 @@ const Navbar = ({ authenticated = false, user, onLogout, navLinks }) => {
           <NavLink
             key={label}
             $active={location.pathname === path}
-            onClick={() => path.startsWith('#') ? null : navigate(path)}
+            onClick={() => {
+              if (path.startsWith('#')) {
+                const elementId = path.slice(1);
+                const element = document.getElementById(elementId);
+                if (element) {
+                  element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              } else {
+                navigate(path);
+              }
+            }}
           >
             {label}
           </NavLink>

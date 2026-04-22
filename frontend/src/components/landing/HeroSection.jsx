@@ -178,7 +178,7 @@ const FEATURES = [
 /* ── Component ── */
 
 const HeroSection = ({ onGetStarted, sessionData }) => (
-  <Section>
+  <Section id="inicio">
     {/* Fondo */}
     <BackgroundImage aria-hidden="true">
       <img
@@ -194,7 +194,7 @@ const HeroSection = ({ onGetStarted, sessionData }) => (
       <Copy>
         <EyebrowBadge>
           <Icon name="school" size="sm" />
-          UCC Villavicencio · Sistema RFID
+          Universidad Cooperativa de Colombia
         </EyebrowBadge>
 
         <Heading>
