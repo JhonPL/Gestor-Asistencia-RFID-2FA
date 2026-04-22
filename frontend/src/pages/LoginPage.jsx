@@ -15,6 +15,7 @@ import { loginDev } from '../api/authApi';
 // Si usas correos distintos en el seed, cámbialos aquí.
 const ROL_CORREOS = {
   administrador: 'admin@campusucc.edu.co',
+  docente: 'mayra.amador@campusucc.edu.co' // cambia por un docente real de tu BD para probar mejor el rol y permisos
 };
 
 // ─── Styled (igual que el original) ──────────────────────────────────────────
