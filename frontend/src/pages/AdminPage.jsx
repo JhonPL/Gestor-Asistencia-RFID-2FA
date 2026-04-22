@@ -1,8 +1,7 @@
 // src/pages/AdminPage.jsx
-// Cambios respecto al original:
-//   - Tab "académico" usa la API real (getFacultades / getProgramas / CRUD)
-//   - Estado de carga y error por tab
-//   - El resto de tabs siguen usando mocks (se conectarán en siguientes iteraciones)
+// Tab "horarios" conectado a la API real.
+// Tabs académico, facultades y programas también usan API real (sin cambios).
+// El resto de tabs (personas, cursos, aulas, dispositivos) siguen usando mocks.
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
@@ -22,13 +21,16 @@ import Button from '../components/ui/Button';
 import Icon from '../components/ui/Icon';
 import {
   MOCK_PERSONAS, MOCK_DISPOSITIVOS,
-  MOCK_AULAS, MOCK_HORARIOS, MOCK_DIAS, MOCK_CURSOS,
+  MOCK_AULAS, MOCK_DIAS, MOCK_CURSOS,
   MOCK_AULA_CURSO_HORARIO, ADMIN_STATS,
 } from '../mocks/admin.mock';
 import {
   getFacultades, createFacultad, updateFacultad, deleteFacultad,
   getProgramas,  createPrograma,  updatePrograma,  deletePrograma,
 } from '../api/academicoApi';
+import {
+  getHorarios, getDias, createHorario, updateHorario, deleteHorario,
+} from '../api/horariosApi';
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 const TABS = [
@@ -152,11 +154,10 @@ const AdminPage = ({ onLogout }) => {
   const [rolF,    setRolF]    = useState('Todos');
   const [estadoF, setEstadoF] = useState('Todos');
 
-  // ── Datos mock (otros tabs) ────────────────────────────────────────────────
+  // ── Datos mock (tabs no conectados aún) ───────────────────────────────────
   const [personas,  setPersonas]  = useState(MOCK_PERSONAS);
   const [devices,   setDevices]   = useState(MOCK_DISPOSITIVOS);
   const [aulas,     setAulas]     = useState(MOCK_AULAS);
-  const [horarios,  setHorarios]  = useState(MOCK_HORARIOS);
   const [cursos,    setCursos]    = useState(MOCK_CURSOS);
   const [achs,      setAchs]      = useState(MOCK_AULA_CURSO_HORARIO);
 
@@ -166,7 +167,13 @@ const AdminPage = ({ onLogout }) => {
   const [acLoading,     setAcLoading]     = useState(false);
   const [acError,       setAcError]       = useState(null);
 
-  // Carga inicial cuando se entra al tab académico
+  // ── Datos reales: Horarios ─────────────────────────────────────────────────
+  const [horarios,     setHorarios]     = useState([]);
+  const [dias,         setDias]         = useState(MOCK_DIAS); // fallback a mock
+  const [horLoading,   setHorLoading]   = useState(false);
+  const [horError,     setHorError]     = useState(null);
+
+  // ─── Carga Académico ───────────────────────────────────────────────────────
   const loadAcademico = useCallback(async () => {
     if (!token) return;
     setAcLoading(true);
@@ -189,12 +196,36 @@ const AdminPage = ({ onLogout }) => {
     if (tab === 'academico') loadAcademico();
   }, [tab, loadAcademico]);
 
+  // ─── Carga Horarios ────────────────────────────────────────────────────────
+  const loadHorarios = useCallback(async () => {
+    if (!token) return;
+    setHorLoading(true);
+    setHorError(null);
+    try {
+      // Cargar días y horarios en paralelo
+      const [diasData, horariosData] = await Promise.all([
+        getDias(token),
+        getHorarios(token),
+      ]);
+      setDias(diasData);
+      setHorarios(horariosData);
+    } catch (err) {
+      setHorError(err.message);
+    } finally {
+      setHorLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (tab === 'horarios') loadHorarios();
+  }, [tab, loadHorarios]);
+
   // ── Modal ──────────────────────────────────────────────────────────────────
   const [modal, setModal] = useState({ type: null, data: null });
   const openM  = (type, data = null) => setModal({ type, data });
   const closeM = () => setModal({ type: null, data: null });
 
-  // ── Handlers mock (otros tabs) ─────────────────────────────────────────────
+  // ── Helpers mock (otros tabs) ──────────────────────────────────────────────
   const upsert = (setter, item) =>
     setter(p => p.find(x => x.id === item.id) ? p.map(x => x.id === item.id ? item : x) : [...p, item]);
 
@@ -210,11 +241,9 @@ const AdminPage = ({ onLogout }) => {
   const handleSaveFacultad = async (data, item = null) => {
     try {
       if (item) {
-        // Edición
         const updated = await updateFacultad(token, data.id, { nombre: data.nombre });
         setFacultades(p => p.map(f => f.id === updated.id ? { ...f, ...updated } : f));
       } else {
-        // Creación
         const created = await createFacultad(token, { nombre: data.nombre });
         setFacultades(p => [...p, { ...created, total_programas: 0 }]);
       }
@@ -229,7 +258,6 @@ const AdminPage = ({ onLogout }) => {
     try {
       await deleteFacultad(token, item.id);
       setFacultades(p => p.filter(f => f.id !== item.id));
-      // Quitar también los programas huérfanos del estado local
       setProgramas(p => p.filter(pr => pr.facultad_id !== item.id));
     } catch (err) {
       alert(`Error: ${err.message}`);
@@ -240,14 +268,12 @@ const AdminPage = ({ onLogout }) => {
   const handleSavePrograma = async (data, item = null) => {
     try {
       if (item) {
-        // Edición
         const updated = await updatePrograma(token, data.id, {
           nombre: data.nombre,
           codigo: data.codigo || null,
           facultad_id: data.facultad_id,
         });
         setProgramas(p => p.map(pr => pr.id === updated.id ? updated : pr));
-        // Actualizar conteo en facultades
         setFacultades(prev => prev.map(f => ({
           ...f,
           total_programas: programas.filter(pr =>
@@ -255,14 +281,12 @@ const AdminPage = ({ onLogout }) => {
           ).length,
         })));
       } else {
-        // Creación
         const created = await createPrograma(token, {
           nombre: data.nombre,
           codigo: data.codigo || null,
           facultad_id: data.facultad_id,
         });
         setProgramas(p => [...p, created]);
-        // Incrementar conteo en la facultad correspondiente
         setFacultades(prev => prev.map(f =>
           f.id === created.facultad_id
             ? { ...f, total_programas: (f.total_programas ?? 0) + 1 }
@@ -285,6 +309,42 @@ const AdminPage = ({ onLogout }) => {
           ? { ...f, total_programas: Math.max(0, (f.total_programas ?? 1) - 1) }
           : f
       ));
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  // ── Handlers REALES: Horarios ──────────────────────────────────────────────
+  const handleSaveHorario = async (data) => {
+    try {
+      if (data.id && typeof data.id === 'number' && data.id < 1e12) {
+        // Edición — id viene de la BD (número pequeño real)
+        const updated = await updateHorario(token, data.id, {
+          dia_semana_id: data.dia_semana_id,
+          hora_inicio:   data.hora_inicio,
+          hora_fin:      data.hora_fin,
+        });
+        setHorarios(p => p.map(h => h.id === updated.id ? updated : h));
+      } else {
+        // Creación
+        const created = await createHorario(token, {
+          dia_semana_id: data.dia_semana_id,
+          hora_inicio:   data.hora_inicio,
+          hora_fin:      data.hora_fin,
+        });
+        setHorarios(p => [...p, created]);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+    closeM();
+  };
+
+  const handleDeleteHorario = async (item) => {
+    if (!window.confirm(`¿Eliminar la franja "${item.dia} ${item.hora_inicio}–${item.hora_fin}"?`)) return;
+    try {
+      await deleteHorario(token, item.id);
+      setHorarios(p => p.filter(h => h.id !== item.id));
     } catch (err) {
       alert(`Error: ${err.message}`);
     }
@@ -313,6 +373,17 @@ const AdminPage = ({ onLogout }) => {
 
   const docentesList = personas.filter(p => p.rol === 'docente' && p.activo);
 
+  // ── Filtrado horarios ──────────────────────────────────────────────────────
+  const filtHorarios = useMemo(() => {
+    if (!search.trim()) return horarios;
+    const q = search.toLowerCase();
+    return horarios.filter(h =>
+      h.dia?.toLowerCase().includes(q) ||
+      h.hora_inicio?.includes(q) ||
+      h.hora_fin?.includes(q)
+    );
+  }, [horarios, search]);
+
   // ── Columnas de tablas ─────────────────────────────────────────────────────
   const colsFacultades = [
     { key: 'nombre', label: 'Nombre' },
@@ -336,22 +407,28 @@ const AdminPage = ({ onLogout }) => {
     { key: 'facultad', label: 'Facultad' },
   ];
 
-  const colsAulas = [
-    { key: 'numero',    label: 'Número' },
-    { key: 'nombre',    label: 'Nombre' },
-    { key: 'edificio',  label: 'Edificio' },
-    { key: 'piso',      label: 'Piso',      align: 'center' },
-    { key: 'capacidad', label: 'Capacidad', align: 'center', render: (v) => v ? `${v} pers.` : '—' },
-  ];
-
   const colsHorarios = [
     { key: 'dia',         label: 'Día' },
     { key: 'hora_inicio', label: 'Inicio' },
     { key: 'hora_fin',    label: 'Fin' },
     { key: 'hora_inicio', label: 'Duración', render: (v, row) => {
       const d = durTexto(row.hora_inicio, row.hora_fin);
-      return d ? <span style={{ background: theme.colors.primaryFixed, color: theme.colors.primary, padding: '2px 8px', borderRadius: 99, fontSize: theme.fontSizes.xs, fontWeight: 600 }}>⏱ {d}</span> : '—';
+      return d
+        ? <span style={{ background: theme.colors.primaryFixed, color: theme.colors.primary, padding: '2px 8px', borderRadius: 99, fontSize: theme.fontSizes.xs, fontWeight: 600 }}>⏱ {d}</span>
+        : '—';
     }},
+    { key: 'created_at', label: 'Creado', render: (v) => v
+      ? new Date(v).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '—'
+    },
+  ];
+
+  const colsAulas = [
+    { key: 'numero',    label: 'Número' },
+    { key: 'nombre',    label: 'Nombre' },
+    { key: 'edificio',  label: 'Edificio' },
+    { key: 'piso',      label: 'Piso',      align: 'center' },
+    { key: 'capacidad', label: 'Capacidad', align: 'center', render: (v) => v ? `${v} pers.` : '—' },
   ];
 
   const colsCursos = [
@@ -487,7 +564,6 @@ const AdminPage = ({ onLogout }) => {
             </Button>
           </SectionHeader>
 
-          {/* Sub-tabs */}
           <SubTabsBar>
             <SubTab $a={acSub === 'facultades'} onClick={() => setAcSub('facultades')}>
               <Icon name="account_balance" size="sm" />Facultades ({facultades.length})
@@ -495,79 +571,43 @@ const AdminPage = ({ onLogout }) => {
             <SubTab $a={acSub === 'programas'} onClick={() => setAcSub('programas')}>
               <Icon name="school" size="sm" />Programas ({programas.length})
             </SubTab>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={loadAcademico}
-              style={{ marginLeft: 'auto' }}
-              title="Recargar datos"
-            >
-              <Icon name="refresh" size="sm" />
-              Actualizar
+            <Button variant="ghost" size="sm" onClick={loadAcademico} style={{ marginLeft: 'auto' }} title="Recargar datos">
+              <Icon name="refresh" size="sm" />Actualizar
             </Button>
           </SubTabsBar>
 
-          {/* Estado de carga */}
           {acLoading && (
-            <LoadingBox>
-              <Spinner />
-              Cargando desde la base de datos…
-            </LoadingBox>
+            <LoadingBox><Spinner />Cargando desde la base de datos…</LoadingBox>
           )}
-
-          {/* Estado de error */}
           {!acLoading && acError && (
             <ErrorBox role="alert">
-              <Icon name="error" size="sm" />
-              {acError}
-              <Button variant="ghost" size="sm" onClick={loadAcademico} style={{ marginLeft: 'auto' }}>
-                Reintentar
-              </Button>
+              <Icon name="error" size="sm" />{acError}
+              <Button variant="ghost" size="sm" onClick={loadAcademico} style={{ marginLeft: 'auto' }}>Reintentar</Button>
             </ErrorBox>
           )}
-
-          {/* Tabla facultades */}
           {!acLoading && !acError && acSub === 'facultades' && (
-            <>
-              {facultades.length === 0 ? (
-                <LoadingBox>
-                  <Icon name="account_balance" size="lg" style={{ color: theme.colors.outline, opacity: .4 }} />
-                  No hay facultades registradas. Crea la primera.
-                </LoadingBox>
-              ) : (
-                <GenericTable
-                  columns={colsFacultades}
-                  rows={facultades}
+            facultades.length === 0
+              ? <LoadingBox><Icon name="account_balance" size="lg" style={{ color: theme.colors.outline, opacity: .4 }} />No hay facultades registradas. Crea la primera.</LoadingBox>
+              : <GenericTable
+                  columns={colsFacultades} rows={facultades}
                   actions={[
-                    { icon: 'edit',   title: 'Editar',    onClick: (r) => openM('facultad', r) },
-                    { icon: 'delete', title: 'Eliminar',  danger: true, onClick: handleDeleteFacultad },
+                    { icon: 'edit',   title: 'Editar',   onClick: (r) => openM('facultad', r) },
+                    { icon: 'delete', title: 'Eliminar', danger: true, onClick: handleDeleteFacultad },
                   ]}
                   emptyMsg="No hay facultades."
                 />
-              )}
-            </>
           )}
-
-          {/* Tabla programas */}
           {!acLoading && !acError && acSub === 'programas' && (
-            <>
-              {programas.length === 0 ? (
-                <LoadingBox>
-                  <Icon name="school" size="lg" style={{ color: theme.colors.outline, opacity: .4 }} />
-                  No hay programas registrados.{facultades.length === 0 && ' Primero crea una facultad.'}
-                </LoadingBox>
-              ) : (
-                <GenericTable
-                  columns={colsProgramas}
-                  rows={programas}
+            programas.length === 0
+              ? <LoadingBox><Icon name="school" size="lg" style={{ color: theme.colors.outline, opacity: .4 }} />No hay programas registrados.{facultades.length === 0 && ' Primero crea una facultad.'}</LoadingBox>
+              : <GenericTable
+                  columns={colsProgramas} rows={programas}
                   actions={[
                     { icon: 'edit',   title: 'Editar',   onClick: (r) => openM('programa', r) },
                     { icon: 'delete', title: 'Eliminar', danger: true, onClick: handleDeletePrograma },
                   ]}
                   emptyMsg="No hay programas."
                 />
-              )}
-            </>
           )}
         </section>
       )}
@@ -588,25 +628,95 @@ const AdminPage = ({ onLogout }) => {
         </section>
       )}
 
-      {/* ══ HORARIOS ══ */}
+      {/* ══ HORARIOS (API REAL) ══ */}
       {tab === 'horarios' && (
         <section>
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Franjas horarias ({horarios.length})</SectionTitle>
-              <SectionDesc>Cada franja combina un día de la semana con hora de inicio y fin.</SectionDesc>
+              <SectionDesc>
+                Cada franja combina un día de la semana con hora de inicio y fin.
+                Se usan para asignar aulas a cursos en <code>aula_curso_horario</code>.
+              </SectionDesc>
             </SectionLeft>
-            <Button size="sm" onClick={() => openM('horario')}><Icon name="add" size="sm" />Nueva franja</Button>
+            <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
+              <Button variant="ghost" size="sm" onClick={loadHorarios} title="Recargar datos">
+                <Icon name="refresh" size="sm" />Actualizar
+              </Button>
+              <Button size="sm" onClick={() => openM('horario')}>
+                <Icon name="add" size="sm" />Nueva franja
+              </Button>
+            </div>
           </SectionHeader>
-          <GenericTable columns={colsHorarios} rows={horarios}
-            actions={[
-              { icon: 'edit',   title: 'Editar',   onClick: (r) => openM('horario', r) },
-              { icon: 'delete', title: 'Eliminar', danger: true, onClick: (r) => {
-                if (window.confirm(`¿Eliminar la franja "${r.dia} ${r.hora_inicio}–${r.hora_fin}"?`))
-                  setHorarios(p => p.filter(h => h.id !== r.id));
-              }},
-            ]}
-            emptyMsg="No hay franjas horarias." />
+
+          {/* Búsqueda */}
+          <ControlsRow>
+            <SearchWrap>
+              <SIcon><Icon name="search" size="sm" /></SIcon>
+              <SearchInput
+                placeholder="Buscar por día u hora…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </SearchWrap>
+            {search.trim() && (
+              <Button variant="ghost" size="sm" onClick={() => setSearch('')}>
+                <Icon name="clear" size="sm" />Limpiar
+              </Button>
+            )}
+          </ControlsRow>
+
+          {search.trim() && (
+            <ResultCount>
+              Mostrando {filtHorarios.length} de {horarios.length} franjas (filtrado)
+            </ResultCount>
+          )}
+
+          {/* Estado de carga */}
+          {horLoading && (
+            <LoadingBox><Spinner />Cargando horarios desde la base de datos…</LoadingBox>
+          )}
+
+          {/* Estado de error */}
+          {!horLoading && horError && (
+            <ErrorBox role="alert">
+              <Icon name="error" size="sm" />{horError}
+              <Button variant="ghost" size="sm" onClick={loadHorarios} style={{ marginLeft: 'auto' }}>
+                Reintentar
+              </Button>
+            </ErrorBox>
+          )}
+
+          {/* Tabla horarios */}
+          {!horLoading && !horError && (
+            horarios.length === 0 && !search.trim()
+              ? (
+                <LoadingBox>
+                  <Icon name="schedule" size="lg" style={{ color: theme.colors.outline, opacity: .4 }} />
+                  No hay franjas horarias registradas. Crea la primera.
+                </LoadingBox>
+              )
+              : (
+                <GenericTable
+                  columns={colsHorarios}
+                  rows={filtHorarios}
+                  actions={[
+                    {
+                      icon: 'edit',
+                      title: 'Editar',
+                      onClick: (r) => openM('horario', r),
+                    },
+                    {
+                      icon: 'delete',
+                      title: 'Eliminar',
+                      danger: true,
+                      onClick: handleDeleteHorario,
+                    },
+                  ]}
+                  emptyMsg={search.trim() ? 'No hay resultados para la búsqueda.' : 'No hay franjas horarias.'}
+                />
+              )
+          )}
         </section>
       )}
 
@@ -659,11 +769,15 @@ const AdminPage = ({ onLogout }) => {
         isOpen={modal.type === 'aula'} onClose={closeM}
         item={modal.data} onSave={(d) => upsert(setAulas, d)}
       />
+
+      {/* Modal horario — usa handler real */}
       <HorarioModal
         isOpen={modal.type === 'horario'} onClose={closeM}
-        item={modal.data} onSave={(d) => upsert(setHorarios, d)}
-        dias={MOCK_DIAS}
+        item={modal.data}
+        onSave={handleSaveHorario}
+        dias={dias}
       />
+
       <CursoModal
         isOpen={modal.type === 'curso'} onClose={closeM}
         item={modal.data}
