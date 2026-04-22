@@ -104,8 +104,8 @@ const GenericTable = ({ columns = [], rows = [], actions = [], emptyMsg = 'No ha
     <Table>
       <THead>
         <tr>
-          {columns.map(col => (
-            <Th key={col.key} $align={col.align}>{col.label}</Th>
+          {columns.map((col, colIndex) => (
+            <Th key={`${col.key}-${colIndex}`} $align={col.align}>{col.label}</Th>
           ))}
           {actions.length > 0 && <Th $align="right">Acciones</Th>}
         </tr>
@@ -116,8 +116,8 @@ const GenericTable = ({ columns = [], rows = [], actions = [], emptyMsg = 'No ha
         ) : (
           rows.map((row, i) => (
             <Tr key={row.id ?? i}>
-              {columns.map(col => (
-                <Td key={col.key} $align={col.align}>
+              {columns.map((col, colIndex) => (
+                <Td key={`${col.key}-${colIndex}`} $align={col.align}>
                   {col.render ? col.render(row[col.key], row) : (row[col.key] ?? '—')}
                 </Td>
               ))}

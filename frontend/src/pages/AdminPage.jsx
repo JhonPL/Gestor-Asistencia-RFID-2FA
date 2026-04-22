@@ -15,15 +15,13 @@ import LinkCardModal from '../components/admin/LinkCardModal';
 import DeviceFormModal from '../components/admin/DeviceFormModal';
 import { FacultadModal, ProgramaModal } from '../components/admin/FacultadProgramaModals';
 import { AulaModal, HorarioModal } from '../components/admin/AulaHorarioModals';
-import CursoModal from '../components/admin/CursoModal';
+import CursoGestionModal from '../components/admin/CursoGestionModal';
 import Button from '../components/ui/Button';
 import Icon from '../components/ui/Icon';
 import {
   MOCK_DISPOSITIVOS,
   MOCK_AULAS,
   MOCK_DIAS,
-  MOCK_CURSOS,
-  MOCK_AULA_CURSO_HORARIO,
   ADMIN_STATS,
 } from '../mocks/admin.mock';
 import {
@@ -37,6 +35,9 @@ import {
   getPersonas, createPersona, updatePersona,
   toggleActivoPersona, linkTarjetaPersona,
 } from '../api/personasApi';
+import {
+  getCursos, createCurso, updateCurso, desactivarCurso, getCurso,
+} from '../api/cursosApi';
 
 // ─── Tabs ──────────────────────────────────────────────────────────────────────
 const TABS = [
@@ -190,11 +191,33 @@ const AdminPage = ({ onLogout }) => {
   const [horLoading, setHorLoading] = useState(false);
   const [horError,   setHorError]   = useState(null);
 
+  // ── Estado: Cursos (API real) ────────────────────────────────────────────
+  const [cursos,     setCursos]     = useState([]);
+  const [cursosLoading, setCursosLoading] = useState(false);
+  const [cursosError, setCursosError] = useState(null);
+
+  // ── Carga: Cursos ──────────────────────────────────────────────────────────
+  const loadCursos = useCallback(async () => {
+    if (!token) return;
+    setCursosLoading(true);
+    setCursosError(null);
+    try {
+      const data = await getCursos(token);
+      setCursos(data);
+    } catch (err) {
+      setCursosError(err.message);
+    } finally {
+      setCursosLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (tab === 'cursos') loadCursos();
+  }, [tab, loadCursos]);
+
   // ── Estado: Tabs con mock ──────────────────────────────────────────────────
   const [devices, setDevices] = useState(MOCK_DISPOSITIVOS);
   const [aulas,   setAulas]   = useState(MOCK_AULAS);
-  const [cursos,  setCursos]  = useState(MOCK_CURSOS);
-  const [achs,    setAchs]    = useState(MOCK_AULA_CURSO_HORARIO);
 
   // ── Modal ──────────────────────────────────────────────────────────────────
   const [modal, setModal] = useState({ type: null, data: null });
@@ -277,6 +300,46 @@ const AdminPage = ({ onLogout }) => {
   const confirmToggle = (setter, item, nombre) => {
     if (window.confirm(`¿${item.activo ? 'Desactivar' : 'Activar'} "${nombre}"?`))
       setter(p => p.map(x => x.id === item.id ? { ...x, activo: !x.activo } : x));
+  };
+
+  // ── Handlers: Cursos ──────────────────────────────────────────────────────
+  const handleSaveCurso = async (id, payload) => {
+    try {
+      if (id) {
+        const updated = await updateCurso(token, id, payload);
+        setCursos(p => p.map(c => c.id === updated.id ? updated : c));
+      } else {
+        const created = await createCurso(token, payload);
+        setCursos(p => [...p, created]);
+      }
+      closeM();
+    } catch (err) {
+      alert(`Error al guardar curso: ${err.message}`);
+    }
+  };
+
+  const handleDesactivarCurso = async (item) => {
+    if (!item.activo) {
+      alert('El curso ya está inactivo.');
+      return;
+    }
+    if (!window.confirm(`¿Desactivar "${item.nombre}"? Los datos de asistencia se conservarán.`))
+      return;
+    try {
+      await desactivarCurso(token, item.id);
+      setCursos(p => p.map(c => c.id === item.id ? { ...c, activo: false } : c));
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
+  const handleEditCurso = async (item) => {
+    try {
+      const fullCurso = await getCurso(token, item.id);
+      openM('curso', fullCurso);
+    } catch {
+      openM('curso', item);
+    }
   };
 
   // ── Handlers: Personas ─────────────────────────────────────────────────────
@@ -466,6 +529,19 @@ const AdminPage = ({ onLogout }) => {
     return d;
   }, [personas, rolF, estadoF, search]);
 
+  const cursosFilt = useMemo(() => {
+    let d = cursos;
+    if (estadoF === 'Activos')   d = d.filter(c => c.activo);
+    if (estadoF === 'Inactivos') d = d.filter(c => !c.activo);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      d = d.filter(c =>
+        [c.codigo, c.nombre, c.docente].some(v => v?.toLowerCase().includes(q))
+      );
+    }
+    return d;
+  }, [cursos, estadoF, search]);
+
   const filtHorarios = useMemo(() => {
     if (!search.trim()) return horarios;
     const q = search.toLowerCase();
@@ -478,6 +554,8 @@ const AdminPage = ({ onLogout }) => {
 
   const hayF = search.trim() || rolF !== 'Todos' || estadoF !== 'Todos';
   const reset = () => { setSearch(''); setRolF('Todos'); setEstadoF('Todos'); };
+
+  const docentesList = personas.filter(p => p.rol === 'docente' && p.activo);
 
   // ── Columnas de tablas ─────────────────────────────────────────────────────
   const colsFacultades = [
@@ -539,17 +617,13 @@ const AdminPage = ({ onLogout }) => {
   ];
 
   const colsCursos = [
-    { key: 'codigo',       label: 'Código' },
-    { key: 'nombre',       label: 'Nombre' },
-    {
-      key: 'docente', label: 'Docente',
-      render: (v) => v
-        ? v
-        : <span style={{ color: theme.colors.error, fontSize: theme.fontSizes.xs }}>Sin asignar</span>,
-    },
-    { key: 'fecha_inicio', label: 'Inicio' },
-    { key: 'fecha_fin',    label: 'Fin' },
-    { key: 'activo',       label: 'Estado', render: (v) => <StatusDot active={v} /> },
+    { key: 'codigo', label: 'Código', render: (v) => v ? <code style={{ fontSize: theme.fontSizes.xs, background: theme.colors.surfaceContainerLow, padding: '2px 6px', borderRadius: 4 }}>{v}</code> : '—' },
+    { key: 'nombre', label: 'Nombre' },
+    { key: 'docente', label: 'Docente', render: (v) => v ?? <span style={{ color: theme.colors.error, fontSize: theme.fontSizes.xs }}>Sin asignar</span> },
+    { key: 'total_estudiantes', label: 'Inscritos', align: 'center', render: (v) => <span style={{ background: theme.colors.primaryFixed, color: theme.colors.primary, padding: '2px 8px', borderRadius: 99, fontSize: theme.fontSizes.xs, fontWeight: 700 }}>{v ?? 0}</span> },
+    { key: 'fecha_inicio', label: 'Inicio', render: (v) => v?.slice(0, 10) ?? '—' },
+    { key: 'fecha_fin', label: 'Fin', render: (v) => v?.slice(0, 10) ?? '—' },
+    { key: 'activo', label: 'Estado', render: (v) => <StatusDot active={v} /> },
   ];
 
   const colsDevices = [
@@ -662,18 +736,24 @@ const AdminPage = ({ onLogout }) => {
         </section>
       )}
 
-      {/* ══ CURSOS (mock) ══ */}
+      {/* ══ CURSOS (API real) ══ */}
       {tab === 'cursos' && (
         <section>
           <SectionHeader>
             <SectionLeft>
               <SectionTitle>Cursos ({cursos.length})</SectionTitle>
-              <SectionDesc>Materias con docente, fechas de vigencia y asignaciones de aula+horario.</SectionDesc>
+              <SectionDesc>Materias con docente, estudiantes inscritos y asignaciones de aula+horario.</SectionDesc>
             </SectionLeft>
-            <Button size="sm" onClick={() => openM('curso')}>
-              <Icon name="add" size="sm" />Nuevo curso
-            </Button>
+            <div style={{ display: 'flex', gap: '.5rem' }}>
+              <Button variant="outlined" size="sm" onClick={loadCursos} title="Recargar datos">
+                <Icon name="refresh" size="sm" />
+              </Button>
+              <Button size="sm" onClick={() => openM('curso')}>
+                <Icon name="add" size="sm" />Nuevo curso
+              </Button>
+            </div>
           </SectionHeader>
+
           <ControlsRow>
             <SearchWrap>
               <SIcon><Icon name="search" size="sm" /></SIcon>
@@ -683,19 +763,46 @@ const AdminPage = ({ onLogout }) => {
                 onChange={e => setSearch(e.target.value)}
               />
             </SearchWrap>
-          </ControlsRow>
-          <GenericTable
-            columns={colsCursos}
-            rows={cursos.filter(c =>
-              !search.trim() ||
-              [c.codigo, c.nombre, c.docente].some(v => v?.toLowerCase().includes(search.toLowerCase()))
+            <FGroup>
+              <FLabel>Estado:</FLabel>
+              {['Todos', 'Activos', 'Inactivos'].map(e => <FChip key={e} $a={estadoF === e} onClick={() => setEstadoF(e)}>{e}</FChip>)}
+            </FGroup>
+            {search.trim() && (
+              <Button variant="ghost" size="sm" onClick={() => setSearch('')}>
+                <Icon name="clear" size="sm" />Limpiar
+              </Button>
             )}
-            actions={[
-              { icon: 'edit',      title: 'Editar',          onClick: (r) => openM('curso', r) },
-              { icon: 'toggle_on', title: 'Cambiar estado',  onClick: (r) => confirmToggle(setCursos, r, r.nombre) },
-            ]}
-            emptyMsg="No hay cursos registrados."
-          />
+          </ControlsRow>
+
+          {cursosLoading && (
+            <LoadingBox><Spinner />Cargando cursos desde la base de datos…</LoadingBox>
+          )}
+
+          {!cursosLoading && cursosError && (
+            <ErrorBox role="alert">
+              <Icon name="error" size="sm" />{cursosError}
+              <Button variant="ghost" size="sm" onClick={loadCursos} style={{ marginLeft: 'auto' }}>
+                Reintentar
+              </Button>
+            </ErrorBox>
+          )}
+
+          {!cursosLoading && !cursosError && (
+            <>
+              <ResultCount>
+                Mostrando {cursosFilt.length} de {cursos.length} curso{cursos.length !== 1 ? 's' : ''}
+              </ResultCount>
+              <GenericTable
+                columns={colsCursos}
+                rows={cursosFilt}
+                actions={[
+                  { icon: 'edit', title: 'Ver / editar + estudiantes', onClick: handleEditCurso },
+                  { icon: 'toggle_off', title: 'Desactivar', danger: true, onClick: handleDesactivarCurso },
+                ]}
+                emptyMsg="No hay cursos registrados."
+              />
+            </>
+          )}
         </section>
       )}
 
@@ -948,15 +1055,14 @@ const AdminPage = ({ onLogout }) => {
         dias={dias}
       />
 
-      <CursoModal
+      <CursoGestionModal
         isOpen={modal.type === 'curso'}
         onClose={closeM}
         item={modal.data}
-        onSave={(d) => upsert(setCursos, d)}
-        docentes={personas.filter(p => p.rol === 'docente' && p.activo)}
+        onSave={handleSaveCurso}
+        docentes={docentesList}
         aulas={aulas}
         horarios={horarios}
-        achExistentes={modal.data ? achDeCurso(modal.data.id) : []}
       />
     </AppLayout>
   );
