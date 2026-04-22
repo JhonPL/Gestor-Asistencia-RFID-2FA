@@ -83,10 +83,6 @@ const DashboardPage = ({ onLogout }) => {
               {MOCK_CURSOS.map(course => (
                 <CourseCard key={course.id} course={course} onOpenPortal={handleOpenPortal} />
               ))}
-              <AddCoursePlaceholder aria-label="Solicitar curso adicional">
-                <span className="material-symbols-outlined" style={{fontSize:'2rem'}}>add_circle</span>
-                <span style={{fontSize:theme.fontSizes.sm,fontWeight:theme.fontWeights.semibold}}>Solicitar curso adicional</span>
-              </AddCoursePlaceholder>
             </CoursesGrid>
           </section>
         </MainColumn>

@@ -156,7 +156,7 @@ const AttendancePage = ({ onLogout }) => {
   return (
     <AppLayout user={user} onLogout={onLogout}>
       <PageHeader>
-        <Breadcrumb onClick={() => navigate('/dashboard')}>
+        <Breadcrumb onClick={() => navigate('/mis-cursos')}>
           <Icon name="arrow_back" size="sm" /><span>Mis cursos</span>
         </Breadcrumb>
         <HeaderRow>

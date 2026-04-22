@@ -1,30 +1,26 @@
+// src/App.jsx
+// Cambio clave: handleLogin(token, user) en lugar de handleLogin(rol)
+
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import GlobalStyles from './styles/GlobalStyles';
 import theme from './styles/theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AttendancePage from './pages/AttendancePage';
 import AdminPage from './pages/AdminPage';
 
-const PrivateRoute = ({ children, allowedRoles }) => {
-  const { user, isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (allowedRoles && !allowedRoles.includes(user.rol)) {
-    return <Navigate to={user.rol === 'administrador' ? '/admin' : '/dashboard'} replace />;
-  }
-  return children;
-};
-
 const AppRoutes = () => {
   const navigate = useNavigate();
   const { login, logout } = useAuth();
 
-  const handleLogin = async (rol) => {
-    login(rol);
-    navigate(rol === 'administrador' ? '/admin' : '/dashboard', { replace: true });
+  // Recibe el token y el usuario ya autenticados desde LoginPage
+  const handleLogin = (token, user) => {
+    login(token, user);
+    navigate(user.rol === 'administrador' ? '/admin' : '/mis-cursos', { replace: true });
   };
 
   const handleLogout = () => {
@@ -34,32 +30,42 @@ const AppRoutes = () => {
 
   return (
     <Routes>
+      {/* Públicas */}
       <Route path="/" element={<LandingPage onLogin={() => navigate('/login')} />} />
       <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+
+      {/* Docente */}
       <Route
-        path="/dashboard"
+        path="/mis-cursos"
         element={
-          <PrivateRoute allowedRoles={['docente']}>
+          <ProtectedRoute allowedRoles={['docente']}>
             <DashboardPage onLogout={handleLogout} />
-          </PrivateRoute>
+          </ProtectedRoute>
         }
       />
+
+      {/* Ruta legada */}
+      <Route path="/dashboard" element={<Navigate to="/mis-cursos" replace />} />
+
       <Route
         path="/cursos/:cursoId/asistencia"
         element={
-          <PrivateRoute allowedRoles={['docente']}>
+          <ProtectedRoute allowedRoles={['docente']}>
             <AttendancePage onLogout={handleLogout} />
-          </PrivateRoute>
+          </ProtectedRoute>
         }
       />
+
+      {/* Administrador */}
       <Route
         path="/admin"
         element={
-          <PrivateRoute allowedRoles={['administrador']}>
+          <ProtectedRoute allowedRoles={['administrador']}>
             <AdminPage onLogout={handleLogout} />
-          </PrivateRoute>
+          </ProtectedRoute>
         }
       />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

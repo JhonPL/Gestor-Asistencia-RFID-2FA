@@ -1,24 +1,14 @@
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
 import HeroSection from '../components/landing/HeroSection';
+import HowItWorksSection from '../components/landing/HowItWorksSection';
 import CtaSection from '../components/landing/CtaSection';
 
 /**
- * LandingPage — página de bienvenida del sistema SmartClass RFID.
- *
- * SRP: solo compone las secciones de la landing; no gestiona lógica de negocio.
- * DIP: recibe `onLogin` desde App, que decidirá qué librería OAuth usar.
- *
- * Estructura:
- *  ┌─ Navbar
- *  ├─ HeroSection
- *  ├─ CtaSection (login)
- *  └─ Footer
- *
- * @param {Function} onLogin - callback de autenticación Microsoft OAuth
+ * LandingPage — igual que el original, con una sola adición:
+ * HowItWorksSection entre HeroSection y CtaSection.
  */
 
-/** Mock de sesión activa para el DashboardPreview de la hero */
 const MOCK_SESSION = {
   courseName: 'Ingeniería de Software II',
   room: 'Aula 305-B',
@@ -44,6 +34,10 @@ const LandingPage = ({ onLogin }) => {
           onGetStarted={scrollToLogin}
           sessionData={MOCK_SESSION}
         />
+
+        {/* ← NUEVO: sección "Cómo funciona" con flujo interactivo */}
+        <HowItWorksSection />
+
         <CtaSection onLogin={handleLogin} />
       </main>
 

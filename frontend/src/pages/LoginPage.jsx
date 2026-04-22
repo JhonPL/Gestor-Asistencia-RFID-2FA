@@ -1,10 +1,25 @@
+// src/pages/LoginPage.jsx
+// Cambios respecto al original:
+//   1. Importa loginDev de authApi
+//   2. ROL_CORREOS mapea el botón al correo del seed en la BD
+//   3. handleRoleLogin llama a la API real y propaga errores visibles
+//   4. onLogin(token, user) en lugar de onLogin(rol)
+
 import { useState } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import theme from '../styles/theme';
 import Icon from '../components/ui/Icon';
+import { loginDev } from '../api/authApi';
 
-const fadeIn = keyframes`from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}`;
-const spin = keyframes`to{transform:rotate(360deg)}`;
+// ─── Correos que deben existir en la BD (script_bd_v5.sql) ───────────────────
+// Si usas correos distintos en el seed, cámbialos aquí.
+const ROL_CORREOS = {
+  administrador: 'admin@campusucc.edu.co',
+};
+
+// ─── Styled (igual que el original) ──────────────────────────────────────────
+const fadeIn  = keyframes`from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}`;
+const spin    = keyframes`to{transform:rotate(360deg)}`;
 const blobFloat = keyframes`0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-20px) scale(1.05)}`;
 
 const Page = styled.div`
@@ -112,6 +127,18 @@ const RoleBtn = styled.button`
   ${({ $loading }) => $loading && css`opacity:.5;pointer-events:none;`}
 `;
 const RoleLabel = styled.span`font-size:${theme.fontSizes.xs};text-transform:uppercase;letter-spacing:.08em;`;
+const ErrorBanner = styled.div`
+  background-color:${theme.colors.errorContainer};
+  color:${theme.colors.error};
+  border-radius:${theme.radii.lg};
+  padding:.75rem 1rem;
+  font-size:${theme.fontSizes.sm};
+  font-weight:${theme.fontWeights.medium};
+  margin-bottom:1rem;
+  display:flex;
+  align-items:center;
+  gap:.5rem;
+`;
 const AccessNote = styled.p`
   text-align:center;font-size:${theme.fontSizes.xs};color:${theme.colors.outline};
   margin-top:1.25rem;line-height:1.6;
@@ -135,16 +162,27 @@ const QuoteText = styled.p`
   color:${theme.colors.onSurfaceVariant};opacity:.35;max-width:14rem;line-height:1.6;
 `;
 
-const LoginPage = ({ onLogin, error }) => {
-  const [loading, setLoading]       = useState(false);
+// ─── Componente ───────────────────────────────────────────────────────────────
+const LoginPage = ({ onLogin }) => {
+  const [loading,    setLoading]    = useState(false);
   const [activeRole, setActiveRole] = useState(null);
+  const [error,      setError]      = useState(null);
 
   const handleRoleLogin = async (rol) => {
     setLoading(true);
     setActiveRole(rol);
-    await new Promise(r => setTimeout(r, 800));
-    try { await onLogin?.(rol); }
-    finally { setLoading(false); setActiveRole(null); }
+    setError(null);
+
+    try {
+      const { token, user } = await loginDev(ROL_CORREOS[rol]);
+      // Propaga el token y el usuario al handler de App.jsx
+      await onLogin?.(token, user);
+    } catch (err) {
+      setError(err.message ?? 'No se pudo conectar con el servidor');
+    } finally {
+      setLoading(false);
+      setActiveRole(null);
+    }
   };
 
   return (
@@ -164,9 +202,7 @@ const LoginPage = ({ onLogin, error }) => {
 
         <Card>
           <CardTitle>Bienvenido</CardTitle>
-          <CardDesc>Usa tu correo <strong>@ucc.edu.co</strong> para acceder al sistema de gestión de asistencia.</CardDesc>
-
-          {error && <div role="alert" style={{color:theme.colors.error,fontSize:theme.fontSizes.sm,marginBottom:'1rem'}}>{error}</div>}
+          <CardDesc>Usa tu correo <strong>@campusucc.edu.co</strong> para acceder al sistema de gestión de asistencia.</CardDesc>
 
           <MicrosoftButton disabled title="Pendiente de configuración Azure AD">
             <MicrosoftIcon />
@@ -175,15 +211,37 @@ const LoginPage = ({ onLogin, error }) => {
 
           <Divider><DividerLabel>o simular acceso</DividerLabel></Divider>
 
-          <SimBanner><Icon name="science" size="sm" />Modo simulación — elige un rol para explorar</SimBanner>
+          <SimBanner>
+            <Icon name="science" size="sm" />
+            Modo simulación — requiere backend activo en {import.meta.env.VITE_API_URL ?? 'http://localhost:3000'}
+          </SimBanner>
+
+          {/* Error del backend */}
+          {error && (
+            <ErrorBanner role="alert">
+              <Icon name="error" size="sm" />
+              {error}
+            </ErrorBanner>
+          )}
 
           <RoleGrid>
-            <RoleBtn onClick={() => handleRoleLogin('docente')} $active={activeRole==='docente'} $loading={loading && activeRole!=='docente'} aria-label="Ingresar como docente">
-              {loading && activeRole==='docente' ? <Spinner /> : <Icon name="school" size="md" />}
+            <RoleBtn
+              onClick={() => handleRoleLogin('docente')}
+              $active={activeRole === 'docente'}
+              $loading={loading && activeRole !== 'docente'}
+              aria-label="Ingresar como docente"
+            >
+              {loading && activeRole === 'docente' ? <Spinner /> : <Icon name="school" size="md" />}
               <RoleLabel>Docente</RoleLabel>
             </RoleBtn>
-            <RoleBtn onClick={() => handleRoleLogin('administrador')} $active={activeRole==='administrador'} $loading={loading && activeRole!=='administrador'} aria-label="Ingresar como administrador">
-              {loading && activeRole==='administrador' ? <Spinner /> : <Icon name="admin_panel_settings" size="md" />}
+
+            <RoleBtn
+              onClick={() => handleRoleLogin('administrador')}
+              $active={activeRole === 'administrador'}
+              $loading={loading && activeRole !== 'administrador'}
+              aria-label="Ingresar como administrador"
+            >
+              {loading && activeRole === 'administrador' ? <Spinner /> : <Icon name="admin_panel_settings" size="md" />}
               <RoleLabel>Administrador</RoleLabel>
             </RoleBtn>
           </RoleGrid>
@@ -201,7 +259,7 @@ const LoginPage = ({ onLogin, error }) => {
       </Main>
 
       <AcademicQuote aria-hidden="true">
-        <Icon name="history_edu" size="xl" style={{color:`${theme.colors.primaryContainer}33`,marginBottom:'.5rem'}}/>
+        <Icon name="history_edu" size="xl" style={{ color: `${theme.colors.primaryContainer}33`, marginBottom: '.5rem' }} />
         <QuoteText>"La mente no es un recipiente que llenar, sino un fuego que encender."</QuoteText>
       </AcademicQuote>
     </Page>

@@ -147,7 +147,7 @@ const CtaSection = ({ onLogin }) => (
             </Button>
           </ButtonGroup>
 
-          <Disclaimer>Acceso exclusivo con correo @ucc.edu.co</Disclaimer>
+          <Disclaimer>Acceso exclusivo con correo @campusucc.edu.co</Disclaimer>
         </Inner>
       </Card>
     </Container>

@@ -1,0 +1,358 @@
+// src/routes/rfid.routes.js
+// Endpoint principal del sistema: procesa la lectura de una tarjeta RFID.
+// El ESP32 llama a este endpoint cada vez que detecta una tarjeta.
+
+import { Router } from 'express';
+import { getTransaction, pool } from '../config/db.js';
+
+const router = Router();
+
+/**
+ * @openapi
+ * tags:
+ *   - name: RFID
+ *     description: Endpoints para el ESP32 y la app móvil (sin JWT, flujo interno)
+ */
+
+/**
+ * @openapi
+ * /api/rfid/scan:
+ *   post:
+ *     tags: [RFID]
+ *     summary: Procesar lectura de tarjeta RFID
+ *     description: |
+ *       Endpoint principal llamado por el **ESP32** cada vez que detecta una tarjeta.
+ *
+ *       **Si la tarjeta pertenece a un docente:**
+ *       - Sin sesión activa en el aula → **abre** la sesión de clase.
+ *       - Con sesión activa en el aula → **cierra** la sesión y marca ausentes automáticamente.
+ *
+ *       **Si la tarjeta pertenece a un estudiante:**
+ *       - Valida cadena completa: tarjeta → aula → sesión activa → inscripción → duplicado.
+ *       - Crea registro de asistencia con `estado_verificacion = pendiente`.
+ *       - Si no tiene dispositivo móvil registrado → `estado_verificacion = sin_app`.
+ *
+ *       Este endpoint **no requiere JWT** (lo llama el hardware directamente).
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RfidScanInput'
+ *     responses:
+ *       200:
+ *         description: Acción ejecutada correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RfidScanResponse'
+ *             examples:
+ *               sesion_abierta:
+ *                 value: { accion: sesion_abierta, persona: Carlos, sesion_id: 14 }
+ *               sesion_cerrada:
+ *                 value: { accion: sesion_cerrada, persona: Carlos }
+ *               pendiente_verificacion:
+ *                 value: { accion: pendiente_verificacion, asistencia_id: 42, persona: Ana }
+ *               sin_app:
+ *                 value: { accion: sin_app, asistencia_id: 42 }
+ *               ya_registrado:
+ *                 value: { accion: ya_registrado, motivo: Asistencia ya registrada en esta sesión }
+ *       400:
+ *         description: Dispositivo sin aula asignada o sin curso programado ahora
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RfidScanResponse'
+ *       403:
+ *         description: Estudiante no inscrito en el curso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RfidScanResponse'
+ *       404:
+ *         description: Tarjeta no registrada en el sistema
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RfidScanResponse'
+ */
+router.post('/scan', async (req, res, next) => {
+  const tx = await getTransaction();
+  try {
+    const { codigo_dispositivo, codigo_tarjeta } = req.body;
+    if (!codigo_dispositivo || !codigo_tarjeta) {
+      return res.status(400).json({ error: 'codigo_dispositivo y codigo_tarjeta son requeridos' });
+    }
+
+    await tx.begin();
+
+    // ── Paso 1: ¿La tarjeta existe? ───────────────────────────
+    const personaRes = await tx.query(
+      `SELECT p.id, p.nombre, p.apellido, r.nombre AS rol
+       FROM persona p
+       JOIN rol r ON r.id = p.rol_id
+       WHERE p.codigo_tarjeta = $1 AND p.activo = true`,
+      [codigo_tarjeta],
+    );
+    if (!personaRes.rows.length) {
+      await tx.rollback();
+      return res.status(404).json({ accion: 'rechazado', motivo: 'Tarjeta no registrada' });
+    }
+    const persona = personaRes.rows[0];
+
+    // ── Paso 2: ¿El dispositivo tiene aula asignada? ──────────
+    const dispositivoRes = await tx.query(
+      `SELECT dr.id, dr.aula_id, a.numero AS aula_numero
+       FROM dispositivo_rfid dr
+       JOIN aula a ON a.id = dr.aula_id
+       JOIN estado_dispositivo ed ON ed.id = dr.estado_dispositivo_id
+       WHERE dr.codigo = $1 AND ed.nombre = 'Activo'`,
+      [codigo_dispositivo],
+    );
+    if (!dispositivoRes.rows.length) {
+      await tx.rollback();
+      return res.status(400).json({ accion: 'rechazado', motivo: 'Dispositivo no activo o sin aula asignada' });
+    }
+    const { aula_id } = dispositivoRes.rows[0];
+
+    // ── Flujo DOCENTE ─────────────────────────────────────────
+    if (persona.rol === 'docente') {
+      const sesionActiva = await tx.query(
+        `SELECT sc.id
+         FROM sesion_clase sc
+         JOIN aula_curso_horario ach ON ach.id = sc.aula_curso_horario_id
+         WHERE ach.aula_id = $1 AND sc.persona_id = $2 AND sc.estado = 'activa'`,
+        [aula_id, persona.id],
+      );
+
+      if (sesionActiva.rows.length) {
+        // CIERRE
+        const sesionId = sesionActiva.rows[0].id;
+        await tx.query(
+          `UPDATE sesion_clase SET estado = 'cerrada', hora_fin_real = CURRENT_TIME WHERE id = $1`,
+          [sesionId],
+        );
+        await tx.query(
+          `INSERT INTO asistencia
+             (lista_estudiantes_id, sesion_clase_id, fecha_registro, hora_registro,
+              estado_asistencia_id, estado_verificacion_id)
+           SELECT le.id, $1, CURRENT_DATE, CURRENT_TIME,
+                  (SELECT id FROM estado_asistencia  WHERE nombre = 'Ausente'),
+                  (SELECT id FROM estado_verificacion WHERE nombre = 'sin_app')
+           FROM lista_estudiantes le
+           WHERE le.curso_id = (SELECT curso_id FROM aula_curso_horario WHERE id =
+                                  (SELECT aula_curso_horario_id FROM sesion_clase WHERE id = $1))
+             AND le.activo = true
+             AND NOT EXISTS (
+               SELECT 1 FROM asistencia a2
+               WHERE a2.lista_estudiantes_id = le.id AND a2.sesion_clase_id = $1
+             )`,
+          [sesionId],
+        );
+        await tx.commit();
+        return res.json({ accion: 'sesion_cerrada', persona: persona.nombre });
+      }
+
+      // APERTURA
+      const achRes = await tx.query(
+        `SELECT ach.id
+         FROM aula_curso_horario ach
+         JOIN horario h ON h.id = ach.horario_id
+         JOIN dia_semana d ON d.id = h.dia_semana_id
+         JOIN curso c ON c.id = ach.curso_id
+         WHERE ach.aula_id = $1
+           AND c.persona_id = $2
+           AND c.activo = true
+           AND d.id = EXTRACT(ISODOW FROM CURRENT_DATE)
+           AND h.hora_inicio <= CURRENT_TIME
+           AND h.hora_fin    >= CURRENT_TIME`,
+        [aula_id, persona.id],
+      );
+      if (!achRes.rows.length) {
+        await tx.rollback();
+        return res.status(400).json({ accion: 'rechazado', motivo: 'Sin curso programado en este aula ahora' });
+      }
+
+      const { rows: nuevaSesion } = await tx.query(
+        `INSERT INTO sesion_clase (aula_curso_horario_id, persona_id, fecha, hora_inicio_real, estado)
+         VALUES ($1, $2, CURRENT_DATE, CURRENT_TIME, 'activa')
+         ON CONFLICT (aula_curso_horario_id, fecha) DO NOTHING
+         RETURNING id`,
+        [achRes.rows[0].id, persona.id],
+      );
+      if (!nuevaSesion.length) {
+        await tx.rollback();
+        return res.status(409).json({ accion: 'rechazado', motivo: 'Ya existe una sesión para este curso hoy' });
+      }
+
+      await tx.commit();
+      return res.json({ accion: 'sesion_abierta', persona: persona.nombre, sesion_id: nuevaSesion[0].id });
+    }
+
+    // ── Flujo ESTUDIANTE ──────────────────────────────────────
+    if (persona.rol === 'estudiante') {
+      const sesionRes = await tx.query(
+        `SELECT sc.id, ach.curso_id
+         FROM sesion_clase sc
+         JOIN aula_curso_horario ach ON ach.id = sc.aula_curso_horario_id
+         WHERE ach.aula_id = $1 AND sc.estado = 'activa' LIMIT 1`,
+        [aula_id],
+      );
+      if (!sesionRes.rows.length) {
+        await tx.rollback();
+        return res.status(400).json({ accion: 'rechazado', motivo: 'No hay sesión activa en esta aula' });
+      }
+      const { id: sesionId, curso_id } = sesionRes.rows[0];
+
+      const inscripcionRes = await tx.query(
+        `SELECT id FROM lista_estudiantes WHERE persona_id = $1 AND curso_id = $2 AND activo = true`,
+        [persona.id, curso_id],
+      );
+      if (!inscripcionRes.rows.length) {
+        await tx.rollback();
+        return res.status(403).json({ accion: 'rechazado', motivo: 'No inscrito en este curso' });
+      }
+      const listaEstudiantesId = inscripcionRes.rows[0].id;
+
+      const yaRegistrado = await tx.query(
+        `SELECT id FROM asistencia WHERE lista_estudiantes_id = $1 AND sesion_clase_id = $2`,
+        [listaEstudiantesId, sesionId],
+      );
+      if (yaRegistrado.rows.length) {
+        await tx.rollback();
+        return res.json({ accion: 'ya_registrado', motivo: 'Asistencia ya registrada en esta sesión' });
+      }
+
+      const { rows: nuevaAsistencia } = await tx.query(
+        `INSERT INTO asistencia
+           (lista_estudiantes_id, sesion_clase_id, fecha_registro, hora_registro,
+            estado_asistencia_id, estado_verificacion_id)
+         VALUES ($1, $2, CURRENT_DATE, CURRENT_TIME,
+           (SELECT id FROM estado_asistencia  WHERE nombre = 'Presente'),
+           (SELECT id FROM estado_verificacion WHERE nombre = 'pendiente'))
+         RETURNING id`,
+        [listaEstudiantesId, sesionId],
+      );
+      const asistenciaId = nuevaAsistencia[0].id;
+
+      const pushRes = await pool.query(
+        `SELECT push_token FROM dispositivo_movil WHERE persona_id = $1 AND activo = true LIMIT 1`,
+        [persona.id],
+      );
+
+      if (!pushRes.rows.length) {
+        await tx.query(
+          `UPDATE asistencia SET estado_verificacion_id =
+             (SELECT id FROM estado_verificacion WHERE nombre = 'sin_app') WHERE id = $1`,
+          [asistenciaId],
+        );
+        await tx.commit();
+        return res.json({ accion: 'sin_app', asistencia_id: asistenciaId });
+      }
+
+      await tx.commit();
+      // TODO: sendPushNotification(pushRes.rows[0].push_token, asistenciaId)
+      return res.json({ accion: 'pendiente_verificacion', asistencia_id: asistenciaId, persona: persona.nombre });
+    }
+
+    await tx.rollback();
+    res.status(400).json({ accion: 'rechazado', motivo: 'Rol no permitido para esta operación' });
+  } catch (err) {
+    await tx.rollback();
+    next(err);
+  }
+});
+
+/**
+ * @openapi
+ * /api/rfid/verificar:
+ *   post:
+ *     tags: [RFID]
+ *     summary: Enviar resultado del segundo factor (app móvil)
+ *     description: |
+ *       Llamado por la **app móvil** del estudiante después de completar
+ *       biometría y captura GPS. El backend calcula la distancia Haversine
+ *       contra el campus de la UCC Villavicencio (radio 200 m) y actualiza
+ *       el estado de verificación a `completado` o `fallido`.
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/RfidVerificarInput'
+ *     responses:
+ *       200:
+ *         description: Verificación procesada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                   example: true
+ *                 estado_verificacion:
+ *                   type: string
+ *                   enum: [completado, fallido]
+ *                   example: completado
+ *                 dentro_campus:
+ *                   type: boolean
+ *                   example: true
+ *       400:
+ *         description: Método de verificación inválido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post('/verificar', async (req, res, next) => {
+  try {
+    const { asistencia_id, dispositivo_movil_id, metodo, exitoso, latitud, longitud } = req.body;
+
+    const CAMPUS_LAT = parseFloat(process.env.CAMPUS_LAT || '-4.142900');
+    const CAMPUS_LNG = parseFloat(process.env.CAMPUS_LNG || '-73.626700');
+    const RADIUS_M   = parseInt(process.env.CAMPUS_RADIUS_METERS || '200', 10);
+
+    const R = 6371000;
+    const dLat = ((latitud - CAMPUS_LAT) * Math.PI) / 180;
+    const dLng = ((longitud - CAMPUS_LNG) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((CAMPUS_LAT * Math.PI) / 180) *
+        Math.cos((latitud * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
+    const distanciaMetros = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const dentroCampus = distanciaMetros <= RADIUS_M;
+
+    const verificacionExitosa = exitoso && dentroCampus;
+    const nuevoEstado = verificacionExitosa ? 'completado' : 'fallido';
+
+    const metodoRes = await pool.query(
+      'SELECT id FROM metodo_verificacion WHERE nombre = $1', [metodo],
+    );
+    if (!metodoRes.rows.length) return res.status(400).json({ error: `Método inválido: ${metodo}` });
+
+    await pool.query(
+      `INSERT INTO verificacion_biometrica
+         (asistencia_id, dispositivo_movil_id, metodo_verificacion_id,
+          exitoso, latitud, longitud, dentro_campus)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [asistencia_id, dispositivo_movil_id, metodoRes.rows[0].id,
+       exitoso, latitud, longitud, dentroCampus],
+    );
+
+    await pool.query(
+      `UPDATE asistencia
+       SET estado_verificacion_id = (SELECT id FROM estado_verificacion WHERE nombre = $1),
+           verificado_biometrico  = $2, latitud = $3, longitud = $4
+       WHERE id = $5`,
+      [nuevoEstado, verificacionExitosa, latitud, longitud, asistencia_id],
+    );
+
+    res.json({ ok: true, estado_verificacion: nuevoEstado, dentro_campus: dentroCampus });
+  } catch (err) { next(err); }
+});
+
+export default router;
