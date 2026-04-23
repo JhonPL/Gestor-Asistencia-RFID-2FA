@@ -89,7 +89,7 @@ function computeProximasClases(cursosDetalle = []) {
 function buildSesionesRecientes(allSesiones = []) {
   return allSesiones
     .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
-    .slice(0, 6)
+    .slice(0, 3)
     .map(s => {
       const tasa = s.total_registros > 0
         ? Math.round((s.presentes / s.total_registros) * 100)

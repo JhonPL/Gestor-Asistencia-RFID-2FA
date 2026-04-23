@@ -113,37 +113,47 @@ const ViewBtn = styled.button`
   }
 `;
 
-const RecentSessionsWidget = ({ sessions = [], onViewReport }) => (
-  <Widget>
-    <WidgetHeader>
-      <WidgetTitle>Sesiones recientes</WidgetTitle>
-      <Icon name="history" size="sm" style={{ color: theme.colors.primary }} />
-    </WidgetHeader>
+const RecentSessionsWidget = ({ sessions = [], onViewReport }) => {
+  // Mostrar solo el último curso accedido
+  const lastCourse = sessions.length > 0 ? sessions[0].cursoNombre : null;
+  const lastCourseData = lastCourse ? sessions.filter(s => s.cursoNombre === lastCourse) : [];
 
-    <SessionList>
-      {sessions.map((s) => {
-        const cfg = statusConfig[s.estadoGeneral] ?? statusConfig.ok;
-        return (
-          <SessionItem key={s.id}>
-            <StatusIcon $bg={cfg.bg} $color={cfg.color} aria-hidden="true">
-              <Icon name={cfg.icon} size="sm" fill={1} />
-            </StatusIcon>
+  return (
+    <Widget>
+      <WidgetHeader>
+        <WidgetTitle>Sesiones recientes</WidgetTitle>
+        <Icon name="history" size="sm" style={{ color: theme.colors.primary }} />
+      </WidgetHeader>
 
-            <SessionInfo>
-              <SessionName title={s.cursoNombre}>{s.cursoNombre}</SessionName>
-              <SessionMeta>
-                {s.fecha} · {s.tasaAsistencia}% asistencia
-              </SessionMeta>
-            </SessionInfo>
-
-            {s.nota && <NeedsBadge>{s.nota}</NeedsBadge>}
+      <SessionList>
+        {lastCourseData.length === 0 ? (
+          <SessionItem>
+            <SessionName style={{ color: theme.colors.onSurfaceVariant }}>No hay sesiones recientes</SessionName>
           </SessionItem>
-        );
-      })}
-    </SessionList>
+        ) : (
+          lastCourseData.map((s) => {
+            const cfg = statusConfig[s.estadoGeneral] ?? statusConfig.ok;
+            return (
+              <SessionItem key={s.id}>
+                <StatusIcon $bg={cfg.bg} $color={cfg.color} aria-hidden="true">
+                  <Icon name={cfg.icon} size="sm" fill={1} />
+                </StatusIcon>
 
-    <ViewBtn onClick={onViewReport}>Ver reporte de analítica</ViewBtn>
-  </Widget>
-);
+                <SessionInfo>
+                  <SessionName title={s.cursoNombre}>{s.cursoNombre}</SessionName>
+                  <SessionMeta>
+                    {s.fecha} · {s.tasaAsistencia}% asistencia
+                  </SessionMeta>
+                </SessionInfo>
+
+                {s.nota && <NeedsBadge>{s.nota}</NeedsBadge>}
+              </SessionItem>
+            );
+          })
+        )}
+      </SessionList>
+    </Widget>
+  );
+};
 
 export default RecentSessionsWidget;

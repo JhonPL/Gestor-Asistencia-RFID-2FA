@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import theme from '../styles/theme';
 import { useAuth } from '../context/AuthContext';
 import { getEstudiantes } from '../api/cursosApi';
 import { getCurso } from '../api/cursosApi';
+import { getSesionesByCurso } from '../api/sesionesApi';
 import AppLayout from '../components/layout/AppLayout';
 import AttendanceStatusToggle from '../components/attendance/AttendanceStatusToggle';
 import VerificationBadge from '../components/attendance/VerificationBadge';
@@ -124,6 +125,41 @@ const Avatar = styled.div`
 `;
 const MonoText = styled.span`font-family:'Courier New',monospace;font-size:${theme.fontSizes.xs};color:${theme.colors.onSurfaceVariant};`;
 const EmptyCell = styled.td`padding:3rem;text-align:center;color:${theme.colors.outline};font-size:${theme.fontSizes.sm};`;
+const ModalOverlay = styled.div`
+  position:fixed;top:0;left:0;right:0;bottom:0;background-color:rgba(0,0,0,0.5);
+  display:flex;align-items:center;justify-content:center;z-index:1000;padding:1rem;
+`;
+const ModalContent = styled.div`
+  background-color:${theme.colors.surfaceContainerLowest};border-radius:${theme.radii['2xl']};
+  max-width:90vw;max-height:90vh;overflow:auto;box-shadow:${theme.shadows.lg};
+`;
+const ModalHeader = styled.div`
+  display:flex;align-items:center;justify-content:space-between;padding:1.5rem;
+  border-bottom:1px solid ${theme.colors.surfaceContainerHigh};
+`;
+const ModalTitle = styled.h2`
+  font-family:${theme.fonts.headline};font-size:${theme.fontSizes.xl};font-weight:${theme.fontWeights.bold};
+  color:${theme.colors.primary};
+`;
+const CloseBtn = styled.button`
+  background:none;border:none;cursor:pointer;color:${theme.colors.outline};
+  font-size:${theme.fontSizes.lg};transition:color ${theme.transitions.fast};
+  &:hover{color:${theme.colors.onSurface}}
+`;
+const FullTableContainer = styled.div`padding:1.5rem;overflow-x:auto;`;
+const FullTable = styled.table`
+  width:100%;border-collapse:collapse;text-align:left;font-size:${theme.fontSizes.xs};
+`;
+const FullTh = styled.th`
+  padding:0.75rem;background-color:${theme.colors.surfaceContainerLow};
+  font-weight:${theme.fontWeights.bold};color:${theme.colors.outline};border:1px solid ${theme.colors.surfaceContainerHigh};
+  text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;
+`;
+const FullTd = styled.td`
+  padding:0.75rem;border:1px solid ${theme.colors.surfaceContainerHigh};
+  text-align:center;
+`;
+const FullTdName = styled(FullTd)`text-align:left;font-weight:${theme.fontWeights.semibold};`;
 
 const AttendancePage = ({ onLogout }) => {
   const navigate         = useNavigate();
@@ -135,12 +171,16 @@ const AttendancePage = ({ onLogout }) => {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sesiones, setSesiones] = useState([]);
+  const [currentSessionIdx, setCurrentSessionIdx] = useState(0);
+  const [showFullTable, setShowFullTable] = useState(false);
+  const [fullTableData, setFullTableData] = useState([]);
   
-  // Cargar curso y estudiantes
+  // Cargar curso, estudiantes y sesiones
   useEffect(() => {
     if (!token || !cursoId) return;
     
-    const loadCourseAndStudents = async () => {
+    const loadCourseData = async () => {
       try {
         console.log('Cargando curso:', cursoId);
         const cursoData = await getCurso(token, cursoId);
@@ -151,13 +191,23 @@ const AttendancePage = ({ onLogout }) => {
         const estudiantesData = await getEstudiantes(token, cursoId);
         console.log('Estudiantes:', estudiantesData);
         
-        // Mapear estudiantes a formato de asistencia
+        // Cargar sesiones del curso
+        console.log('Cargando sesiones del curso:', cursoId);
+        const sesionesData = await getSesionesByCurso(token, cursoId);
+        console.log('Sesiones:', sesionesData);
+        
+        // Ordenar sesiones por fecha
+        const sesionesOrdenadas = (sesionesData || [])
+          .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+        setSesiones(sesionesOrdenadas);
+        
+        // Mapear estudiantes a formato de asistencia (estado por defecto: Ausente)
         const mappedRecords = (estudiantesData || []).map((est, idx) => ({
-          id: est.id,
-          codigoEstudiante: est.codigo ?? `EST-${est.id}`,
+          id: est.id ?? `EST-${idx}`,
+          codigoEstudiante: est.codigo ?? `EST-${est.id ?? idx}`,
           nombre: est.nombre ?? 'Sin nombre',
           apellido: est.apellido ?? '',
-          estado: 'Presente',
+          estado: 'Ausente',
           estadoVerificacion: 'sin_app',
           horaRegistro: null,
           metodo: null,
@@ -166,6 +216,20 @@ const AttendancePage = ({ onLogout }) => {
         }));
         
         setRecords(mappedRecords);
+        
+        // Preparar datos para tabla completa
+        const fullData = (estudiantesData || []).map((est, idx) => ({
+          id: est.id ?? `EST-${idx}`,
+          codigoEstudiante: est.codigo ?? `EST-${est.id ?? idx}`,
+          nombre: est.nombre ?? 'Sin nombre',
+          apellido: est.apellido ?? '',
+          sesiones: sesionesOrdenadas.map(s => ({
+            sesionId: s.id,
+            fecha: s.fecha,
+            estado: 'Ausente', // Por defecto Ausente
+          })),
+        }));
+        setFullTableData(fullData);
       } catch (err) {
         console.error('Error:', err);
         setError(err.message);
@@ -174,7 +238,7 @@ const AttendancePage = ({ onLogout }) => {
       }
     };
     
-    loadCourseAndStudents();
+    loadCourseData();
   }, [token, cursoId]);
   
   const handleStatusChange = (id, newEstado) => {
@@ -182,6 +246,32 @@ const AttendancePage = ({ onLogout }) => {
       ...r, estado: newEstado,
       estadoVerificacion: newEstado === 'Presente' && r.estadoVerificacion === 'sin_app' ? 'completado' : r.estadoVerificacion,
     }));
+  };
+  
+  const handleFullTableStatusChange = (estudianteId, sesionIdx, newEstado) => {
+    setFullTableData(prev => prev.map(est => {
+      if (est.id !== estudianteId) return est;
+      return {
+        ...est,
+        sesiones: est.sesiones.map((s, idx) => 
+          idx === sesionIdx ? { ...s, estado: newEstado } : s
+        ),
+      };
+    }));
+  };
+  
+  const currentSesion = sesiones[currentSessionIdx];
+  
+  const handlePrevSession = () => {
+    if (currentSessionIdx > 0) {
+      setCurrentSessionIdx(currentSessionIdx - 1);
+    }
+  };
+  
+  const handleNextSession = () => {
+    if (currentSessionIdx < sesiones.length - 1) {
+      setCurrentSessionIdx(currentSessionIdx + 1);
+    }
   };
 
   const stats = useMemo(() => {
@@ -254,12 +344,31 @@ const AttendancePage = ({ onLogout }) => {
             <SessionMeta>Lista de estudiantes del curso</SessionMeta>
           </div>
           <DateNav>
-            <DateNavBtn aria-label="Sesión anterior"><Icon name="chevron_left" size="sm" /></DateNavBtn>
+            <DateNavBtn 
+              aria-label="Sesión anterior" 
+              onClick={handlePrevSession}
+              disabled={currentSessionIdx === 0}
+              style={{ opacity: currentSessionIdx === 0 ? 0.5 : 1, cursor: currentSessionIdx === 0 ? 'not-allowed' : 'pointer' }}
+            >
+              <Icon name="chevron_left" size="sm" />
+            </DateNavBtn>
             <DateLabel>
               <Icon name="calendar_month" size="sm" style={{color:theme.colors.primary}}/>
-              <span>{new Date().toLocaleDateString('es-CO',{day:'numeric',month:'short'})}</span>
+              <span>
+                {currentSesion 
+                  ? new Date(currentSesion.fecha).toLocaleDateString('es-CO',{day:'numeric',month:'short'})
+                  : new Date().toLocaleDateString('es-CO',{day:'numeric',month:'short'})
+                }
+              </span>
             </DateLabel>
-            <DateNavBtn aria-label="Sesión siguiente"><Icon name="chevron_right" size="sm" /></DateNavBtn>
+            <DateNavBtn 
+              aria-label="Sesión siguiente" 
+              onClick={handleNextSession}
+              disabled={currentSessionIdx >= sesiones.length - 1}
+              style={{ opacity: currentSessionIdx >= sesiones.length - 1 ? 0.5 : 1, cursor: currentSessionIdx >= sesiones.length - 1 ? 'not-allowed' : 'pointer' }}
+            >
+              <Icon name="chevron_right" size="sm" />
+            </DateNavBtn>
           </DateNav>
         </HeaderRow>
       </PageHeader>
@@ -277,6 +386,9 @@ const AttendancePage = ({ onLogout }) => {
           <SearchInput type="text" placeholder="Buscar por nombre o código…" value={search} onChange={e => setSearch(e.target.value)} />
         </SearchWrapper>
         <RightActions>
+          <Button variant="outlined" size="sm" onClick={() => setShowFullTable(true)}>
+            <Icon name="table" size="sm" />Tabla completa
+          </Button>
           <Button variant="outlined" size="sm" onClick={() => alert('Exportar — pendiente de API')}>
             <Icon name="download" size="sm" />Exportar
           </Button>
@@ -301,12 +413,11 @@ const AttendancePage = ({ onLogout }) => {
             </tr>
           </THead>
           <tbody>
-            {filtered.length === 0
-              ? <tr key="empty"><EmptyCell colSpan={5}>No hay estudiantes con los filtros actuales.</EmptyCell></tr>
-              : filtered.map((r, i) => {
+            {filtered.length === 0 && <Tr key="empty"><EmptyCell colSpan={5}>No hay estudiantes con los filtros actuales.</EmptyCell></Tr>}
+            {filtered.length > 0 && filtered.map((r, i) => {
                   const av = avatarColor(i);
                   return (
-                    <Tr key={r.id}>
+                    <Tr key={`${i}-${r.codigoEstudiante}`}>
                       <Td><MonoText>{r.codigoEstudiante}</MonoText></Td>
                       <Td>
                         <StudentCell>
@@ -324,11 +435,54 @@ const AttendancePage = ({ onLogout }) => {
                       </Td>
                     </Tr>
                   );
-                })
-            }
+                })}
           </tbody>
         </Table>
       </TableWrapper>
+
+      {showFullTable && (
+        <ModalOverlay onClick={() => setShowFullTable(false)}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>Tabla completa de asistencia</ModalTitle>
+              <CloseBtn onClick={() => setShowFullTable(false)}>
+                <Icon name="close" size="md" />
+              </CloseBtn>
+            </ModalHeader>
+            <FullTableContainer>
+              <FullTable>
+                <THead>
+                  <tr>
+                    <FullTh>Código</FullTh>
+                    <FullTh>Estudiante</FullTh>
+                    {sesiones.map((sesion, idx) => (
+                      <FullTh key={sesion.id || idx}>
+                        {new Date(sesion.fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}
+                      </FullTh>
+                    ))}
+                  </tr>
+                </THead>
+                <tbody>
+                  {fullTableData.map((est, estIdx) => (
+                    <Tr key={`full-${estIdx}-${est.codigoEstudiante}`}>
+                      <FullTd><MonoText>{est.codigoEstudiante}</MonoText></FullTd>
+                      <FullTdName>{est.nombre} {est.apellido}</FullTdName>
+                      {est.sesiones.map((sesionData, sesionIdx) => (
+                        <FullTd key={sesionData.sesionId || sesionIdx} style={{padding: '0.5rem'}}>
+                          <AttendanceStatusToggle
+                            value={sesionData.estado}
+                            onChange={(newEstado) => handleFullTableStatusChange(est.id, sesionIdx, newEstado)}
+                          />
+                        </FullTd>
+                      ))}
+                    </Tr>
+                  ))}
+                </tbody>
+              </FullTable>
+            </FullTableContainer>
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </AppLayout>
   );
 };
