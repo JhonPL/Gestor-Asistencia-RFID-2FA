@@ -302,7 +302,7 @@ const AttendancePage = ({ onLogout }) => {
           </THead>
           <tbody>
             {filtered.length === 0
-              ? <tr><EmptyCell colSpan={5}>No hay estudiantes con los filtros actuales.</EmptyCell></tr>
+              ? <tr key="empty"><EmptyCell colSpan={5}>No hay estudiantes con los filtros actuales.</EmptyCell></tr>
               : filtered.map((r, i) => {
                   const av = avatarColor(i);
                   return (
