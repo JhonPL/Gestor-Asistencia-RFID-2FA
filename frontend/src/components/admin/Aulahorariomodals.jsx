@@ -170,8 +170,7 @@ export const HorarioModal = ({ isOpen, onClose, item = null, onSave, dias = [] }
     }
     const dia = dias.find(d => d.id === Number(form.dia_semana_id));
     onSave({
-      ...item,
-      id:            item?.id ?? Date.now(),
+      ...(item && { id: item.id }),
       dia_semana_id: Number(form.dia_semana_id),
       dia:           dia?.nombre ?? '',
       hora_inicio:   form.hora_inicio,

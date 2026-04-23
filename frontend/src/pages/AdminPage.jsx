@@ -18,6 +18,7 @@ import { useCursos }       from '../hooks/useCursos';
 import { useDispositivos } from '../hooks/useDispositivos';
 import { useAcademico }    from '../hooks/useAcademico';
 import { useAulas }        from '../hooks/useAulas';
+import { useHorarios }     from '../hooks/useHorarios';
 
 // Tabs
 import { PersonasTab }     from '../components/admin/PersonasTab';
@@ -37,6 +38,7 @@ import DeviceFormModal       from '../components/admin/DeviceFormModal';
 import { FacultadModal, ProgramaModal } from '../components/admin/FacultadProgramaModals';
 import { AulaModal, HorarioModal }      from '../components/admin/AulaHorarioModals';
 import CursoGestionModal     from '../components/admin/CursoGestionModal';
+import { getDias }           from '../api/horariosApi';
 
 import { MOCK_AULAS, MOCK_DIAS, ADMIN_STATS } from '../mocks/admin.mock';
 
@@ -94,9 +96,10 @@ const AdminPage = ({ onLogout }) => {
   const dispositivosHook = useDispositivos(token);
   const academicoHook    = useAcademico(token);
   const aulasHook        = useAulas(token);
+  const horariosHook     = useHorarios(token);
 
   // Estado local para aulas (aún mock) y horarios
-  const [aulas] = useState(MOCK_AULAS);
+  const [dias, setDias] = useState([]);
 
   // Cargar datos al cambiar de tab
   useEffect(() => {
@@ -105,15 +108,44 @@ const AdminPage = ({ onLogout }) => {
       cursos:       cursosHook.load,
       dispositivos: dispositivosHook.load,
       academico:    academicoHook.load,
-      horarios:     academicoHook.load,
+      horarios:     horariosHook.load,
       aulas:        aulasHook.load,
     };
     loaders[tab]?.();
+    
+    // Cargar aulas también cuando sea dispositivos o cursos (necesarios para los modales)
+    if (tab === 'dispositivos' || tab === 'cursos') {
+      aulasHook.load();
+    }
+    
     setSearch('');
     setRolF('Todos');
     setEstadoF('Todos');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // Cargar días cuando se abre el modal de horarios
+  useEffect(() => {
+    if (modal.type === 'horario' && token && dias.length === 0) {
+      getDias(token)
+        .then(setDias)
+        .catch(err => console.error('Error cargando días:', err));
+    }
+  }, [modal.type, token, dias.length]);
+
+  // Cargar aulas cuando se abre el modal de dispositivos o cursos
+  useEffect(() => {
+    if ((modal.type === 'device' || modal.type === 'curso') && token && aulasHook.aulas.length === 0) {
+      aulasHook.load();
+    }
+  }, [modal.type, token, aulasHook.aulas.length, aulasHook]);
+
+  // Cargar programas y facultades cuando se abre modal de personas
+  useEffect(() => {
+    if (modal.type === 'persona' && token && academicoHook.programas.length === 0) {
+      academicoHook.load();
+    }
+  }, [modal.type, token, academicoHook.programas.length, academicoHook]);
 
   const openM  = (type, data = null) => setModal({ type, data });
   const closeM = () => setModal({ type: null, data: null });
@@ -173,9 +205,28 @@ const AdminPage = ({ onLogout }) => {
     catch (err) { alert(`Error: ${err.message}`); }
   };
 
-  const handleSaveAula = async (id, payload) => {
-    try { await aulasHook.save(id, payload); closeM(); }
-    catch (err) { alert(`Error al guardar aula: ${err.message}`); }
+  const handleSaveAula = async (data) => {
+    try {
+      const { id, ...payload } = data;
+      await aulasHook.save(id, payload);
+      closeM();
+    } catch (err) { alert(`Error al guardar aula: ${err.message}`); }
+  };
+
+  const handleSaveHorario = async (data) => {
+    try {
+      const { id, ...payload } = data;
+      await horariosHook.save(id, payload);
+      closeM();
+    } catch (err) {
+      alert(`Error al guardar horario: ${err.message}`);
+    }
+  };
+
+  const handleDeleteHorario = async (item) => {
+    if (!window.confirm(`¿Eliminar la franja "${item.dia} ${item.hora_inicio}–${item.hora_fin}"?`)) return;
+    try { await horariosHook.deleteById(item); }
+    catch (err) { alert(`Error al eliminar horario: ${err.message}`); }
   };
 
   const docentesList = personasHook.personas.filter(p => p.rol === 'docente' && p.activo);
@@ -239,10 +290,11 @@ const AdminPage = ({ onLogout }) => {
 
       {tab === 'horarios' && (
         <HorariosTabPlaceholder
-          hook={academicoHook}
+          hook={horariosHook}
           search={search} setSearch={setSearch}
           onNew={() => openM('horario')}
           onEdit={(r) => openM('horario', r)}
+          onDelete={handleDeleteHorario}
         />
       )}
 
@@ -275,7 +327,7 @@ const AdminPage = ({ onLogout }) => {
       />
       <DeviceFormModal
         isOpen={modal.type === 'device'} onClose={closeM}
-        device={modal.data} onSave={handleSaveDevice} aulas={aulas}
+        device={modal.data} onSave={handleSaveDevice} aulas={aulasHook.aulas}
       />
       <FacultadModal
         isOpen={modal.type === 'facultad'} onClose={closeM}
@@ -294,16 +346,14 @@ const AdminPage = ({ onLogout }) => {
       <HorarioModal
         isOpen={modal.type === 'horario'} onClose={closeM}
         item={modal.data}
-        onSave={async (data) => {
-          // delegar al hook cuando se cree useHorarios
-        }}
-        dias={MOCK_DIAS}
+        onSave={handleSaveHorario}
+        dias={dias.length > 0 ? dias : MOCK_DIAS}
       />
       <CursoGestionModal
         isOpen={modal.type === 'curso'} onClose={closeM}
         item={modal.data} onSave={handleSaveCurso}
-        docentes={docentesList} aulas={aulas}
-        horarios={academicoHook.programas} // TODO: reemplazar por hook de horarios
+        docentes={docentesList} aulas={aulasHook.aulas}
+        horarios={horariosHook.horarios}
       />
     </AppLayout>
   );
