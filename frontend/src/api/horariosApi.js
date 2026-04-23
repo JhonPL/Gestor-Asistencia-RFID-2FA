@@ -36,6 +36,13 @@ export async function getHorarios(token, diaSemanaId = null) {
   return handleResponse(res);
 }
 
+export async function getHorarioById(token, id) {
+  const res = await fetch(`${BASE}/api/horarios/${id}`, {
+    headers: authHeaders(token),
+  });
+  return handleResponse(res);
+}
+
 export async function createHorario(token, { dia_semana_id, hora_inicio, hora_fin }) {
   const res = await fetch(`${BASE}/api/horarios`, {
     method: 'POST',

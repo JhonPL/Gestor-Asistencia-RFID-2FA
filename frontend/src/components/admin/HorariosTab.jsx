@@ -9,21 +9,18 @@ import {
   SearchWrap, SIcon, SearchInput,
   ResultCount, LoadingBox, ErrorBox, Spinner,
 } from './adminUtils';
-import { MOCK_DIAS } from '../../mocks/admin.mock';
 
 export default function HorariosTab({
-  hook,           // useAcademico() result (placeholder)
+  hook,           // useHorarios() result
   search, setSearch,
-  onNew, onEdit,
+  onNew, onEdit, onDelete,
 }) {
-  const { loading, error, load } = hook;
-  const [horarios, setHorarios] = useState([]);
-  const [dias, setDias] = useState(MOCK_DIAS);
+  const { horarios, loading, error, load } = hook;
 
   useEffect(() => {
-    // Por ahora horarios están en mock, se pueden cargar desde API cuando esté lista
+    // Cargar horarios cuando el componente se monta
     load();
-  }, []);
+  }, [load]);
 
   const filtrados = useMemo(() => {
     if (!search.trim()) return horarios;
@@ -99,11 +96,12 @@ export default function HorariosTab({
             rows={filtrados}
             actions={[
               { icon: 'edit', title: 'Editar', onClick: onEdit },
-              { icon: 'delete', title: 'Eliminar', danger: true, onClick: (r) => {
-                if (window.confirm(`¿Eliminar la franja "${r.dia} ${r.hora_inicio}–${r.hora_fin}"?`)) {
-                  // Implementar eliminación cuando esté disponible en API
-                }
-              }},
+              {
+                icon: 'delete',
+                title: 'Eliminar',
+                danger: true,
+                onClick: onDelete,
+              },
             ]}
             emptyMsg={search.trim() ? 'No hay resultados para la búsqueda.' : 'No hay franjas horarias.'}
           />
