@@ -60,6 +60,31 @@ async function insertAsignaciones(cursoId, asignaciones, tx) {
   }
 }
 
+// ── Crear sesiones automáticas para las asignaciones ───────────────────────────
+async function crearSesionesAutomaticas(cursoId, personaId, tx) {
+  if (!personaId) return; // No hay docente, no crear sesiones
+  
+  // Obtener todas las asignaciones (aula_curso_horario) del curso
+  const { rows: asignaciones } = await tx.query(
+    `SELECT id FROM aula_curso_horario WHERE curso_id = $1`,
+    [cursoId],
+  );
+  
+  if (!asignaciones.length) return;
+  
+  // Para cada asignación, crear una sesión hoy
+  const hoy = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  
+  for (const { id: achId } of asignaciones) {
+    await tx.query(
+      `INSERT INTO sesion_clase (aula_curso_horario_id, persona_id, fecha, estado)
+       VALUES ($1, $2, $3, 'activa')
+       ON CONFLICT DO NOTHING`,
+      [achId, personaId, hoy],
+    );
+  }
+}
+
 // ── CRUD principal ────────────────────────────────────────────────────────────
 
 export async function listarCursos(userId, rol) {
@@ -98,9 +123,12 @@ export async function crearCurso({ nombre, codigo, fecha_inicio, fecha_fin, pers
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
       [nombre.trim(), codigo?.trim().toUpperCase() || null, fecha_inicio, fecha_fin, persona_id || null, activo],
     );
-    await insertAsignaciones(rows[0].id, asignaciones, tx);
+    const cursoId = rows[0].id;
+    await insertAsignaciones(cursoId, asignaciones, tx);
+    // Crear sesiones automáticas si hay asignaciones y docente
+    await crearSesionesAutomaticas(cursoId, persona_id, tx);
     await tx.commit();
-    return getCursoConHorarios(rows[0].id);
+    return getCursoConHorarios(cursoId);
   } catch (err) {
     await tx.rollback();
     throw err;
@@ -112,8 +140,10 @@ export async function actualizarCurso(id, campos) {
   const tx = await getTransaction();
   try {
     await tx.begin();
-    const check = await tx.query('SELECT id FROM curso WHERE id = $1', [id]);
+    const check = await tx.query('SELECT id, persona_id FROM curso WHERE id = $1', [id]);
     if (!check.rows.length) throw createError(404, 'Curso no encontrado');
+    
+    const docenteActual = check.rows[0].persona_id;
 
     const sets = [], params = [];
     const add  = (col, val) => { params.push(val); sets.push(`${col} = $${params.length}`); };
@@ -133,6 +163,9 @@ export async function actualizarCurso(id, campos) {
     if (Array.isArray(asignaciones)) {
       await tx.query('DELETE FROM aula_curso_horario WHERE curso_id = $1', [id]);
       await insertAsignaciones(id, asignaciones, tx);
+      // Crear sesiones automáticas para las nuevas asignaciones
+      const docente = persona_id !== undefined ? persona_id : docenteActual;
+      await crearSesionesAutomaticas(id, docente, tx);
     }
 
     await tx.commit();
