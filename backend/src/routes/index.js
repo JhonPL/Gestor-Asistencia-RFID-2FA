@@ -10,6 +10,7 @@ import programasRoutes     from './programas.routes.js';
 import horariosRoutes      from './horarios.routes.js';
 import dispositivosRoutes  from './dispositivos.routes.js';
 import aulasRoutes         from './aulas.routes.js';
+import sesionesRoutes      from './sesiones.routes.js';
 
 const router = Router();
 
@@ -23,6 +24,7 @@ router.use('/programas',    programasRoutes);
 router.use('/horarios',     horariosRoutes);
 router.use('/dispositivos', dispositivosRoutes);
 router.use('/aulas',        aulasRoutes);
+router.use('/sesiones',     sesionesRoutes);
 
 router.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

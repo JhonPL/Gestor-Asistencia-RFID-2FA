@@ -1,16 +1,25 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import theme from '../styles/theme';
 import { useAuth } from '../context/AuthContext';
+import { getEstudiantes } from '../api/cursosApi';
+import { getCurso } from '../api/cursosApi';
 import AppLayout from '../components/layout/AppLayout';
 import AttendanceStatusToggle from '../components/attendance/AttendanceStatusToggle';
 import VerificationBadge from '../components/attendance/VerificationBadge';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import Icon from '../components/ui/Icon';
-import { MOCK_SESION, MOCK_ASISTENCIA, avatarColor } from '../mocks/attendance.mock';
-import { MOCK_CURSOS } from '../mocks/dashboard.mock';
+
+const AVATAR_COLORS = [
+  { bg: '#e0e0ff', color: '#000666' },
+  { bg: '#94f0df', color: '#006b5e' },
+  { bg: '#ffdbd0', color: '#5c1800' },
+  { bg: '#bdc2ff', color: '#000666' },
+];
+
+const avatarColor = (i) => AVATAR_COLORS[i % AVATAR_COLORS.length];
 
 const FILTER_OPTIONS = ['Todos', 'Presente', 'Ausente', 'Justificado', 'Pendientes'];
 
@@ -119,20 +128,69 @@ const EmptyCell = styled.td`padding:3rem;text-align:center;color:${theme.colors.
 const AttendancePage = ({ onLogout }) => {
   const navigate         = useNavigate();
   const { cursoId }      = useParams();
-  const { user }         = useAuth();
-  const [records, setRecords] = useState(MOCK_ASISTENCIA);
+  const { user, token }  = useAuth();
   const [search, setSearch]   = useState('');
   const [filter, setFilter]   = useState('Todos');
-
-  // Encuentra el curso por id (mock)
-  const curso = MOCK_CURSOS.find(c => String(c.id) === String(cursoId)) ?? MOCK_CURSOS[0];
+  const [curso, setCurso] = useState(null);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Cargar curso y estudiantes
+  useEffect(() => {
+    if (!token || !cursoId) return;
+    
+    const loadCourseAndStudents = async () => {
+      try {
+        console.log('Cargando curso:', cursoId);
+        const cursoData = await getCurso(token, cursoId);
+        console.log('Curso:', cursoData);
+        setCurso(cursoData);
+        
+        console.log('Cargando estudiantes del curso:', cursoId);
+        const estudiantesData = await getEstudiantes(token, cursoId);
+        console.log('Estudiantes:', estudiantesData);
+        
+        // Mapear estudiantes a formato de asistencia
+        const mappedRecords = (estudiantesData || []).map((est, idx) => ({
+          id: est.id,
+          codigoEstudiante: est.codigo ?? `EST-${est.id}`,
+          nombre: est.nombre ?? 'Sin nombre',
+          apellido: est.apellido ?? '',
+          estado: 'Presente',
+          estadoVerificacion: 'sin_app',
+          horaRegistro: null,
+          metodo: null,
+          dentroCampus: null,
+          motivo: null,
+        }));
+        
+        setRecords(mappedRecords);
+      } catch (err) {
+        console.error('Error:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadCourseAndStudents();
+  }, [token, cursoId]);
+  
+  const handleStatusChange = (id, newEstado) => {
+    setRecords(prev => prev.map(r => r.id !== id ? r : {
+      ...r, estado: newEstado,
+      estadoVerificacion: newEstado === 'Presente' && r.estadoVerificacion === 'sin_app' ? 'completado' : r.estadoVerificacion,
+    }));
+  };
 
   const stats = useMemo(() => {
     const presentes    = records.filter(r => r.estado === 'Presente').length;
     const ausentes     = records.filter(r => r.estado === 'Ausente').length;
     const justificados = records.filter(r => r.estado === 'Justificado').length;
     const pendientes   = records.filter(r => ['pendiente','sin_app'].includes(r.estadoVerificacion)).length;
-    return { total: records.length, presentes, ausentes, justificados, pendientes, tasa: Math.round((presentes / records.length) * 100) };
+    const tasa = records.length > 0 ? Math.round((presentes / records.length) * 100) : 0;
+    return { total: records.length, presentes, ausentes, justificados, pendientes, tasa };
   }, [records]);
 
   const filtered = useMemo(() => {
@@ -146,12 +204,40 @@ const AttendancePage = ({ onLogout }) => {
     return data;
   }, [records, filter, search]);
 
-  const handleStatusChange = (id, newEstado) => {
-    setRecords(prev => prev.map(r => r.id !== id ? r : {
-      ...r, estado: newEstado,
-      estadoVerificacion: newEstado === 'Presente' && r.estadoVerificacion === 'sin_app' ? 'completado' : r.estadoVerificacion,
-    }));
-  };
+  if (loading) {
+    return (
+      <AppLayout user={user} onLogout={onLogout}>
+        <div style={{ textAlign: 'center', padding: '3rem', color: theme.colors.onSurfaceVariant }}>
+          Cargando estudiantes...
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!curso) {
+    return (
+      <AppLayout user={user} onLogout={onLogout}>
+        <div style={{ textAlign: 'center', padding: '3rem', color: theme.colors.error }}>
+          <p>No se encontró el curso.</p>
+          {error && <p style={{ fontSize: '0.875rem', marginTop: '1rem', color: theme.colors.onSurfaceVariant }}>Error: {error}</p>}
+          <button 
+            onClick={() => navigate('/mis-cursos')}
+            style={{
+              marginTop: '1.5rem',
+              padding: '0.5rem 1rem',
+              backgroundColor: theme.colors.primary,
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.375rem',
+              cursor: 'pointer'
+            }}
+          >
+            Volver a mis cursos
+          </button>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout user={user} onLogout={onLogout}>
@@ -163,10 +249,9 @@ const AttendancePage = ({ onLogout }) => {
           <div>
             <div style={{display:'flex',alignItems:'center',gap:'.75rem',marginBottom:'.375rem'}}>
               <Badge variant="default">{curso.codigo}</Badge>
-              <Badge variant={MOCK_SESION.estado === 'activa' ? 'active' : 'default'}>{MOCK_SESION.estado}</Badge>
             </div>
             <CourseTitle>{curso.nombre}</CourseTitle>
-            <SessionMeta>{MOCK_SESION.aula} · {MOCK_SESION.fecha} · {MOCK_SESION.horaInicio} – {MOCK_SESION.horaFin}</SessionMeta>
+            <SessionMeta>Lista de estudiantes del curso</SessionMeta>
           </div>
           <DateNav>
             <DateNavBtn aria-label="Sesión anterior"><Icon name="chevron_left" size="sm" /></DateNavBtn>

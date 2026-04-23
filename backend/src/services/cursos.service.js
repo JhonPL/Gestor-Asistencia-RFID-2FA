@@ -10,6 +10,8 @@ export async function getCursoConHorarios(id, client = pool) {
   const { rows } = await client.query(
     `SELECT c.id, c.nombre, c.codigo, c.fecha_inicio, c.fecha_fin, c.activo, c.persona_id,
             p.nombre || ' ' || p.apellido AS docente,
+            (SELECT COUNT(*)::int FROM lista_estudiantes le
+             WHERE le.curso_id = c.id AND le.activo = true) AS total_estudiantes,
             COALESCE(
               json_agg(
                 json_build_object(

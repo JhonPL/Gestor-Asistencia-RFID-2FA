@@ -2,15 +2,13 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import theme from '../styles/theme';
 import { useAuth } from '../context/AuthContext';
+import { useDashboard } from '../hooks/useDashboard';
 import AppLayout from '../components/layout/AppLayout';
 import CourseCard from '../components/dashboard/CourseCard';
 import RecentSessionsWidget from '../components/dashboard/RecentSessionsWidget';
 import UpcomingClassWidget from '../components/dashboard/UpcomingClassWidget';
 import QuickActionsWidget from '../components/dashboard/QuickActionsWidget';
-import {
-  MOCK_CURSOS, MOCK_SESIONES_RECIENTES,
-  MOCK_PROXIMAS_CLASES, MOCK_ACCIONES_RAPIDAS,
-} from '../mocks/dashboard.mock';
+import { MOCK_ACCIONES_RAPIDAS } from '../mocks/dashboard.mock';
 
 const getDayName  = () => new Intl.DateTimeFormat('es-CO', { weekday: 'long' }).format(new Date());
 const getFullDate = () => new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
@@ -58,13 +56,28 @@ const AddCoursePlaceholder = styled.button`
 `;
 
 const DashboardPage = ({ onLogout }) => {
-  const navigate     = useNavigate();
-  const { user }     = useAuth();
+  const navigate = useNavigate();
+  const { user, token } = useAuth();
+  const { cursos, sesionesRecientes, proximasClases, loading } = useDashboard(token);
 
   const handleOpenPortal = (course) => navigate(`/cursos/${course.id}/asistencia`);
   const handleQuickAction = (id) => {
     if (id === 'sessions') navigate('/cursos/1/asistencia');
   };
+
+  if (loading) {
+    return (
+      <AppLayout user={user} onLogout={onLogout}>
+        <PageHeader>
+          <Greeting>Buenos días, {user?.nombre} {user?.apellido}</Greeting>
+          <DateLine>{getDayName()}, {getFullDate()}</DateLine>
+        </PageHeader>
+        <div style={{ textAlign: 'center', padding: '3rem', color: theme.colors.onSurfaceVariant }}>
+          Cargando dashboard...
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout user={user} onLogout={onLogout}>
@@ -80,7 +93,7 @@ const DashboardPage = ({ onLogout }) => {
               <SectionTitle>Tus cursos asignados</SectionTitle>
             </SectionHeader>
             <CoursesGrid>
-              {MOCK_CURSOS.map(course => (
+              {cursos.map(course => (
                 <CourseCard key={course.id} course={course} onOpenPortal={handleOpenPortal} />
               ))}
             </CoursesGrid>
@@ -89,10 +102,10 @@ const DashboardPage = ({ onLogout }) => {
 
         <SideColumn>
           <RecentSessionsWidget
-            sessions={MOCK_SESIONES_RECIENTES}
+            sessions={sesionesRecientes}
             onViewReport={() => navigate('/cursos/1/asistencia')}
           />
-          <UpcomingClassWidget classes={MOCK_PROXIMAS_CLASES} />
+          <UpcomingClassWidget classes={proximasClases} />
           <QuickActionsWidget actions={MOCK_ACCIONES_RAPIDAS} onAction={handleQuickAction} />
         </SideColumn>
       </BentoGrid>
