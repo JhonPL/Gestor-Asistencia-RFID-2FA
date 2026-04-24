@@ -161,6 +161,90 @@ const FullTd = styled.td`
 `;
 const FullTdName = styled(FullTd)`text-align:left;font-weight:${theme.fontWeights.semibold};`;
 
+// ── Modal de Export ──────────────────────────────────────────
+const ExportDialogOverlay = styled.div`
+  position:fixed;top:0;left:0;right:0;bottom:0;background-color:rgba(0,0,0,0.5);
+  display:flex;align-items:center;justify-content:center;z-index:1001;padding:1rem;
+`;
+
+const ExportDialogContent = styled.div`
+  background-color:${theme.colors.surfaceContainerLowest};border-radius:${theme.radii['2xl']};
+  max-width:28rem;box-shadow:${theme.shadows.lg};padding:2rem;
+`;
+
+const ExportDialogTitle = styled.h3`
+  font-family:${theme.fonts.headline};font-size:${theme.fontSizes.lg};
+  font-weight:${theme.fontWeights.bold};color:${theme.colors.primary};margin-bottom:1rem;
+`;
+
+const ExportDialogText = styled.p`
+  font-size:${theme.fontSizes.sm};color:${theme.colors.onSurfaceVariant};margin-bottom:1.5rem;
+`;
+
+const ExportDialogActions = styled.div`
+  display:flex;gap:1rem;justify-content:flex-end;
+`;
+
+const ExportButton = styled.button`
+  padding:.5rem 1rem;border:none;border-radius:${theme.radii.md};
+  font-weight:${theme.fontWeights.semibold};font-size:${theme.fontSizes.sm};
+  cursor:pointer;transition:all ${theme.transitions.fast};
+  
+  &.primary {
+    background-color:${theme.colors.primary};color:white;
+    &:hover { background-color:${theme.colors.primaryContainer}; }
+  }
+  
+  &.secondary {
+    background-color:${theme.colors.surfaceContainer};color:${theme.colors.onSurface};
+    &:hover { background-color:${theme.colors.surfaceContainerHigh}; }
+  }
+`;
+
+// ── Modal de Edición de Asistencia ──────────────────────────────
+const EditDialogOverlay = styled.div`
+  position:fixed;top:0;left:0;right:0;bottom:0;background-color:rgba(0,0,0,0.5);
+  display:flex;align-items:center;justify-content:center;z-index:1001;padding:1rem;
+`;
+
+const EditDialogContent = styled.div`
+  background-color:${theme.colors.surfaceContainerLowest};border-radius:${theme.radii['2xl']};
+  max-width:32rem;box-shadow:${theme.shadows.lg};padding:2rem;
+`;
+
+const EditDialogTitle = styled.h3`
+  font-family:${theme.fonts.headline};font-size:${theme.fontSizes.lg};
+  font-weight:${theme.fontWeights.bold};color:${theme.colors.primary};margin-bottom:1rem;
+`;
+
+const EditFormGroup = styled.div`
+  margin-bottom:1.25rem;
+`;
+
+const EditLabel = styled.label`
+  display:block;font-size:${theme.fontSizes.sm};font-weight:${theme.fontWeights.semibold};
+  color:${theme.colors.onSurface};margin-bottom:.375rem;
+`;
+
+const EditSelect = styled.select`
+  width:100%;padding:.75rem;border:1px solid ${theme.colors.outline};
+  border-radius:${theme.radii.md};font-family:${theme.fonts.body};font-size:${theme.fontSizes.sm};
+  color:${theme.colors.onSurface};background-color:${theme.colors.surfaceContainer};
+  &:focus { outline:none;border-color:${theme.colors.primary};box-shadow:0 0 0 2px ${theme.colors.primary}33; }
+`;
+
+const EditTextarea = styled.textarea`
+  width:100%;padding:.75rem;border:1px solid ${theme.colors.outline};
+  border-radius:${theme.radii.md};font-family:${theme.fonts.body};font-size:${theme.fontSizes.sm};
+  color:${theme.colors.onSurface};background-color:${theme.colors.surfaceContainer};
+  resize:vertical;min-height:4rem;
+  &:focus { outline:none;border-color:${theme.colors.primary};box-shadow:0 0 0 2px ${theme.colors.primary}33; }
+`;
+
+const EditDialogActions = styled.div`
+  display:flex;gap:1rem;justify-content:flex-end;margin-top:1.5rem;
+`;
+
 const AttendancePage = ({ onLogout }) => {
   const navigate         = useNavigate();
   const { cursoId }      = useParams();
@@ -175,6 +259,10 @@ const AttendancePage = ({ onLogout }) => {
   const [currentSessionIdx, setCurrentSessionIdx] = useState(0);
   const [showFullTable, setShowFullTable] = useState(false);
   const [fullTableData, setFullTableData] = useState([]);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [editMotivo, setEditMotivo] = useState('');
   
   // Cargar curso, estudiantes y sesiones
   useEffect(() => {
@@ -294,6 +382,112 @@ const AttendancePage = ({ onLogout }) => {
     return data;
   }, [records, filter, search]);
 
+  // ── Funciones de export ──────────────────────────────────────────
+  const exportAsistencia = (type) => {
+    try {
+      let dataToExport = [];
+      let filename = `asistencia-${curso?.codigo || 'curso'}-`;
+      
+      if (type === 'current-session') {
+        // Exportar sesión actual
+        const currentDate = currentSesion?.fecha ? 
+          new Date(currentSesion.fecha).toLocaleDateString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-')
+          : new Date().toISOString().split('T')[0];
+        filename += currentDate;
+        
+        dataToExport = records.map(r => ({
+          codigo: r.codigoEstudiante,
+          nombre: `${r.nombre} ${r.apellido}`,
+          estado: r.estado,
+          hora: r.horaRegistro || '—',
+          verificacion: r.estadoVerificacion,
+        }));
+      } else {
+        // Exportar todo completo
+        filename += 'completo-' + new Date().toISOString().split('T')[0];
+        
+        dataToExport = fullTableData.map(est => {
+          const row = {
+            codigo: est.codigoEstudiante,
+            nombre: `${est.nombre} ${est.apellido}`,
+          };
+          est.sesiones.forEach((s, idx) => {
+            const dateLabel = new Date(s.fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+            row[`sesion-${idx}`] = s.estado;
+          });
+          return row;
+        });
+      }
+      
+      // Convertir a CSV
+      const headers = type === 'current-session' 
+        ? ['Código', 'Nombre', 'Estado', 'Hora', 'Verificación']
+        : ['Código', 'Nombre', ...sesiones.map((s, i) => new Date(s.fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }))];
+      
+      const csvContent = [
+        headers.join(','),
+        ...dataToExport.map(row => 
+          headers.map(h => {
+            const key = h.toLowerCase().replace(/ /g, '-').replace(/ó/g, 'o');
+            const val = row[key] || row[h] || '—';
+            return `"${val}"`;
+          }).join(',')
+        ),
+      ].join('\n');
+      
+      // Crear blob y descargar
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${filename}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setShowExportDialog(false);
+    } catch (err) {
+      console.error('Error al exportar:', err);
+      alert('Error al exportar: ' + err.message);
+    }
+  };
+
+  // ── Guardar cambios ──────────────────────────────────────────────
+  const handleSaveChanges = async () => {
+    setSaving(true);
+    try {
+      // Aquí irá la llamada a la API para guardar los cambios
+      // Por ahora, solo mostramos un mensaje de éxito
+      console.log('Guardando cambios...', records);
+      alert('Asistencia guardada exitosamente (esta es una demostración)');
+      setSaving(false);
+    } catch (err) {
+      console.error('Error al guardar:', err);
+      alert('Error al guardar: ' + err.message);
+      setSaving(false);
+    }
+  };
+
+  // ── Editar asistencia manual ─────────────────────────────────────
+  const openEditRecord = (record) => {
+    setEditingRecord(record);
+    setEditMotivo(record.motivo || '');
+  };
+
+  const handleSaveEditedRecord = () => {
+    if (!editingRecord) return;
+    
+    setRecords(prev => prev.map(r => 
+      r.id === editingRecord.id 
+        ? { ...r, motivo: editMotivo }
+        : r
+    ));
+    
+    setEditingRecord(null);
+    setEditMotivo('');
+  };
+
   if (loading) {
     return (
       <AppLayout user={user} onLogout={onLogout}>
@@ -389,10 +583,12 @@ const AttendancePage = ({ onLogout }) => {
           <Button variant="outlined" size="sm" onClick={() => setShowFullTable(true)}>
             <Icon name="table" size="sm" />Tabla completa
           </Button>
-          <Button variant="outlined" size="sm" onClick={() => alert('Exportar — pendiente de API')}>
+          <Button variant="outlined" size="sm" onClick={() => setShowExportDialog(true)}>
             <Icon name="download" size="sm" />Exportar
           </Button>
-          <Button size="sm" onClick={() => alert('Guardado — pendiente de API')}>Guardar cambios</Button>
+          <Button size="sm" onClick={handleSaveChanges} disabled={saving}>
+            {saving ? 'Guardando...' : 'Guardar cambios'}
+          </Button>
         </RightActions>
       </ActionBar>
 
@@ -431,7 +627,22 @@ const AttendancePage = ({ onLogout }) => {
                         {r.motivo && <div style={{marginTop:'.25rem',fontSize:theme.fontSizes.xs,color:theme.colors.outline,fontStyle:'italic'}}>"{r.motivo}"</div>}
                       </Td>
                       <Td style={{textAlign:'center'}}>
-                        <AttendanceStatusToggle value={r.estado} onChange={newEstado => handleStatusChange(r.id, newEstado)} />
+                        <div style={{display:'flex',gap:'.5rem',justifyContent:'center',alignItems:'center'}}>
+                          <AttendanceStatusToggle value={r.estado} onChange={newEstado => handleStatusChange(r.id, newEstado)} />
+                          <button 
+                            onClick={() => openEditRecord(r)}
+                            title="Editar registro"
+                            style={{
+                              background:'none',border:'none',color:theme.colors.primary,cursor:'pointer',
+                              fontSize:theme.fontSizes.sm,padding:'.25rem .5rem',borderRadius:theme.radii.md,
+                              transition:`all ${theme.transitions.fast}`
+                            }}
+                            onMouseOver={(e) => e.target.style.backgroundColor = theme.colors.primaryFixed}
+                            onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                          >
+                            <Icon name="edit" size="sm" />
+                          </button>
+                        </div>
                       </Td>
                     </Tr>
                   );
@@ -482,6 +693,73 @@ const AttendancePage = ({ onLogout }) => {
             </FullTableContainer>
           </ModalContent>
         </ModalOverlay>
+      )}
+
+      {showExportDialog && (
+        <ExportDialogOverlay onClick={() => setShowExportDialog(false)}>
+          <ExportDialogContent onClick={(e) => e.stopPropagation()}>
+            <ExportDialogTitle>Exportar asistencia</ExportDialogTitle>
+            <ExportDialogText>¿Qué deseas exportar?</ExportDialogText>
+            <ExportDialogActions>
+              <ExportButton className="secondary" onClick={() => setShowExportDialog(false)}>
+                Cancelar
+              </ExportButton>
+              <ExportButton className="primary" onClick={() => exportAsistencia('current-session')}>
+                Sesión actual
+              </ExportButton>
+              <ExportButton className="primary" onClick={() => exportAsistencia('all-sessions')}>
+                Todo completo
+              </ExportButton>
+            </ExportDialogActions>
+          </ExportDialogContent>
+        </ExportDialogOverlay>
+      )}
+
+      {editingRecord && (
+        <EditDialogOverlay onClick={() => setEditingRecord(null)}>
+          <EditDialogContent onClick={(e) => e.stopPropagation()}>
+            <EditDialogTitle>Editar asistencia</EditDialogTitle>
+            
+            <EditFormGroup>
+              <EditLabel>Estudiante</EditLabel>
+              <div style={{fontSize:theme.fontSizes.sm,color:theme.colors.onSurface}}>
+                {editingRecord.nombre} {editingRecord.apellido} ({editingRecord.codigoEstudiante})
+              </div>
+            </EditFormGroup>
+
+            <EditFormGroup>
+              <EditLabel htmlFor="edit-estado">Estado</EditLabel>
+              <EditSelect 
+                id="edit-estado"
+                value={editingRecord.estado} 
+                onChange={(e) => setEditingRecord({...editingRecord, estado: e.target.value})}
+              >
+                <option value="Presente">Presente</option>
+                <option value="Ausente">Ausente</option>
+                <option value="Justificado">Justificado</option>
+              </EditSelect>
+            </EditFormGroup>
+
+            <EditFormGroup>
+              <EditLabel htmlFor="edit-motivo">Motivo / Observación</EditLabel>
+              <EditTextarea 
+                id="edit-motivo"
+                value={editMotivo}
+                onChange={(e) => setEditMotivo(e.target.value)}
+                placeholder="Ej: Enfermedad, tramite, etc..."
+              />
+            </EditFormGroup>
+
+            <EditDialogActions>
+              <ExportButton className="secondary" onClick={() => setEditingRecord(null)}>
+                Cancelar
+              </ExportButton>
+              <ExportButton className="primary" onClick={handleSaveEditedRecord}>
+                Guardar cambios
+              </ExportButton>
+            </EditDialogActions>
+          </EditDialogContent>
+        </EditDialogOverlay>
       )}
     </AppLayout>
   );

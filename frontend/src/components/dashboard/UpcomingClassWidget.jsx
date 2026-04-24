@@ -90,22 +90,34 @@ const ClassAula = styled.p`
   margin-top: 0.125rem;
 `;
 
+const EmptyMessage = styled.p`
+  font-size: ${theme.fontSizes.sm};
+  color: ${theme.colors.onPrimaryContainer};
+  opacity: 0.8;
+  text-align: center;
+  padding: 1rem 0;
+`;
+
 const UpcomingClassWidget = ({ classes = [] }) => (
   <Widget>
     <Blob aria-hidden="true" />
     <WidgetTitle>Hoy en tu horario</WidgetTitle>
 
-    <ClassList>
-      {classes.map((c) => (
-        <ClassItem key={c.id} $proxima={c.proxima}>
-          <ClassTime $proxima={c.proxima}>
-            {c.proxima ? `En ${c.minutosRestantes} minutos` : c.horaInicio}
-          </ClassTime>
-          <ClassName $proxima={c.proxima}>{c.cursoNombre}</ClassName>
-          <ClassAula>{c.aula}</ClassAula>
-        </ClassItem>
-      ))}
-    </ClassList>
+    {classes.length === 0 ? (
+      <EmptyMessage>No tienes clases programadas para hoy</EmptyMessage>
+    ) : (
+      <ClassList>
+        {classes.map((c) => (
+          <ClassItem key={c.id} $proxima={c.proxima}>
+            <ClassTime $proxima={c.proxima}>
+              {c.proxima ? `En ${c.minutosRestantes} minutos` : c.horaInicio}
+            </ClassTime>
+            <ClassName $proxima={c.proxima}>{c.cursoNombre}</ClassName>
+            <ClassAula>{c.aula}</ClassAula>
+          </ClassItem>
+        ))}
+      </ClassList>
+    )}
   </Widget>
 );
 

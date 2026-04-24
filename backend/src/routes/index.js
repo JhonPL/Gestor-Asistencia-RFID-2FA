@@ -1,4 +1,4 @@
-// src/routes/index.js
+// backend/src/routes/index.js
 import { Router } from 'express';
 import authRoutes          from './auth.routes.js';
 import personasRoutes      from './personas.routes.js';
@@ -11,6 +11,7 @@ import horariosRoutes      from './horarios.routes.js';
 import dispositivosRoutes  from './dispositivos.routes.js';
 import aulasRoutes         from './aulas.routes.js';
 import sesionesRoutes      from './sesiones.routes.js';
+import statsRoutes         from './stats.routes.js';
 
 const router = Router();
 
@@ -25,6 +26,7 @@ router.use('/horarios',     horariosRoutes);
 router.use('/dispositivos', dispositivosRoutes);
 router.use('/aulas',        aulasRoutes);
 router.use('/sesiones',     sesionesRoutes);
+router.use('/stats',        statsRoutes);
 
 router.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

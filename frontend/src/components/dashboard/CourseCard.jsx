@@ -126,8 +126,10 @@ const PortalBtn = styled.button`
 const CourseCard = ({ course, onOpenPortal }) => {
   const { codigo, nombre, aula, horario, totalEstudiantes, badgeVariant = 'default' } = course;
 
+  const handleCardClick = () => onOpenPortal?.(course);
+
   return (
-    <Card>
+    <Card onClick={handleCardClick}>
       <CardTop>
         <Badge variant={badgeVariant}>{codigo}</Badge>
         <MoreBtn aria-label="Más opciones">

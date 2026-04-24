@@ -8,6 +8,7 @@ import { createError } from '../middlewares/errorHandler.js';
 
 // ── Detalle de curso con horarios ─────────────────────────────────────────────
 export async function getCursoConHorarios(id, client = pool) {
+  console.log('[getCursoConHorarios] Obteniendo curso', id);
   const { rows } = await client.query(
     `SELECT c.id, c.nombre, c.codigo, c.fecha_inicio, c.fecha_fin, c.activo, c.persona_id,
             p.nombre || ' ' || p.apellido AS docente,
@@ -37,31 +38,59 @@ export async function getCursoConHorarios(id, client = pool) {
      GROUP BY c.id, p.nombre, p.apellido`,
     [id],
   );
-  if (!rows.length) throw createError(404, 'Curso no encontrado');
-  return rows[0];
+  if (!rows.length) {
+    console.log('[getCursoConHorarios] Curso no encontrado:', id);
+    throw createError(404, 'Curso no encontrado');
+  }
+  const resultado = rows[0];
+  console.log('[getCursoConHorarios] Curso encontrado:', {
+    id: resultado.id,
+    nombre: resultado.nombre,
+    horariosCount: resultado.horarios?.length || 0,
+  });
+  return resultado;
 }
 
 // ── Insertar asignaciones aula-horario ────────────────────────────────────────
 async function insertAsignaciones(cursoId, asignaciones, tx) {
-  if (!asignaciones?.length) return;
+  if (!asignaciones?.length) {
+    console.log('[insertAsignaciones] Sin asignaciones para insertar');
+    return;
+  }
+
+  console.log('[insertAsignaciones] Procesando', asignaciones.length, 'asignaciones para curso', cursoId);
 
   const aulaIds = [...new Set(asignaciones.map(a => a.aula_id).filter(Boolean))];
-  if (!aulaIds.length) return;
+  if (!aulaIds.length) {
+    console.log('[insertAsignaciones] No hay aulas válidas en las asignaciones');
+    return;
+  }
 
   const { rows: aulasExistentes } = await tx.query(
     'SELECT id FROM aula WHERE id = ANY($1)', [aulaIds],
   );
   const aulasValidas = new Set(aulasExistentes.map(a => a.id));
+  console.log('[insertAsignaciones] Aulas válidas:', aulasValidas.size, 'de', aulaIds.length);
 
+  let insertadas = 0;
   for (const { aula_id, horario_id } of asignaciones) {
-    if (!aula_id || !horario_id || !aulasValidas.has(aula_id)) continue;
+    if (!aula_id || !horario_id) {
+      console.log('[insertAsignaciones] Saltando: aula_id=', aula_id, 'horario_id=', horario_id);
+      continue;
+    }
+    if (!aulasValidas.has(aula_id)) {
+      console.log('[insertAsignaciones] Aula no válida:', aula_id);
+      continue;
+    }
     await tx.query(
       `INSERT INTO aula_curso_horario (aula_id, curso_id, horario_id)
        VALUES ($1, $2, $3)
        ON CONFLICT (aula_id, horario_id) DO NOTHING`,
       [aula_id, cursoId, horario_id],
     );
+    insertadas++;
   }
+  console.log('[insertAsignaciones] Insertadas:', insertadas, 'asignaciones');
 }
 
 // ── Generar sesiones para TODO el rango de fechas ────────────────────────────

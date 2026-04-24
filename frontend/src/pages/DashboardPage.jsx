@@ -60,8 +60,25 @@ const DashboardPage = ({ onLogout }) => {
   const { cursos, sesionesRecientes, proximasClases, loading } = useDashboard(token);
 
   const handleOpenPortal = (course) => navigate(`/cursos/${course.id}/asistencia`);
+  
   const handleQuickAction = (id) => {
-    if (id === 'sessions') navigate('/cursos/1/asistencia');
+    if (id === 'justify') {
+      alert('Justificar ausencias — próximamente. Puedes hacerlo desde el detalle del curso.');
+    } else if (id === 'export') {
+      alert('Exportar asistencia — próximamente. Puedes exportar desde el detalle del curso.');
+    } else if (id === 'students') {
+      if (cursos.length === 0) {
+        alert('No tienes cursos asignados.');
+        return;
+      }
+      if (cursos.length === 1) {
+        handleOpenPortal(cursos[0]);
+      } else {
+        alert('Selecciona un curso desde la lista para ver sus estudiantes.');
+      }
+    } else if (id === 'sessions') {
+      alert('Historial de sesiones — próximamente.');
+    }
   };
 
   if (loading) {
