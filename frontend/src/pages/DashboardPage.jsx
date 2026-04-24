@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { useDashboard } from '../hooks/useDashboard';
 import AppLayout from '../components/layout/AppLayout';
 import CourseCard from '../components/dashboard/CourseCard';
-import RecentSessionsWidget from '../components/dashboard/RecentSessionsWidget';
 import UpcomingClassWidget from '../components/dashboard/UpcomingClassWidget';
 import QuickActionsWidget from '../components/dashboard/QuickActionsWidget';
 import { MOCK_ACCIONES_RAPIDAS } from '../mocks/dashboard.mock';
@@ -101,10 +100,6 @@ const DashboardPage = ({ onLogout }) => {
         </MainColumn>
 
         <SideColumn>
-          <RecentSessionsWidget
-            sessions={sesionesRecientes}
-            onViewReport={() => navigate('/cursos/1/asistencia')}
-          />
           <UpcomingClassWidget classes={proximasClases} />
           <QuickActionsWidget actions={MOCK_ACCIONES_RAPIDAS} onAction={handleQuickAction} />
         </SideColumn>

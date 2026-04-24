@@ -1,9 +1,7 @@
-// src/pages/AdminPage.jsx
+// frontend/src/pages/AdminPage.jsx
 // Coordinador puro: monta hooks de datos, gestiona el tab activo y los modales.
-// Toda la lógica de carga/mutación vive en los hooks; los tabs se renderizan
-// como componentes independientes. Tamaño reducido de ~1000 → ~200 líneas.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import theme from '../styles/theme';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +9,9 @@ import AppLayout from '../components/layout/AppLayout';
 import AdminStatCard from '../components/admin/AdminStatCard';
 import Button from '../components/ui/Button';
 import Icon from '../components/ui/Icon';
+
+// API
+import { getAdminStats } from '../api/statsApi';
 
 // Hooks de datos
 import { usePersonas }     from '../hooks/usePersonas';
@@ -21,74 +22,95 @@ import { useAulas }        from '../hooks/useAulas';
 import { useHorarios }     from '../hooks/useHorarios';
 
 // Tabs
-import { PersonasTab }     from '../components/admin/PersonasTab';
-import { DispositivosTab } from '../components/admin/DispositivosTab';
-
-// Tabs académicos, horarios, aulas y cursos — inline aquí o en sus propios archivos
-// (se dejan como placeholders para que el equipo los migre igual que PersonasTab)
-import AcademicoTabPlaceholder from '../components/admin/AcademicoTab';
-import HorariosTabPlaceholder  from '../components/admin/HorariosTab';
-import CursosTabPlaceholder    from '../components/admin/CursosTab';
-import AulasTab from '../components/admin/AulasTab';
+import { PersonasTab }                from '../components/admin/PersonasTab';
+import { DispositivosTab }            from '../components/admin/DispositivosTab';
+import AcademicoTabPlaceholder        from '../components/admin/AcademicoTab';
+import HorariosTabPlaceholder         from '../components/admin/HorariosTab';
+import CursosTabPlaceholder           from '../components/admin/CursosTab';
+import AulasTab                       from '../components/admin/AulasTab';
 
 // Modales
-import PersonaFormModal      from '../components/admin/PersonaFormModal';
-import LinkCardModal         from '../components/admin/LinkCardModal';
-import DeviceFormModal       from '../components/admin/DeviceFormModal';
+import PersonaFormModal               from '../components/admin/PersonaFormModal';
+import LinkCardModal                  from '../components/admin/LinkCardModal';
+import DeviceFormModal                from '../components/admin/DeviceFormModal';
 import { FacultadModal, ProgramaModal } from '../components/admin/FacultadProgramaModals';
-import { AulaModal, HorarioModal }      from '../components/admin/AulaHorarioModals';
-import CursoGestionModal     from '../components/admin/CursoGestionModal';
-import { getDias }           from '../api/horariosApi';
+import { AulaModal, HorarioModal }    from '../components/admin/AulaHorarioModals';
+import CursoGestionModal              from '../components/admin/CursoGestionModal';
+import { getDias }                    from '../api/horariosApi';
 
-import { MOCK_AULAS, MOCK_DIAS, ADMIN_STATS } from '../mocks/admin.mock';
+import { MOCK_DIAS } from '../mocks/admin.mock';
 
 // ─── Tabs ──────────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'personas',     label: 'Personas',    icon: 'group'        },
-  { id: 'cursos',       label: 'Cursos',       icon: 'menu_book'    },
-  { id: 'academico',    label: 'Académico',    icon: 'school'       },
-  { id: 'aulas',        label: 'Aulas',        icon: 'meeting_room' },
-  { id: 'horarios',     label: 'Horarios',     icon: 'schedule'     },
-  { id: 'dispositivos', label: 'Dispositivos', icon: 'sensors'      },
+  { id: 'personas',     label: 'Personas',     icon: 'group'        },
+  { id: 'cursos',       label: 'Cursos',        icon: 'menu_book'    },
+  { id: 'academico',    label: 'Académico',     icon: 'school'       },
+  { id: 'aulas',        label: 'Aulas',         icon: 'meeting_room' },
+  { id: 'horarios',     label: 'Horarios',      icon: 'schedule'     },
+  { id: 'dispositivos', label: 'Dispositivos',  icon: 'sensors'      },
 ];
 
 // ─── Styled ────────────────────────────────────────────────────────────────────
-const PageHeader  = styled.header`margin-bottom: 2.5rem;`;
-const Title       = styled.h1`
-  font-family: ${theme.fonts.headline}; font-size: clamp(1.5rem,3vw,2.25rem);
-  font-weight: ${theme.fontWeights.extrabold}; color: ${theme.colors.primary};
-  letter-spacing: -.02em; margin-bottom: .375rem;
+const PageHeader = styled.header`margin-bottom: 2.5rem;`;
+const Title      = styled.h1`
+  font-family: ${theme.fonts.headline};
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: ${theme.fontWeights.extrabold};
+  color: ${theme.colors.primary};
+  letter-spacing: -.02em;
+  margin-bottom: .375rem;
 `;
-const Subtitle    = styled.p`font-size: ${theme.fontSizes.base}; color: ${theme.colors.onSurfaceVariant};`;
-const StatsGrid   = styled.div`
-  display: grid; grid-template-columns: repeat(2,1fr); gap: 1rem; margin-bottom: 2.5rem;
-  @media(min-width:${theme.breakpoints.lg}){ grid-template-columns: repeat(4,1fr); }
+const Subtitle   = styled.p`font-size: ${theme.fontSizes.base}; color: ${theme.colors.onSurfaceVariant};`;
+const StatsGrid  = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+  @media(min-width: ${theme.breakpoints.lg}) { grid-template-columns: repeat(4, 1fr); }
 `;
-const TabsScroll  = styled.div`overflow-x: auto; margin-bottom: 1.75rem; padding-bottom: .25rem;`;
-const TabsBar     = styled.div`
-  display: flex; gap: .25rem; background: ${theme.colors.surfaceContainerHigh};
-  border-radius: ${theme.radii.xl}; padding: .3rem; width: fit-content; min-width: 100%;
+const TabsScroll = styled.div`overflow-x: auto; margin-bottom: 1.75rem; padding-bottom: .25rem;`;
+const TabsBar    = styled.div`
+  display: flex; gap: .25rem;
+  background: ${theme.colors.surfaceContainerHigh};
+  border-radius: ${theme.radii.xl};
+  padding: .3rem;
+  width: fit-content; min-width: 100%;
 `;
 const Tab = styled.button`
-  display: flex; align-items: center; gap: .5rem; padding: .625rem 1.125rem;
-  border-radius: ${theme.radii.lg}; font-size: ${theme.fontSizes.sm};
-  font-weight: ${theme.fontWeights.semibold}; transition: all ${theme.transitions.base};
+  display: flex; align-items: center; gap: .5rem;
+  padding: .625rem 1.125rem;
+  border-radius: ${theme.radii.lg};
+  font-size: ${theme.fontSizes.sm};
+  font-weight: ${theme.fontWeights.semibold};
+  transition: all ${theme.transitions.base};
   white-space: nowrap; flex-shrink: 0;
   background: ${({ $a }) => $a ? theme.colors.surfaceContainerLowest : 'transparent'};
   color:      ${({ $a }) => $a ? theme.colors.primary : theme.colors.onSurfaceVariant};
   box-shadow: ${({ $a }) => $a ? theme.shadows.sm : 'none'};
 `;
 
+// ─── Stats iniciales vacíos ─────────────────────────────────────────────────
+const EMPTY_STATS = [
+  { id: 'personas',     label: 'Personas registradas', value: '—', icon: 'group',     delta: 'Cargando…' },
+  { id: 'cursos',       label: 'Cursos activos',        value: '—', icon: 'menu_book', delta: 'Cargando…' },
+  { id: 'dispositivos', label: 'Dispositivos RFID',     value: '—', icon: 'sensors',   delta: 'Cargando…' },
+  { id: 'sesiones',     label: 'Sesiones hoy',          value: '—', icon: 'today',     delta: 'Cargando…' },
+];
+
 // ─── Componente ────────────────────────────────────────────────────────────────
 const AdminPage = ({ onLogout }) => {
   const { user, token } = useAuth();
 
-  // Estado de UI compartido
+  // Estado de UI
   const [tab,     setTab]     = useState('personas');
   const [search,  setSearch]  = useState('');
   const [rolF,    setRolF]    = useState('Todos');
   const [estadoF, setEstadoF] = useState('Todos');
   const [modal,   setModal]   = useState({ type: null, data: null });
+  const [dias,    setDias]    = useState([]);
+
+  // Stats reales
+  const [stats, setStats] = useState(EMPTY_STATS);
 
   // Hooks de datos
   const personasHook     = usePersonas(token);
@@ -98,10 +120,51 @@ const AdminPage = ({ onLogout }) => {
   const aulasHook        = useAulas(token);
   const horariosHook     = useHorarios(token);
 
-  // Estado local para aulas (aún mock) y horarios
-  const [dias, setDias] = useState([]);
+  // ── Cargar stats reales al montar ──────────────────────────────────────────
+  const loadStats = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await getAdminStats(token);
+      setStats([
+        {
+          id: 'personas',
+          label: 'Personas registradas',
+          value: data.personas.value,
+          icon: 'group',
+          delta: data.personas.delta,
+        },
+        {
+          id: 'cursos',
+          label: 'Cursos activos',
+          value: data.cursos.value,
+          icon: 'menu_book',
+          delta: data.cursos.delta,
+        },
+        {
+          id: 'dispositivos',
+          label: 'Dispositivos RFID',
+          value: data.dispositivos.value,
+          icon: 'sensors',
+          delta: data.dispositivos.delta,
+        },
+        {
+          id: 'sesiones',
+          label: 'Sesiones hoy',
+          value: data.sesiones.value,
+          icon: 'today',
+          delta: data.sesiones.delta,
+        },
+      ]);
+    } catch (err) {
+      console.error('Error cargando stats:', err.message);
+    }
+  }, [token]);
 
-  // Cargar datos al cambiar de tab
+  useEffect(() => {
+    loadStats();
+  }, [token]);
+
+  // ── Cargar datos al cambiar de tab ─────────────────────────────────────────
   useEffect(() => {
     const loaders = {
       personas:     personasHook.load,
@@ -112,19 +175,23 @@ const AdminPage = ({ onLogout }) => {
       aulas:        aulasHook.load,
     };
     loaders[tab]?.();
-    
-    // Cargar aulas también cuando sea dispositivos o cursos (necesarios para los modales)
+
+    // Aulas también son necesarias para modales de dispositivos y cursos
     if (tab === 'dispositivos' || tab === 'cursos') {
       aulasHook.load();
     }
-    
+    // Horarios también necesarios para el modal de cursos
+    if (tab === 'cursos') {
+      horariosHook.load();
+    }
+
     setSearch('');
     setRolF('Todos');
     setEstadoF('Todos');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  // Cargar días cuando se abre el modal de horarios
+  // ── Cargar días cuando se abre el modal de horarios ────────────────────────
   useEffect(() => {
     if (modal.type === 'horario' && token && dias.length === 0) {
       getDias(token)
@@ -133,27 +200,38 @@ const AdminPage = ({ onLogout }) => {
     }
   }, [modal.type, token, dias.length]);
 
-  // Cargar aulas cuando se abre el modal de dispositivos o cursos
+  // ── Cargar aulas + horarios cuando se abre el modal de curso ───────────────
   useEffect(() => {
-    if ((modal.type === 'device' || modal.type === 'curso') && token && aulasHook.aulas.length === 0) {
+    if (modal.type === 'curso' && token) {
+      aulasHook.load();
+      horariosHook.load();
+    }
+  }, [modal.type, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Cargar aulas cuando se abre modal de dispositivo ───────────────────────
+  useEffect(() => {
+    if (modal.type === 'device' && token && aulasHook.aulas.length === 0) {
       aulasHook.load();
     }
-  }, [modal.type, token, aulasHook.aulas.length, aulasHook]);
+  }, [modal.type, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Cargar programas y facultades cuando se abre modal de personas
+  // ── Cargar programas/facultades cuando se abre modal de persona ────────────
   useEffect(() => {
     if (modal.type === 'persona' && token && academicoHook.programas.length === 0) {
       academicoHook.load();
     }
-  }, [modal.type, token, academicoHook.programas.length, academicoHook]);
+  }, [modal.type, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openM  = (type, data = null) => setModal({ type, data });
   const closeM = () => setModal({ type: null, data: null });
 
-  // ── Handlers de guardado (delegan al hook y cierran el modal) ────────────────
+  // ── Handlers de guardado ───────────────────────────────────────────────────
   const handleSavePersona = async (formData) => {
-    try { await personasHook.save(formData); closeM(); }
-    catch (err) { alert(`Error al guardar persona: ${err.message}`); }
+    try {
+      await personasHook.save(formData);
+      closeM();
+      loadStats(); // refrescar contador
+    } catch (err) { alert(`Error al guardar persona: ${err.message}`); }
   };
 
   const handleLinkCard = async (personaId, codigoTarjeta) => {
@@ -162,25 +240,33 @@ const AdminPage = ({ onLogout }) => {
   };
 
   const handleSaveCurso = async (id, payload) => {
-    try { await cursosHook.save(id, payload); closeM(); }
-    catch (err) { alert(`Error al guardar curso: ${err.message}`); }
+    try {
+      await cursosHook.save(id, payload);
+      closeM();
+      loadStats(); // refrescar contador de cursos
+    } catch (err) { alert(`Error al guardar curso: ${err.message}`); }
   };
 
   const handleDesactivarCurso = async (item) => {
     if (!item.activo) { alert('El curso ya está inactivo.'); return; }
     if (!window.confirm(`¿Desactivar "${item.nombre}"?`)) return;
-    try { await cursosHook.desactivar(item); }
-    catch (err) { alert(`Error: ${err.message}`); }
+    try {
+      await cursosHook.desactivar(item);
+      loadStats();
+    } catch (err) { alert(`Error: ${err.message}`); }
   };
 
   const handleEditCurso = async (item) => {
     try { const full = await cursosHook.loadOne(item.id); openM('curso', full); }
-    catch { openM('curso', item); }
+    catch  { openM('curso', item); }
   };
 
   const handleSaveDevice = async (formData) => {
-    try { await dispositivosHook.save(formData); closeM(); }
-    catch (err) { alert(`Error al guardar dispositivo: ${err.message}`); }
+    try {
+      await dispositivosHook.save(formData);
+      closeM();
+      loadStats();
+    } catch (err) { alert(`Error al guardar dispositivo: ${err.message}`); }
   };
 
   const handleSaveFacultad = async (data) => {
@@ -218,9 +304,7 @@ const AdminPage = ({ onLogout }) => {
       const { id, ...payload } = data;
       await horariosHook.save(id, payload);
       closeM();
-    } catch (err) {
-      alert(`Error al guardar horario: ${err.message}`);
-    }
+    } catch (err) { alert(`Error al guardar horario: ${err.message}`); }
   };
 
   const handleDeleteHorario = async (item) => {
@@ -231,7 +315,7 @@ const AdminPage = ({ onLogout }) => {
 
   const docentesList = personasHook.personas.filter(p => p.rol === 'docente' && p.activo);
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <AppLayout user={user} onLogout={onLogout}>
       <PageHeader>
@@ -239,8 +323,9 @@ const AdminPage = ({ onLogout }) => {
         <Subtitle>Gestión completa de la base de datos — SmartClass RFID</Subtitle>
       </PageHeader>
 
+      {/* Stats reales */}
       <StatsGrid>
-        {ADMIN_STATS.map(s => <AdminStatCard key={s.id} stat={s} />)}
+        {stats.map(s => <AdminStatCard key={s.id} stat={s} />)}
       </StatsGrid>
 
       <TabsScroll>
@@ -253,7 +338,7 @@ const AdminPage = ({ onLogout }) => {
         </TabsBar>
       </TabsScroll>
 
-      {/* ── Tabs ────────────────────────────────────────────────────────────── */}
+      {/* Tabs */}
       {tab === 'personas' && (
         <PersonasTab
           hook={personasHook}
@@ -314,7 +399,7 @@ const AdminPage = ({ onLogout }) => {
         />
       )}
 
-      {/* ── Modales ─────────────────────────────────────────────────────────── */}
+      {/* Modales */}
       <PersonaFormModal
         isOpen={modal.type === 'persona'} onClose={closeM}
         persona={modal.data} onSave={handleSavePersona}
@@ -340,19 +425,18 @@ const AdminPage = ({ onLogout }) => {
       />
       <AulaModal
         isOpen={modal.type === 'aula'} onClose={closeM}
-        item={modal.data}
-        onSave={handleSaveAula}
+        item={modal.data} onSave={handleSaveAula}
       />
       <HorarioModal
         isOpen={modal.type === 'horario'} onClose={closeM}
-        item={modal.data}
-        onSave={handleSaveHorario}
+        item={modal.data} onSave={handleSaveHorario}
         dias={dias.length > 0 ? dias : MOCK_DIAS}
       />
       <CursoGestionModal
         isOpen={modal.type === 'curso'} onClose={closeM}
         item={modal.data} onSave={handleSaveCurso}
-        docentes={docentesList} aulas={aulasHook.aulas}
+        docentes={docentesList}
+        aulas={aulasHook.aulas}
         horarios={horariosHook.horarios}
       />
     </AppLayout>
