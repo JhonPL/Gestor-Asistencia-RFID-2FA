@@ -12,6 +12,7 @@ import dispositivosRoutes  from './dispositivos.routes.js';
 import aulasRoutes         from './aulas.routes.js';
 import sesionesRoutes      from './sesiones.routes.js';
 import statsRoutes         from './stats.routes.js';
+import movilRoutes         from './movil.routes.js';   // ← NUEVO
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.use('/dispositivos', dispositivosRoutes);
 router.use('/aulas',        aulasRoutes);
 router.use('/sesiones',     sesionesRoutes);
 router.use('/stats',        statsRoutes);
+router.use('/movil',        movilRoutes);              // ← NUEVO
 
 router.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

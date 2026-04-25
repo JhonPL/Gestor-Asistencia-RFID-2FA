@@ -1,37 +1,32 @@
 -- ============================================================
 -- Sistema de Gestión de Asistencia con RFID
--- PostgreSQL — Script completo v5
+-- PostgreSQL — Script completo v6
+-- Universidad Cooperativa de Colombia · Villavicencio, Meta
 -- ============================================================
--- CAMBIOS v5 vs v4:
---   + metodo_verificacion   (cat. nuevo)
---   + estado_asistencia     (cat. nuevo)
---   + estado_verificacion   (cat. nuevo)
---   + estado_dispositivo    (cat. nuevo)
---   ✎ verificacion_biometrica.metodo        → metodo_verificacion_id (FK)
---   ✎ asistencia.estado                     → estado_asistencia_id (FK)
---   ✎ asistencia.estado_verificacion        → estado_verificacion_id (FK)
---   ✎ dispositivo_rfid.estado               → estado_dispositivo_id (FK)
---   ✎ lista_estudiantes.estado_inscripcion  → activo BOOLEAN
---   ✎ dispositivo_movil                     → se elimina campo modelo
+-- CAMBIOS v6 vs v5:
+--   ✎ sesion_clase.estado  → agrega 'programada' al CHECK constraint
+--                            y al DEFAULT ('activa' → 'programada')
+--   + dispositivo_movil    → UNIQUE constraint en push_token
+--                            (necesario para ON CONFLICT en /api/movil/dispositivo)
 -- ============================================================
 
 BEGIN;
 
--- ── CATÁLOGOS FIJOS ─────────────────────────────────────────
+-- ── CATÁLOGOS FIJOS ──────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.rol (
     id     SERIAL      NOT NULL,
     nombre VARCHAR(20) NOT NULL,
-    CONSTRAINT rol_pkey        PRIMARY KEY (id),
-    CONSTRAINT rol_nombre_key  UNIQUE (nombre),
-    CONSTRAINT chk_rol_nombre  CHECK (nombre IN ('docente', 'estudiante', 'administrador'))
+    CONSTRAINT rol_pkey       PRIMARY KEY (id),
+    CONSTRAINT rol_nombre_key UNIQUE (nombre),
+    CONSTRAINT chk_rol_nombre CHECK (nombre IN ('docente', 'estudiante', 'administrador'))
 );
 
 INSERT INTO public.rol (nombre) VALUES
     ('docente'), ('estudiante'), ('administrador')
 ON CONFLICT DO NOTHING;
 
--- ─────────────────────────────────────────────────────────────
+-- ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.metodo_verificacion (
     id     SERIAL      NOT NULL,
     nombre VARCHAR(20) NOT NULL,
@@ -47,7 +42,7 @@ INSERT INTO public.metodo_verificacion (nombre) VALUES
     ('fingerprint'), ('face_id'), ('ubicacion')
 ON CONFLICT DO NOTHING;
 
--- ─────────────────────────────────────────────────────────────
+-- ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.estado_asistencia (
     id     SERIAL      NOT NULL,
     nombre VARCHAR(20) NOT NULL,
@@ -60,7 +55,7 @@ INSERT INTO public.estado_asistencia (nombre) VALUES
     ('Presente'), ('Ausente'), ('Justificado')
 ON CONFLICT DO NOTHING;
 
--- ─────────────────────────────────────────────────────────────
+-- ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.estado_verificacion (
     id     SERIAL      NOT NULL,
     nombre VARCHAR(20) NOT NULL,
@@ -76,7 +71,7 @@ INSERT INTO public.estado_verificacion (nombre) VALUES
     ('pendiente'), ('completado'), ('fallido'), ('sin_app')
 ON CONFLICT DO NOTHING;
 
--- ─────────────────────────────────────────────────────────────
+-- ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.estado_dispositivo (
     id     SERIAL      NOT NULL,
     nombre VARCHAR(20) NOT NULL,
@@ -89,7 +84,7 @@ INSERT INTO public.estado_dispositivo (nombre) VALUES
     ('Activo'), ('Inactivo'), ('Mantenimiento')
 ON CONFLICT DO NOTHING;
 
--- ── ESTRUCTURA ACADÉMICA ─────────────────────────────────────
+-- ── ESTRUCTURA ACADÉMICA ──────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.facultad (
     id         SERIAL       NOT NULL,
@@ -110,7 +105,7 @@ CREATE TABLE IF NOT EXISTS public.programa (
         REFERENCES public.facultad (id) ON DELETE CASCADE
 );
 
--- ── PERSONA ──────────────────────────────────────────────────
+-- ── PERSONA ───────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.persona (
     id             SERIAL       NOT NULL,
@@ -135,13 +130,13 @@ CREATE TABLE IF NOT EXISTS public.persona (
 
 COMMENT ON COLUMN public.persona.microsoft_id   IS 'ID único de Microsoft OAuth. NULL hasta el primer login.';
 COMMENT ON COLUMN public.persona.codigo_tarjeta IS 'Código RFID. NULL para administradores puros.';
-COMMENT ON COLUMN public.persona.programa_id    IS 'Solo aplica para estudiantes.';
+COMMENT ON COLUMN public.persona.programa_id    IS 'Solo aplica para estudiantes y docentes.';
 
-CREATE INDEX IF NOT EXISTS idx_persona_correo   ON public.persona (correo);
+CREATE INDEX IF NOT EXISTS idx_persona_correo    ON public.persona (correo);
 CREATE INDEX IF NOT EXISTS idx_persona_microsoft ON public.persona (microsoft_id);
-CREATE INDEX IF NOT EXISTS idx_persona_tarjeta  ON public.persona (codigo_tarjeta);
+CREATE INDEX IF NOT EXISTS idx_persona_tarjeta   ON public.persona (codigo_tarjeta);
 
--- ── HORARIOS Y AULAS ─────────────────────────────────────────
+-- ── HORARIOS Y AULAS ──────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.dia_semana (
     id     INTEGER     NOT NULL,
@@ -151,8 +146,8 @@ CREATE TABLE IF NOT EXISTS public.dia_semana (
 );
 
 INSERT INTO public.dia_semana (id, nombre) VALUES
-    (1,'Lunes'),(2,'Martes'),(3,'Miércoles'),
-    (4,'Jueves'),(5,'Viernes'),(6,'Sábado'),(7,'Domingo')
+    (1, 'Lunes'), (2, 'Martes'), (3, 'Miércoles'),
+    (4, 'Jueves'), (5, 'Viernes'), (6, 'Sábado'), (7, 'Domingo')
 ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS public.horario (
@@ -167,13 +162,13 @@ CREATE TABLE IF NOT EXISTS public.horario (
 );
 
 CREATE TABLE IF NOT EXISTS public.aula (
-    id         SERIAL      NOT NULL,
-    numero     VARCHAR(10) NOT NULL,
+    id         SERIAL       NOT NULL,
+    numero     VARCHAR(10)  NOT NULL,
     nombre     VARCHAR(100),
     edificio   VARCHAR(50),
     piso       INTEGER,
     capacidad  INTEGER,
-    created_at TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT aula_pkey       PRIMARY KEY (id),
     CONSTRAINT aula_numero_key UNIQUE (numero)
 );
@@ -187,18 +182,18 @@ CREATE TABLE IF NOT EXISTS public.dispositivo_rfid (
     estado_dispositivo_id INTEGER     NOT NULL,
     ultima_conexion       TIMESTAMP,
     created_at            TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT dispositivo_rfid_pkey         PRIMARY KEY (id),
-    CONSTRAINT dispositivo_rfid_codigo_key   UNIQUE (codigo),
-    CONSTRAINT dispositivo_rfid_aula_fkey    FOREIGN KEY (aula_id)
+    CONSTRAINT dispositivo_rfid_pkey        PRIMARY KEY (id),
+    CONSTRAINT dispositivo_rfid_codigo_key  UNIQUE (codigo),
+    CONSTRAINT dispositivo_rfid_aula_fkey   FOREIGN KEY (aula_id)
         REFERENCES public.aula (id) ON DELETE SET NULL,
-    CONSTRAINT dispositivo_rfid_estado_fkey  FOREIGN KEY (estado_dispositivo_id)
+    CONSTRAINT dispositivo_rfid_estado_fkey FOREIGN KEY (estado_dispositivo_id)
         REFERENCES public.estado_dispositivo (id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_dispositivo_rfid_estado
     ON public.dispositivo_rfid (estado_dispositivo_id);
 
--- ── CURSOS ───────────────────────────────────────────────────
+-- ── CURSOS ────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.curso (
     id           SERIAL       NOT NULL,
@@ -251,7 +246,11 @@ CREATE TABLE IF NOT EXISTS public.lista_estudiantes (
 COMMENT ON COLUMN public.lista_estudiantes.activo IS
     'true=inscripción vigente, false=estudiante retirado/inactivo del curso.';
 
--- ── SESIÓN DE CLASE ──────────────────────────────────────────
+-- ── SESIÓN DE CLASE ───────────────────────────────────────────
+-- v6: estado DEFAULT 'programada' y CHECK incluye los 3 valores posibles.
+--     programada = pre-generada al crear el curso (aún no ocurrió)
+--     activa     = docente abrió pasando su tarjeta RFID
+--     cerrada    = docente cerró al terminar la clase
 
 CREATE TABLE IF NOT EXISTS public.sesion_clase (
     id                    SERIAL      NOT NULL,
@@ -260,7 +259,7 @@ CREATE TABLE IF NOT EXISTS public.sesion_clase (
     fecha                 DATE        NOT NULL,
     hora_inicio_real      TIME,
     hora_fin_real         TIME,
-    estado                VARCHAR(10) NOT NULL DEFAULT 'activa',
+    estado                VARCHAR(12) NOT NULL DEFAULT 'programada',
     created_at            TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT sesion_clase_pkey         PRIMARY KEY (id),
     CONSTRAINT uq_sesion_dia             UNIQUE (aula_curso_horario_id, fecha),
@@ -268,16 +267,17 @@ CREATE TABLE IF NOT EXISTS public.sesion_clase (
         REFERENCES public.aula_curso_horario (id) ON DELETE CASCADE,
     CONSTRAINT sesion_clase_persona_fkey FOREIGN KEY (persona_id)
         REFERENCES public.persona (id) ON DELETE CASCADE,
-    CONSTRAINT chk_sesion_estado         CHECK (estado IN ('activa', 'cerrada'))
+    CONSTRAINT chk_sesion_estado         CHECK (estado IN ('programada', 'activa', 'cerrada'))
 );
 
-COMMENT ON COLUMN public.sesion_clase.persona_id IS 'Docente que activó la sesión pasando su tarjeta.';
-COMMENT ON COLUMN public.sesion_clase.estado      IS 'activa=clase en curso | cerrada=docente pasó tarjeta al terminar';
+COMMENT ON COLUMN public.sesion_clase.persona_id IS 'Docente asignado al curso (se copia al pre-generar sesiones).';
+COMMENT ON COLUMN public.sesion_clase.estado     IS
+    'programada=sesión pendiente (pre-generada) | activa=docente abrió con tarjeta | cerrada=docente cerró';
 
 CREATE INDEX IF NOT EXISTS idx_sesion_estado ON public.sesion_clase (estado);
 CREATE INDEX IF NOT EXISTS idx_sesion_ach    ON public.sesion_clase (aula_curso_horario_id);
 
--- ── ASISTENCIA ───────────────────────────────────────────────
+-- ── ASISTENCIA ────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.asistencia (
     id                     SERIAL        NOT NULL,
@@ -291,15 +291,15 @@ CREATE TABLE IF NOT EXISTS public.asistencia (
     latitud                NUMERIC(10,8),
     longitud               NUMERIC(11,8),
     created_at             TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT asistencia_pkey                  PRIMARY KEY (id),
-    CONSTRAINT uq_asistencia_sesion             UNIQUE (lista_estudiantes_id, sesion_clase_id),
-    CONSTRAINT asistencia_lista_fkey            FOREIGN KEY (lista_estudiantes_id)
+    CONSTRAINT asistencia_pkey              PRIMARY KEY (id),
+    CONSTRAINT uq_asistencia_sesion         UNIQUE (lista_estudiantes_id, sesion_clase_id),
+    CONSTRAINT asistencia_lista_fkey        FOREIGN KEY (lista_estudiantes_id)
         REFERENCES public.lista_estudiantes (id) ON DELETE CASCADE,
-    CONSTRAINT asistencia_sesion_fkey           FOREIGN KEY (sesion_clase_id)
+    CONSTRAINT asistencia_sesion_fkey       FOREIGN KEY (sesion_clase_id)
         REFERENCES public.sesion_clase (id) ON DELETE CASCADE,
-    CONSTRAINT asistencia_estado_fkey           FOREIGN KEY (estado_asistencia_id)
+    CONSTRAINT asistencia_estado_fkey       FOREIGN KEY (estado_asistencia_id)
         REFERENCES public.estado_asistencia (id),
-    CONSTRAINT asistencia_estado_verif_fkey     FOREIGN KEY (estado_verificacion_id)
+    CONSTRAINT asistencia_estado_verif_fkey FOREIGN KEY (estado_verificacion_id)
         REFERENCES public.estado_verificacion (id)
 );
 
@@ -309,7 +309,9 @@ COMMENT ON COLUMN public.asistencia.estado_verificacion_id IS 'pendiente | compl
 CREATE INDEX IF NOT EXISTS idx_asistencia_lista  ON public.asistencia (lista_estudiantes_id);
 CREATE INDEX IF NOT EXISTS idx_asistencia_sesion ON public.asistencia (sesion_clase_id);
 
--- ── APP MÓVIL ────────────────────────────────────────────────
+-- ── APP MÓVIL ─────────────────────────────────────────────────
+-- v6: se agrega UNIQUE constraint en push_token para que
+--     ON CONFLICT (push_token) DO UPDATE funcione en /api/movil/dispositivo.
 
 CREATE TABLE IF NOT EXISTS public.dispositivo_movil (
     id            SERIAL       NOT NULL,
@@ -319,17 +321,22 @@ CREATE TABLE IF NOT EXISTS public.dispositivo_movil (
     activo        BOOLEAN      DEFAULT true,
     ultima_sesion TIMESTAMP,
     created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT dispositivo_movil_pkey         PRIMARY KEY (id),
-    CONSTRAINT dispositivo_movil_persona_fkey FOREIGN KEY (persona_id)
+    CONSTRAINT dispositivo_movil_pkey           PRIMARY KEY (id),
+    CONSTRAINT dispositivo_movil_push_token_key UNIQUE (push_token),
+    CONSTRAINT dispositivo_movil_persona_fkey   FOREIGN KEY (persona_id)
         REFERENCES public.persona (id) ON DELETE CASCADE,
     CONSTRAINT chk_plataforma CHECK (plataforma IN ('ios', 'android'))
 );
 
-COMMENT ON COLUMN public.dispositivo_movil.plataforma IS 'ios | android — solo 2 valores posibles, CHECK constraint es suficiente.';
-COMMENT ON COLUMN public.dispositivo_movil.activo     IS 'Solo un dispositivo activo por persona. Al registrar uno nuevo, el anterior se pone en false.';
+COMMENT ON COLUMN public.dispositivo_movil.plataforma IS
+    'ios | android — solo 2 valores posibles, CHECK constraint es suficiente.';
+COMMENT ON COLUMN public.dispositivo_movil.activo IS
+    'Solo un dispositivo activo por persona. Al registrar uno nuevo, el anterior queda en false.';
+COMMENT ON CONSTRAINT dispositivo_movil_push_token_key ON public.dispositivo_movil IS
+    'Garantiza unicidad del token para soportar ON CONFLICT (push_token) DO UPDATE en /api/movil/dispositivo.';
 
 CREATE INDEX IF NOT EXISTS idx_dispositivo_persona ON public.dispositivo_movil (persona_id);
-CREATE INDEX IF NOT EXISTS idx_push_token          ON public.dispositivo_movil (push_token);
+-- El índice sobre push_token lo crea automáticamente el UNIQUE constraint arriba.
 
 CREATE TABLE IF NOT EXISTS public.verificacion_biometrica (
     id                     SERIAL        NOT NULL,
@@ -356,26 +363,4 @@ COMMENT ON TABLE public.verificacion_biometrica IS
 CREATE INDEX IF NOT EXISTS idx_verif_asistencia  ON public.verificacion_biometrica (asistencia_id);
 CREATE INDEX IF NOT EXISTS idx_verif_dispositivo ON public.verificacion_biometrica (dispositivo_movil_id);
 
-END;
-
-
-BEGIN;
- 
--- 1. Eliminar el CHECK constraint viejo
-ALTER TABLE public.sesion_clase
-  DROP CONSTRAINT IF EXISTS chk_sesion_estado;
- 
--- 2. Agregar el CHECK constraint nuevo con 'programada'
-ALTER TABLE public.sesion_clase
-  ADD CONSTRAINT chk_sesion_estado
-    CHECK (estado IN ('programada', 'activa', 'cerrada'));
- 
--- 3. Actualizar comentario de columna
-COMMENT ON COLUMN public.sesion_clase.estado IS
-  'programada=sesión pendiente (pre-generada) | activa=docente abrió con tarjeta | cerrada=docente cerró';
- 
 COMMIT;
-
-
-ALTER TABLE public.dispositivo_movil
-  ADD CONSTRAINT dispositivo_movil_push_token_key UNIQUE (push_token);
