@@ -44,25 +44,39 @@ router.get(
   requireRole('docente', 'administrador'),
   async (req, res, next) => {
     try {
+      // Obtener sesión para encontrar el curso
+      const sesionRes = await pool.query(
+        'SELECT curso_id FROM aula_curso_horario WHERE id = (SELECT aula_curso_horario_id FROM sesion_clase WHERE id = $1)',
+        [req.params.sesionId],
+      );
+      
+      if (!sesionRes.rows.length) {
+        return res.status(404).json({ error: 'Sesión no encontrada' });
+      }
+
+      const cursoId = sesionRes.rows[0].curso_id;
+
+      // Obtener todos los estudiantes inscritos con su estado de asistencia (si existe)
       const { rows } = await pool.query(
         `SELECT
-           a.id,
+           COALESCE(a.id, 0) AS id,
+           le.id AS lista_estudiantes_id,
            p.nombre, p.apellido, p.correo,
-           ea.nombre  AS estado,
-           ev.nombre  AS estado_verificacion,
+           COALESCE(ea.nombre, 'Pendiente') AS estado,
+           COALESCE(ev.nombre, 'sin_app') AS estado_verificacion,
            a.fecha_registro, a.hora_registro,
-           a.verificado_biometrico,
+           COALESCE(a.verificado_biometrico, false) AS verificado_biometrico,
            mv.nombre  AS metodo_verificacion
-         FROM asistencia a
-         JOIN lista_estudiantes le ON le.id = a.lista_estudiantes_id
-         JOIN persona            p  ON p.id  = le.persona_id
-         JOIN estado_asistencia  ea ON ea.id = a.estado_asistencia_id
-         JOIN estado_verificacion ev ON ev.id = a.estado_verificacion_id
+         FROM lista_estudiantes le
+         JOIN persona p ON p.id = le.persona_id
+         LEFT JOIN asistencia a ON a.lista_estudiantes_id = le.id AND a.sesion_clase_id = $1
+         LEFT JOIN estado_asistencia ea ON ea.id = a.estado_asistencia_id
+         LEFT JOIN estado_verificacion ev ON ev.id = a.estado_verificacion_id
          LEFT JOIN verificacion_biometrica vb ON vb.asistencia_id = a.id
          LEFT JOIN metodo_verificacion mv ON mv.id = vb.metodo_verificacion_id
-         WHERE a.sesion_clase_id = $1
+         WHERE le.curso_id = $2 AND le.activo = true
          ORDER BY p.apellido`,
-        [req.params.sesionId],
+        [req.params.sesionId, cursoId],
       );
       res.json(rows);
     } catch (err) {
@@ -143,7 +157,7 @@ router.patch(
  *     summary: Actualizar múltiples registros de asistencia en un solo request
  *     description: |
  *       Permite al docente o administrador guardar los cambios de estado de
- *       varios estudiantes a la vez (ej. al terminar de revisar la lista).
+ *       varios estudiantes a la vez. Crea registros nuevos si no existen.
  *       Procesa cada elemento de forma independiente: si uno falla, los demás
  *       se actualizan igualmente y el error queda registrado en la respuesta.
  *     requestBody:
@@ -159,11 +173,20 @@ router.patch(
  *                 minItems: 1
  *                 items:
  *                   type: object
- *                   required: [asistencia_id, estado]
+ *                   required: [estado]
  *                   properties:
  *                     asistencia_id:
  *                       type: integer
+ *                       description: ID del registro existente (0 si es nuevo)
  *                       example: 42
+ *                     lista_estudiantes_id:
+ *                       type: integer
+ *                       description: ID del estudiante (requerido si asistencia_id es 0)
+ *                       example: 5
+ *                     sesion_clase_id:
+ *                       type: integer
+ *                       description: ID de la sesión (requerido si asistencia_id es 0)
+ *                       example: 14
  *                     estado:
  *                       type: string
  *                       enum: [Presente, Ausente, Justificado]
@@ -182,13 +205,14 @@ router.patch(
  *                 actualizados:
  *                   type: integer
  *                   example: 5
+ *                 creados:
+ *                   type: integer
+ *                   example: 2
  *                 errores:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       asistencia_id:
- *                         type: integer
  *                       motivo:
  *                         type: string
  *       400:
@@ -200,65 +224,117 @@ router.post(
   requireRole('docente', 'administrador'),
   async (req, res, next) => {
     try {
+      console.log('\n🚀 ===== INICIO ENDPOINT /batch =====');
+      console.log('Método:', req.method);
+      console.log('URL:', req.originalUrl);
+      console.log('Headers:', req.headers);
+      
       const { cambios } = req.body;
+      console.log('📥 Body recibido:', JSON.stringify(req.body, null, 2));
 
       if (!Array.isArray(cambios) || cambios.length === 0) {
+        console.log('❌ Error: cambios no es array o está vacío');
         throw createError(400, 'Se requiere un array "cambios" no vacío');
       }
+
+      console.log('📥 [BATCH] Cambios recibidos:', JSON.stringify(cambios, null, 2));
 
       // Precarga el catálogo de estados para no hacer N queries al pool
       const { rows: estadosCatalogo } = await pool.query(
         'SELECT id, nombre FROM estado_asistencia',
       );
+      console.log('📋 [BATCH] Estados disponibles:', estadosCatalogo);
+      
       const estadoMap = Object.fromEntries(
         estadosCatalogo.map((e) => [e.nombre, e.id]),
       );
+      console.log('🗺️ [BATCH] Mapa de estados:', estadoMap);
 
       let actualizados = 0;
+      let creados = 0;
       const errores = [];
 
-      for (const { asistencia_id, estado } of cambios) {
-        // Validar campo por campo sin romper el loop
-        if (!asistencia_id || !estado) {
-          errores.push({
-            asistencia_id: asistencia_id ?? null,
-            motivo: 'asistencia_id y estado son requeridos',
-          });
+      for (const cambio of cambios) {
+        const { asistencia_id, lista_estudiantes_id, sesion_clase_id, estado } = cambio;
+
+        console.log(`\n🔍 [BATCH] Procesando cambio:`, { asistencia_id, lista_estudiantes_id, sesion_clase_id, estado });
+
+        // Validar estado
+        if (!estado) {
+          console.log('❌ Estado requerido faltante');
+          errores.push({ motivo: 'estado es requerido' });
           continue;
         }
 
         const estadoId = estadoMap[estado];
         if (!estadoId) {
+          console.log(`❌ Estado inválido: "${estado}"`);
           errores.push({
-            asistencia_id,
             motivo: `Estado inválido: "${estado}". Valores: Presente, Ausente, Justificado`,
           });
           continue;
         }
 
         try {
-          const { rows } = await pool.query(
-            'UPDATE asistencia SET estado_asistencia_id = $1 WHERE id = $2 RETURNING id',
-            [estadoId, asistencia_id],
-          );
-          if (!rows.length) {
-            errores.push({
-              asistencia_id,
-              motivo: 'Registro no encontrado',
-            });
+          if (asistencia_id && asistencia_id > 0) {
+            // Caso 1: UPDATE de registro existente
+            console.log(`📝 UPDATE: asistencia_id=${asistencia_id}, estadoId=${estadoId}`);
+            const { rows } = await pool.query(
+              'UPDATE asistencia SET estado_asistencia_id = $1 WHERE id = $2 RETURNING id',
+              [estadoId, asistencia_id],
+            );
+            if (rows.length) {
+              console.log(`✅ UPDATE exitoso, id=${rows[0].id}`);
+              actualizados++;
+            } else {
+              console.log(`❌ UPDATE falló: no encontrado`);
+              errores.push({ asistencia_id, motivo: 'Registro no encontrado' });
+            }
+          } else if (lista_estudiantes_id && sesion_clase_id) {
+            // Caso 2: CREATE de nuevo registro
+            console.log(`➕ INSERT: lista_estudiantes_id=${lista_estudiantes_id}, sesion_clase_id=${sesion_clase_id}, estadoId=${estadoId}`);
+            
+            // Obtener ID del estado de verificación "sin_app" 
+            const { rows: evRows } = await pool.query(
+              'SELECT id FROM estado_verificacion WHERE nombre = $1',
+              ['sin_app'],
+            );
+            const estadoVerificacionId = evRows.length > 0 ? evRows[0].id : 1; // Por defecto id 1 si no existe
+            
+            const { rows } = await pool.query(
+              'INSERT INTO asistencia (lista_estudiantes_id, sesion_clase_id, estado_asistencia_id, estado_verificacion_id, fecha_registro, hora_registro) VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING id',
+              [lista_estudiantes_id, sesion_clase_id, estadoId, estadoVerificacionId],
+            );
+            if (rows.length) {
+              console.log(`✅ INSERT exitoso, nuevo id=${rows[0].id}`);
+              creados++;
+            } else {
+              console.log(`❌ INSERT falló: no retornó id`);
+              errores.push({
+                lista_estudiantes_id,
+                motivo: 'No se pudo crear el registro',
+              });
+            }
           } else {
-            actualizados++;
+            console.log('❌ Parámetros insuficientes');
+            errores.push({
+              motivo: 'Se requiere asistencia_id > 0 O (lista_estudiantes_id Y sesion_clase_id)',
+            });
           }
         } catch (updateErr) {
+          console.error(`❌ Error durante procesamiento:`, updateErr.message);
           errores.push({
-            asistencia_id,
             motivo: updateErr.message,
           });
         }
       }
 
-      res.json({ ok: true, actualizados, errores });
+      const resultado = { ok: true, actualizados, creados, errores };
+      console.log('📤 [BATCH] Resultado final:', JSON.stringify(resultado, null, 2));
+      console.log('🚀 ===== FIN ENDPOINT /batch =====\n');
+      res.json(resultado);
     } catch (err) {
+      console.error('❌ [BATCH] Error general:', err);
       next(err);
     }
   },

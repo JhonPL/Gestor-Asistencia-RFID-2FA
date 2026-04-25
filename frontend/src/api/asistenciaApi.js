@@ -25,3 +25,11 @@ export const updateEstadoAsistencia = (token, asistenciaId, estado) =>
     headers: h(token),
     body: JSON.stringify({ estado }),
   }).then(handleResponse);
+
+/** Actualiza múltiples registros de asistencia en un batch */
+export const batchUpdateAsistencia = (token, cambios) =>
+  fetch(`${BASE}/api/asistencia/batch`, {
+    method: 'POST',
+    headers: h(token),
+    body: JSON.stringify({ cambios }),
+  }).then(handleResponse);

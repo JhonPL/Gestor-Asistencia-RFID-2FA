@@ -21,12 +21,17 @@ export async function listarEstudiantes(cursoId, activo = undefined) {
        p.nombre,
        p.apellido,
        p.correo,
+       pr.nombre AS programa,
        le.activo,
        le.fecha_inscripcion,
-       le.created_at
+       le.created_at,
+       COALESCE(COUNT(a.id), 0) AS total_asistencias
      FROM lista_estudiantes le
      JOIN persona p ON p.id = le.persona_id
+     LEFT JOIN programa pr ON pr.id = p.programa_id
+     LEFT JOIN asistencia a ON a.lista_estudiantes_id = le.id
      WHERE le.curso_id = $1 ${where}
+     GROUP BY le.id, le.persona_id, p.nombre, p.apellido, p.correo, pr.nombre, le.activo, le.fecha_inscripcion, le.created_at
      ORDER BY p.nombre, p.apellido`,
     params,
   );

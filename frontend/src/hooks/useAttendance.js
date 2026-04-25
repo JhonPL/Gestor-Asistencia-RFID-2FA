@@ -1,5 +1,6 @@
 // src/hooks/useAttendance.js
-// Hook para obtener datos de asistencia de una sesión desde el backend
+// Hook para obtener datos de asistencia de una sesión desde el backend.
+// La API devuelve campos planos (no objetos anidados).
 
 import { useState, useEffect, useCallback } from 'react';
 import { getAsistenciaBySesion } from '../api/asistenciaApi';
@@ -18,78 +19,84 @@ export const avatarColor = (i) => AVATAR_COLORS[i % AVATAR_COLORS.length];
 /**
  * Hook que obtiene:
  * - Sesión de clase (datos generales)
- * - Lista de asistencia con estudiantes y estados
+ * - Lista de asistencia con estudiantes y estados reales de la BD
  * - Curso asociado
  *
- * @param {string} token - Token JWT
- * @param {number} cursoId - ID del curso
- * @param {number} sesionId - ID de la sesión
+ * La API de sesiones devuelve campos planos:
+ *   { id, fecha, estado, aula, aula_nombre, hora_inicio, hora_fin, dia,
+ *     curso_id, curso_nombre, curso_codigo }
+ *
+ * La API de asistencia devuelve campos planos:
+ *   { id, nombre, apellido, correo, estado, estado_verificacion,
+ *     fecha_registro, hora_registro, verificado_biometrico, metodo_verificacion }
+ *
+ * @param {string} token    - JWT
+ * @param {number} cursoId  - ID del curso
+ * @param {number} sesionId - ID de la sesión seleccionada (puede ser null/undefined)
  */
 export function useAttendance(token, cursoId, sesionId) {
-  const [sesion, setSesion] = useState(null);
-  const [curso, setCurso] = useState(null);
-  const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [sesion,   setSesion]   = useState(null);
+  const [curso,    setCurso]    = useState(null);
+  const [records,  setRecords]  = useState([]);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState(null);
 
   const load = useCallback(async () => {
-    if (!token || !sesionId || !cursoId) {
-      console.log('Skipping load: token=', !!token, 'sesionId=', sesionId, 'cursoId=', cursoId);
-      return;
-    }
-    
+    if (!token || !sesionId || !cursoId) return;
+
     setLoading(true);
     setError(null);
 
     try {
-      // 1. Obtener sesión
-      console.log('Obteniendo sesión:', sesionId);
+      // 1. Obtener sesión — la API devuelve campos planos
       const sesionData = await getSesionById(token, sesionId);
-      console.log('Sesión obtenida:', sesionData);
-      
-      if (!sesionData) {
-        throw new Error('Sesión no encontrada');
-      }
 
+      if (!sesionData) throw new Error('Sesión no encontrada');
+
+      // GET /api/sesiones/:id devuelve:
+      // { id, fecha, hora_inicio_real, hora_fin_real, estado,
+      //   curso_id, curso_nombre, curso_codigo,
+      //   aula, aula_nombre, hora_inicio, hora_fin, dia }
       setSesion({
-        id: sesionData.id,
-        cursoCodigo: sesionData.curso?.codigo ?? sesionData.codigo ?? '',
-        cursoNombre: sesionData.curso?.nombre ?? sesionData.nombre ?? '',
-        aula: sesionData.aula_curso_horario?.aula?.nombre ?? sesionData.aula ?? '',
+        id:          sesionData.id,
+        cursoCodigo: sesionData.curso_codigo ?? '',
+        cursoNombre: sesionData.curso_nombre ?? '',
+        aula:        sesionData.aula_nombre
+                       ? `${sesionData.aula} – ${sesionData.aula_nombre}`
+                       : (sesionData.aula ?? ''),
         fecha: new Date(sesionData.fecha).toLocaleDateString('es-CO', {
           weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
+          day:     'numeric',
+          month:   'long',
+          year:    'numeric',
         }),
-        horaInicio: sesionData.aula_curso_horario?.horario?.hora_inicio ?? sesionData.hora_inicio ?? '',
-        horaFin: sesionData.aula_curso_horario?.horario?.hora_fin ?? sesionData.hora_fin ?? '',
-        estado: sesionData.estado ?? 'activa',
+        horaInicio: sesionData.hora_inicio ?? '',
+        horaFin:    sesionData.hora_fin    ?? '',
+        estado:     sesionData.estado      ?? 'programada',
       });
 
       // 2. Obtener curso
-      console.log('Obteniendo curso:', cursoId);
       const cursoData = await getCurso(token, cursoId);
-      console.log('Curso obtenido:', cursoData);
       setCurso(cursoData);
 
-      // 3. Obtener asistencia
-      console.log('Obteniendo asistencia para sesión:', sesionId);
+      // 3. Obtener asistencia — la API devuelve campos planos
+      // GET /api/asistencia/sesion/:sesionId devuelve:
+      // [{ id, nombre, apellido, correo, estado, estado_verificacion,
+      //    fecha_registro, hora_registro, verificado_biometrico, metodo_verificacion }]
       const asistenciaData = await getAsistenciaBySesion(token, sesionId);
-      console.log('Asistencia obtenida:', asistenciaData);
-      
-      // Mapear a formato del componente
+
       const mappedRecords = (asistenciaData || []).map((a) => ({
-        id: a.id,
-        codigoEstudiante: a.lista_estudiantes?.persona?.codigo ?? `EST-${a.lista_estudiantes_id}`,
-        nombre: a.lista_estudiantes?.persona?.nombre ?? 'Sin nombre',
-        apellido: a.lista_estudiantes?.persona?.apellido ?? '',
-        estado: a.estado_asistencia?.nombre ?? 'Presente',
-        estadoVerificacion: a.estado_verificacion?.nombre ?? 'sin_app',
-        horaRegistro: a.hora_registro ? a.hora_registro.slice(0, 5) : null,
-        metodo: a.verificacion_biometrica?.[0]?.metodo_verificacion?.nombre ?? null,
-        dentroCampus: a.dentro_campus ?? null,
-        motivo: a.motivo_justificacion ?? null,
+        id:                 a.id > 0 ? a.id : null, // null si no existe registro
+        listaEstudiantesId: a.lista_estudiantes_id,
+        codigoEstudiante:   a.correo ?? `EST-${a.lista_estudiantes_id}`,
+        nombre:             a.nombre   ?? 'Sin nombre',
+        apellido:           a.apellido ?? '',
+        estado:             a.estado              ?? 'Pendiente',
+        estadoVerificacion: a.estado_verificacion ?? 'sin_app',
+        horaRegistro:       a.hora_registro ? a.hora_registro.slice(0, 5) : null,
+        metodo:             a.metodo_verificacion ?? null,
+        dentroCampus:       a.verificado_biometrico ?? null,
+        motivo:             null,
       }));
 
       setRecords(mappedRecords);
@@ -105,10 +112,10 @@ export function useAttendance(token, cursoId, sesionId) {
     load();
   }, [load]);
 
-  const updateRecord = useCallback((id, newEstado) => {
-    setRecords(prev =>
-      prev.map(r =>
-        r.id !== id
+  const updateRecord = useCallback((listaEstudiantesId, newEstado) => {
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.listaEstudiantesId !== listaEstudiantesId
           ? r
           : {
               ...r,

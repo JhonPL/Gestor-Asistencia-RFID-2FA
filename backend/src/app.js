@@ -18,6 +18,7 @@ const app = express();
 // En producción reemplazar el origen por el dominio real del frontend
 const allowedOrigins = [
   'http://localhost:5173',   // Vite dev
+  'http://localhost:5174',   // Vite dev (puerto alternativo)
   'http://localhost:3001',   // Otros
 ];
 
