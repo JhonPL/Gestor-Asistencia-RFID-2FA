@@ -12,6 +12,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "extra": {
+      "IP": "192.168.80.60"
+    },
     "ios": {
       "supportsTablet": true
     },
@@ -29,5 +32,6 @@
       "expo-font",
       "expo-router"
     ]
+    
   }
 }

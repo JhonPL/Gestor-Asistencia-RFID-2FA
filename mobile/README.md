@@ -158,6 +158,9 @@ await AsyncStorage.removeItem('user_token');
 
 // Limpiar todo
 await AsyncStorage.clear();
+
+
+En la ruta src/api/index.js reecplace TU_IP_LOCAL por su ip
 ```
 
 ## 🐛 Troubleshooting
@@ -175,10 +178,6 @@ await AsyncStorage.clear();
 - En Android: asegúrate que el permiso está en `app.json`
 - En iOS: ejecuta `expo prebuild --clean` y reconstruye
 - Limpia datos: `await AsyncStorage.clear()`
-
-## 📞 Contacto & Soporte
-
-Para reportar problemas o sugerencias, contacta al equipo de desarrollo.
 
 ---
 
