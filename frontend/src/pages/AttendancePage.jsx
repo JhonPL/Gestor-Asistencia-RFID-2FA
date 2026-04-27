@@ -1,10 +1,9 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import theme from '../styles/theme';
 import { useAuth } from '../context/AuthContext';
 import { getSesionesByCurso } from '../api/sesionesApi';
-import { batchUpdateAsistencia, getAsistenciaBySesion } from '../api/asistenciaApi';
 import { useAttendance, avatarColor } from '../hooks/useAttendance';
 import AppLayout from '../components/layout/AppLayout';
 import AttendanceStatusToggle from '../components/attendance/AttendanceStatusToggle';
@@ -15,7 +14,7 @@ import Icon from '../components/ui/Icon';
 
 const FILTER_OPTIONS = ['Todos', 'Presente', 'Ausente', 'Justificado', 'Pendientes'];
 
-/* ── Styled (sin cambios respecto al original) ── */
+/* ── Styled ── */
 const PageHeader = styled.header`margin-bottom:2.5rem;`;
 const Breadcrumb = styled.button`
   display:flex;align-items:center;gap:.5rem;color:${theme.colors.secondary};
@@ -117,178 +116,82 @@ const Avatar = styled.div`
 `;
 const MonoText = styled.span`font-family:'Courier New',monospace;font-size:${theme.fontSizes.xs};color:${theme.colors.onSurfaceVariant};`;
 const EmptyCell = styled.td`padding:3rem;text-align:center;color:${theme.colors.outline};font-size:${theme.fontSizes.sm};`;
-
-// ── Loader inline ────────────────────────────────────────────
 const InlineLoader = styled.div`
-  padding: 3rem;
-  text-align: center;
-  color: ${theme.colors.onSurfaceVariant};
-  font-size: ${theme.fontSizes.sm};
+  padding:3rem;text-align:center;
+  color:${theme.colors.onSurfaceVariant};font-size:${theme.fontSizes.sm};
 `;
-
 const ErrorBanner = styled.div`
-  padding: 1rem 1.25rem;
-  background-color: ${theme.colors.errorContainer};
-  color: ${theme.colors.error};
-  border-radius: ${theme.radii.lg};
-  font-size: ${theme.fontSizes.sm};
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: .5rem;
+  padding:1rem 1.25rem;background-color:${theme.colors.errorContainer};
+  color:${theme.colors.error};border-radius:${theme.radii.lg};
+  font-size:${theme.fontSizes.sm};margin-bottom:1.5rem;
+  display:flex;align-items:center;gap:.5rem;
 `;
-
 const SuccessBanner = styled.div`
-  padding: 1rem 1.25rem;
-  background-color: ${theme.colors.secondary}22;
-  color: ${theme.colors.secondary};
-  border-radius: ${theme.radii.lg};
-  font-size: ${theme.fontSizes.sm};
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: .5rem;
+  padding:1rem 1.25rem;background-color:${theme.colors.secondary}22;
+  color:${theme.colors.secondary};border-radius:${theme.radii.lg};
+  font-size:${theme.fontSizes.sm};margin-bottom:1.5rem;
+  display:flex;align-items:center;gap:.5rem;
 `;
-
 const ChangeIndicator = styled.span`
-  display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: ${theme.radii.full};
-  background-color: ${theme.colors.error};
-  margin-left: 0.5rem;
+  display:inline-block;width:0.5rem;height:0.5rem;
+  border-radius:${theme.radii.full};background-color:${theme.colors.error};
+  margin-left:0.5rem;
 `;
-
-const SessionHeader = styled.div`
-  background-color: ${theme.colors.surfaceContainerHigh};
-  padding: 1rem 1.5rem;
-  font-weight: ${theme.fontWeights.semibold};
-  border-bottom: 1px solid ${theme.colors.surfaceContainerHighest};
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-`;
-
-const SessionDate = styled.span`
-  color: ${theme.colors.primary};
-  font-weight: ${theme.fontWeights.bold};
-`;
-
 const ModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background-color:rgba(0,0,0,0.5);display:flex;
+  align-items:center;justify-content:center;z-index:1000;padding:1rem;
 `;
-
 const ModalContent = styled.div`
-  background-color: ${theme.colors.surface};
-  border-radius: ${theme.radii['2xl']};
-  box-shadow: ${theme.shadows.lg};
-  max-width: 90vw;
-  max-height: 90vh;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
+  background-color:${theme.colors.surface};border-radius:${theme.radii['2xl']};
+  box-shadow:${theme.shadows.lg};max-width:90vw;max-height:90vh;
+  overflow:auto;display:flex;flex-direction:column;
 `;
-
 const ModalHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.5rem;
-  border-bottom: 1px solid ${theme.colors.surfaceContainerHigh};
-  flex-shrink: 0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1.5rem;border-bottom:1px solid ${theme.colors.surfaceContainerHigh};flex-shrink:0;
 `;
-
 const ModalTitle = styled.h2`
-  font-family: ${theme.fonts.headline};
-  font-size: ${theme.fontSizes['2xl']};
-  font-weight: ${theme.fontWeights.bold};
-  color: ${theme.colors.onSurface};
-  margin: 0;
+  font-family:${theme.fonts.headline};font-size:${theme.fontSizes['2xl']};
+  font-weight:${theme.fontWeights.bold};color:${theme.colors.onSurface};margin:0;
 `;
-
-const ModalBody = styled.div`
-  flex: 1;
-  overflow: auto;
-  padding: 1.5rem;
-`;
-
+const ModalBody = styled.div`flex:1;overflow:auto;padding:1.5rem;`;
 const ModalFooter = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1rem;
-  padding: 1.5rem;
-  border-top: 1px solid ${theme.colors.surfaceContainerHigh};
-  flex-shrink: 0;
+  display:flex;align-items:center;justify-content:flex-end;gap:1rem;
+  padding:1.5rem;border-top:1px solid ${theme.colors.surfaceContainerHigh};flex-shrink:0;
+`;
+const FullTableContainer = styled.div`
+  width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  &::-webkit-scrollbar{height:0.5rem}
+  &::-webkit-scrollbar-track{background-color:${theme.colors.surfaceContainerLow}}
+  &::-webkit-scrollbar-thumb{background-color:${theme.colors.outline};border-radius:${theme.radii.full};
+    &:hover{background-color:${theme.colors.onSurfaceVariant}}}
 `;
 
-const FullTableContainer = styled.div`
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  
-  &::-webkit-scrollbar {
-    height: 0.5rem;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background-color: ${theme.colors.surfaceContainerLow};
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background-color: ${theme.colors.outline};
-    border-radius: ${theme.radii.full};
-    
-    &:hover {
-      background-color: ${theme.colors.onSurfaceVariant};
-    }
-  }
-`;
+// ── Componente ────────────────────────────────────────────────────────────────
 
 const AttendancePage = ({ onLogout }) => {
   const navigate        = useNavigate();
   const { cursoId }     = useParams();
   const { user, token } = useAuth();
 
-  const [search,  setSearch]  = useState('');
-  const [filter,  setFilter]  = useState('Todos');
-
-  // ── Selector de sesiones ──────────────────────────────────
-  // Se carga una sola vez al montar. El hook de asistencia
-  // se re-ejecuta automáticamente cuando cambia currentSesion.id
-  const [sesiones,          setSesiones]          = useState([]);
-  const [sesionesLoading,   setSesionesLoading]   = useState(true);
-  const [sesionesError,     setSesionesError]     = useState(null);
+  // ── UI exclusivo de la página ─────────────────────────────────────────────
+  const [search,           setSearch]           = useState('');
+  const [filter,           setFilter]           = useState('Todos');
+  const [sesiones,         setSesiones]         = useState([]);
+  const [sesionesLoading,  setSesionesLoading]  = useState(true);
+  const [sesionesError,    setSesionesError]    = useState(null);
   const [currentSessionIdx, setCurrentSessionIdx] = useState(0);
+  const [showFullTable,    setShowFullTable]    = useState(false);
 
-  // ── Estados para guardar cambios ──────────────────────────
-  const [originalRecords, setOriginalRecords]     = useState([]);
-  const [isSaving,        setIsSaving]            = useState(false);
-  const [saveError,       setSaveError]           = useState(null);
-  const [saveSuccess,     setSaveSuccess]         = useState(false);
-  const [showFullTable,   setShowFullTable]       = useState(false);
-  const [prevLoading,     setPrevLoading]         = useState(true);
-  const [fullTableData,   setFullTableData]       = useState([]);
-  const [loadingFullTable, setLoadingFullTable]   = useState(false);
-  const [fullTableChanges, setFullTableChanges]   = useState({});
-
+  // ── Cargar lista de sesiones ──────────────────────────────────────────────
   useEffect(() => {
     if (!token || !cursoId) return;
     setSesionesLoading(true);
     getSesionesByCurso(token, cursoId)
       .then((data) => {
         const ordenadas = (data || []).sort(
-          (a, b) => new Date(a.fecha) - new Date(b.fecha)
+          (a, b) => new Date(a.fecha) - new Date(b.fecha),
         );
         setSesiones(ordenadas);
       })
@@ -298,86 +201,41 @@ const AttendancePage = ({ onLogout }) => {
 
   const currentSesion = sesiones[currentSessionIdx] ?? null;
 
-  // ── Datos de asistencia real desde el hook ─────────────────
-  // Cuando currentSesion.id cambia, el hook recarga automáticamente.
+  // ── Hook de asistencia — contiene toda la lógica de datos ────────────────
   const {
     sesion,
     curso,
     records,
-    loading:     attendanceLoading,
-    error:       attendanceError,
-    updateRecord,
+    loading:   attendanceLoading,
+    error:     attendanceError,
     reload,
-  } = useAttendance(token, cursoId, currentSesion?.id);
+    // cambios
+    hasChanges,
+    // guardado
+    isSaving,
+    saveError,
+    saveSuccess,
+    // handlers sesión actual
+    handleStatusChange,
+    handleSaveChanges: hookSaveChanges,
+    // tabla completa
+    fullTableData,
+    loadingFullTable,
+    fullTableChanges,
+    handleFullTableStatusChange,
+    handleSaveFullTableChanges,
+  } = useAttendance(token, cursoId, currentSesion?.id, sesiones, showFullTable);
 
-  // ── Resetear prevLoading cuando cambia la sesión ──────────
-  useEffect(() => {
-    setPrevLoading(true);
-  }, [currentSesion?.id]);
+  // Envuelve handleSaveChanges pasándole el id de la sesión actual
+  const handleSaveChanges = () => hookSaveChanges(currentSesion?.id);
 
-  // ── Guardar copia de records originales cuando se cargan desde la API ───
-  // Solo actualizar cuando attendanceLoading pasa de true a false
-  useEffect(() => {
-    if (prevLoading && !attendanceLoading && records.length > 0) {
-      setOriginalRecords(JSON.parse(JSON.stringify(records)));
-      setSaveError(null);
-      setSaveSuccess(false);
-    }
-    setPrevLoading(attendanceLoading);
-  }, [attendanceLoading, records, prevLoading]);
-
-  // ── Cargar tabla completa con todas las sesiones ──────────
-  useEffect(() => {
-    if (!showFullTable || !token || sesiones.length === 0) return;
-
-    setLoadingFullTable(true);
-    
-    const loadAllSessions = async () => {
-      try {
-        const allData = [];
-        for (const sesion of sesiones) {
-          const asistencia = await getAsistenciaBySesion(token, sesion.id);
-          allData.push({
-            sesionId: sesion.id,
-            sesionFecha: sesion.fecha,
-            sesionAula: sesion.aula_nombre || sesion.aula || '',
-            records: (asistencia || []).map((a) => ({
-              id: a.id > 0 ? a.id : null, // ← IMPORTANTE: id para saber si CREATE o UPDATE
-              listaEstudiantesId: a.lista_estudiantes_id,
-              nombre: a.nombre ?? 'Sin nombre',
-              apellido: a.apellido ?? '',
-              codigoEstudiante: a.correo ?? `EST-${a.lista_estudiantes_id}`,
-              estado: a.estado ?? 'Pendiente',
-              estadoVerificacion: a.estado_verificacion ?? 'sin_app',
-            })),
-          });
-        }
-        setFullTableData(allData);
-      } catch (err) {
-        console.error('Error cargando tabla completa:', err);
-      } finally {
-        setLoadingFullTable(false);
-      }
-    };
-
-    loadAllSessions();
-  }, [showFullTable, token, sesiones]);
-
-  // ── Detectar cambios comparando con originales ─────────────
-  const hasChanges = useMemo(() => {
-    return records.some((r) => {
-      const original = originalRecords.find((o) => o.listaEstudiantesId === r.listaEstudiantesId);
-      return !original || original.estado !== r.estado;
-    });
-  }, [records, originalRecords]);
-
-  // ── Stats derivados de los records reales ─────────────────
+  // ── Stats derivados de records ────────────────────────────────────────────
   const stats = useMemo(() => {
     const presentes    = records.filter(r => r.estado === 'Presente').length;
     const ausentes     = records.filter(r => r.estado === 'Ausente').length;
     const justificados = records.filter(r => r.estado === 'Justificado').length;
     const pendientes   = records.filter(r =>
-      ['pendiente', 'sin_app'].includes(r.estadoVerificacion)
+      ['pendiente', 'sin_app'].includes(r.estadoVerificacion),
     ).length;
     const tasa = records.length > 0
       ? Math.round((presentes / records.length) * 100)
@@ -385,7 +243,7 @@ const AttendancePage = ({ onLogout }) => {
     return { total: records.length, presentes, ausentes, justificados, pendientes, tasa };
   }, [records]);
 
-  // ── Filtrado de la tabla ───────────────────────────────────
+  // ── Filtrado de la tabla ──────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let data = records;
     if (filter === 'Pendientes') {
@@ -397,182 +255,13 @@ const AttendancePage = ({ onLogout }) => {
       const q = search.toLowerCase();
       data = data.filter(r =>
         `${r.nombre} ${r.apellido}`.toLowerCase().includes(q) ||
-        r.codigoEstudiante.toLowerCase().includes(q)
+        r.codigoEstudiante.toLowerCase().includes(q),
       );
     }
     return data;
   }, [records, filter, search]);
 
-  // ── Guardar cambios (implementación real) ────────────────
-  const handleSaveChanges = useCallback(async () => {
-    if (!hasChanges) {
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
-      return;
-    }
-
-    setIsSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
-
-    try {
-      // Construir array de cambios: incluir actualizaciones Y creaciones
-      const cambios = records
-        .filter((r) => {
-          const original = originalRecords.find((o) => o.listaEstudiantesId === r.listaEstudiantesId);
-          return original && original.estado !== r.estado;
-        })
-        .map((r) => {
-          if (r.id && r.id > 0) {
-            // UPDATE - registro ya existe en BD
-            return {
-              asistencia_id: r.id,
-              estado: r.estado,
-            };
-          } else {
-            // CREATE - nuevo registro
-            return {
-              asistencia_id: 0,
-              lista_estudiantes_id: r.listaEstudiantesId,
-              sesion_clase_id: currentSesion?.id,
-              estado: r.estado,
-            };
-          }
-        });
-
-      if (cambios.length === 0) {
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 2000);
-        return;
-      }
-
-      const result = await batchUpdateAsistencia(token, cambios);
-      
-      if (result.ok) {
-        setSaveSuccess(true);
-        // Actualizar originalRecords después de guardado exitoso
-        setOriginalRecords(JSON.parse(JSON.stringify(records)));
-        setTimeout(() => setSaveSuccess(false), 2000);
-      } else {
-        throw new Error('Error en la respuesta del servidor');
-      }
-    } catch (err) {
-      setSaveError(err.message);
-      setTimeout(() => setSaveError(null), 5000);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [hasChanges, records, originalRecords, token, currentSesion?.id]);
-
-  // ── Handler de cambio de estado en la tabla ───────────────
-  const handleStatusChange = (listaEstudiantesId, newEstado) => {
-    updateRecord(listaEstudiantesId, newEstado);
-  };
-
-  // ── Handler para cambios en tabla completa ────────────────
-  const handleFullTableStatusChange = (sesionId, listaEstudiantesId, newEstado) => {
-    const key = `${sesionId}-${listaEstudiantesId}`;
-    setFullTableChanges(prev => ({
-      ...prev,
-      [key]: newEstado,
-    }));
-  };
-
-  // ── Guardar cambios desde tabla completa ──────────────────
-  const handleSaveFullTableChanges = useCallback(async () => {
-    if (Object.keys(fullTableChanges).length === 0) {
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
-      return;
-    }
-
-    setIsSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
-
-    try {
-      const cambios = [];
-
-      // Iterar sobre fullTableData para construir array de cambios
-      for (const session of fullTableData) {
-        for (const record of session.records) {
-          const key = `${session.sesionId}-${record.listaEstudiantesId}`;
-          const newEstado = fullTableChanges[key];
-
-          // Si hay cambio registrado para este estudiante en esta sesión
-          if (newEstado && newEstado !== record.estado) {
-            console.log(`✓ Cambio detectado - Sesión: ${session.sesionId}, Estudiante: ${record.listaEstudiantesId}, Estado anterior: ${record.estado}, Estado nuevo: ${newEstado}, ID asistencia: ${record.id}`);
-            
-            if (record.id && record.id > 0) {
-              // UPDATE - registro ya existe
-              cambios.push({
-                asistencia_id: record.id,
-                estado: newEstado,
-              });
-            } else {
-              // CREATE - nuevo registro
-              cambios.push({
-                asistencia_id: 0,
-                lista_estudiantes_id: record.listaEstudiantesId,
-                sesion_clase_id: session.sesionId,
-                estado: newEstado,
-              });
-            }
-          }
-        }
-      }
-
-      console.log('📤 Enviando al servidor:', JSON.stringify(cambios, null, 2));
-
-      if (cambios.length === 0) {
-        console.log('⚠️ No hay cambios para guardar');
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 2000);
-        return;
-      }
-
-      const result = await batchUpdateAsistencia(token, cambios);
-      
-      console.log('📥 Respuesta servidor:', result);
-
-      if (result.ok) {
-        setSaveSuccess(true);
-        setFullTableChanges({});
-        
-        // Recargar tabla completa con los datos actualizados
-        const newData = [];
-        for (const sesion of sesiones) {
-          const asistencia = await getAsistenciaBySesion(token, sesion.id);
-          newData.push({
-            sesionId: sesion.id,
-            sesionFecha: sesion.fecha,
-            sesionAula: sesion.aula_nombre || sesion.aula || '',
-            records: (asistencia || []).map((a) => ({
-              id: a.id > 0 ? a.id : null,
-              listaEstudiantesId: a.lista_estudiantes_id,
-              nombre: a.nombre ?? 'Sin nombre',
-              apellido: a.apellido ?? '',
-              codigoEstudiante: a.correo ?? `EST-${a.lista_estudiantes_id}`,
-              estado: a.estado ?? 'Pendiente',
-              estadoVerificacion: a.estado_verificacion ?? 'sin_app',
-            })),
-          });
-        }
-        setFullTableData(newData);
-        setTimeout(() => setSaveSuccess(false), 2000);
-      } else {
-        throw new Error('Error en la respuesta del servidor');
-      }
-    } catch (err) {
-      console.error('❌ Error al guardar:', err);
-      setSaveError(err.message);
-      setTimeout(() => setSaveError(null), 5000);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [fullTableChanges, fullTableData, token, sesiones]);
-
-  // ── Estados de carga inicial ───────────────────────────────
+  // ── Render: carga de sesiones ─────────────────────────────────────────────
   if (sesionesLoading) {
     return (
       <AppLayout user={user} onLogout={onLogout}>
@@ -584,18 +273,15 @@ const AttendancePage = ({ onLogout }) => {
   if (sesionesError) {
     return (
       <AppLayout user={user} onLogout={onLogout}>
-        <ErrorBanner>
-          <Icon name="error" size="sm" />
-          {sesionesError}
-        </ErrorBanner>
+        <ErrorBanner><Icon name="error" size="sm" />{sesionesError}</ErrorBanner>
       </AppLayout>
     );
   }
 
-  // cursoId existe pero aún no tenemos `curso` del hook (puede tardar un tick)
   const cursoNombre = curso?.nombre ?? sesion?.cursoNombre ?? '…';
   const cursoCodigo = curso?.codigo ?? sesion?.cursoCodigo ?? '';
 
+  // ── Render principal ──────────────────────────────────────────────────────
   return (
     <AppLayout user={user} onLogout={onLogout}>
       <PageHeader>
@@ -615,7 +301,6 @@ const AttendancePage = ({ onLogout }) => {
             </SessionMeta>
           </div>
 
-          {/* Selector de sesiones */}
           <DateNav>
             <DateNavBtn
               aria-label="Sesión anterior"
@@ -645,27 +330,20 @@ const AttendancePage = ({ onLogout }) => {
         </HeaderRow>
       </PageHeader>
 
-      {/* Error de asistencia */}
+      {/* Banners de estado */}
       {attendanceError && (
         <ErrorBanner>
-          <Icon name="error" size="sm" />
-          {attendanceError}
+          <Icon name="error" size="sm" />{attendanceError}
         </ErrorBanner>
       )}
-
-      {/* Error al guardar */}
       {saveError && (
         <ErrorBanner>
-          <Icon name="error" size="sm" />
-          Error al guardar: {saveError}
+          <Icon name="error" size="sm" />Error al guardar: {saveError}
         </ErrorBanner>
       )}
-
-      {/* Éxito al guardar */}
       {saveSuccess && (
         <SuccessBanner>
-          <Icon name="check_circle" size="sm" />
-          Cambios guardados exitosamente
+          <Icon name="check_circle" size="sm" />Cambios guardados exitosamente
         </SuccessBanner>
       )}
 
@@ -689,6 +367,7 @@ const AttendancePage = ({ onLogout }) => {
         </StatCard>
       </StatsRow>
 
+      {/* Barra de acciones */}
       <ActionBar>
         <SearchWrapper>
           <SearchIconWrap><Icon name="search" size="sm" /></SearchIconWrap>
@@ -704,57 +383,45 @@ const AttendancePage = ({ onLogout }) => {
             <Icon name="refresh" size="sm" />
           </Button>
           {!showFullTable && (
-            <Button 
-              variant="outlined"
-              size="sm" 
+            <Button
+              variant="outlined" size="sm"
               onClick={() => setShowFullTable(true)}
-              title="Ver todas las sesiones con lista de estudiantes"
+              title="Ver todas las sesiones"
             >
               <Icon name="table_chart" size="sm" />
             </Button>
           )}
           {showFullTable && (
-            <Button 
-              variant="outlined"
-              size="sm" 
+            <Button
+              variant="outlined" size="sm"
               onClick={() => setShowFullTable(false)}
               title="Volver a vista de sesión única"
             >
               <Icon name="close" size="sm" />
             </Button>
           )}
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             onClick={handleSaveChanges}
             disabled={!hasChanges || isSaving}
             title={!hasChanges ? 'No hay cambios para guardar' : 'Guardar cambios'}
           >
             {isSaving ? (
-              <>
-                <Icon name="hourglass_top" size="sm" />
-                Guardando…
-              </>
+              <><Icon name="hourglass_top" size="sm" />Guardando…</>
             ) : (
-              <>
-                Guardar cambios
-                {hasChanges && <ChangeIndicator />}
-              </>
+              <>Guardar cambios{hasChanges && <ChangeIndicator />}</>
             )}
           </Button>
         </RightActions>
       </ActionBar>
 
+      {/* Modal: tabla completa */}
       {showFullTable && (
         <ModalOverlay onClick={() => setShowFullTable(false)}>
           <ModalContent onClick={e => e.stopPropagation()}>
             <ModalHeader>
               <ModalTitle>Tabla Completa - Todas las Sesiones</ModalTitle>
-              <Button 
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowFullTable(false)}
-                title="Cerrar"
-              >
+              <Button variant="ghost" size="sm" onClick={() => setShowFullTable(false)}>
                 <Icon name="close" size="sm" />
               </Button>
             </ModalHeader>
@@ -763,7 +430,7 @@ const AttendancePage = ({ onLogout }) => {
               {loadingFullTable ? (
                 <InlineLoader>Cargando todas las sesiones…</InlineLoader>
               ) : fullTableData.length === 0 ? (
-                <div style={{ padding: '3rem', textAlign: 'center', color: theme.colors.outline }}>
+                <div style={{ padding:'3rem', textAlign:'center', color:theme.colors.outline }}>
                   No hay datos de sesiones disponibles
                 </div>
               ) : (
@@ -772,13 +439,15 @@ const AttendancePage = ({ onLogout }) => {
                     <Table>
                       <THead>
                         <tr>
-                          <Th style={{ minWidth: '200px', position: 'sticky', left: 0, zIndex: 10, backgroundColor: theme.colors.surfaceContainerLow }}>Estudiante</Th>
+                          <Th style={{ minWidth:'200px', position:'sticky', left:0, zIndex:10, backgroundColor:theme.colors.surfaceContainerLow }}>
+                            Estudiante
+                          </Th>
                           {fullTableData.map((session) => (
-                            <Th key={`header-${session.sesionId}`} style={{ textAlign: 'center', minWidth: '120px' }}>
-                              <div style={{ fontSize: theme.fontSizes.xs }}>
-                                {new Date(session.sesionFecha).toLocaleDateString('es-CO', { month: 'short', day: 'numeric' })}
+                            <Th key={`header-${session.sesionId}`} style={{ textAlign:'center', minWidth:'120px' }}>
+                              <div style={{ fontSize:theme.fontSizes.xs }}>
+                                {new Date(session.sesionFecha).toLocaleDateString('es-CO', { month:'short', day:'numeric' })}
                               </div>
-                              <div style={{ fontSize: theme.fontSizes.xs, color: theme.colors.onSurfaceVariant }}>
+                              <div style={{ fontSize:theme.fontSizes.xs, color:theme.colors.onSurfaceVariant }}>
                                 {session.sesionAula}
                               </div>
                             </Th>
@@ -786,21 +455,15 @@ const AttendancePage = ({ onLogout }) => {
                         </tr>
                       </THead>
                       <tbody>
-                        {/* Obtener lista única de estudiantes de la primera sesión */}
                         {fullTableData.length > 0 && fullTableData[0].records.map((estudiante, idx) => (
                           <Tr key={`row-${estudiante.listaEstudiantesId}`}>
-                            <Td style={{ position: 'sticky', left: 0, zIndex: 9, backgroundColor: theme.colors.surface, minWidth: '200px' }}>
+                            <Td style={{ position:'sticky', left:0, zIndex:9, backgroundColor:theme.colors.surface, minWidth:'200px' }}>
                               <StudentCell>
                                 <Avatar $bg={avatarColor(idx).bg} $color={avatarColor(idx).color}>
                                   {estudiante.nombre[0]}{estudiante.apellido[0]}
                                 </Avatar>
                                 <div>
-                                  <span style={{
-                                    fontWeight: theme.fontWeights.semibold,
-                                    color: theme.colors.onSurface,
-                                    display: 'block',
-                                    fontSize: theme.fontSizes.sm,
-                                  }}>
+                                  <span style={{ fontWeight:theme.fontWeights.semibold, color:theme.colors.onSurface, display:'block', fontSize:theme.fontSizes.sm }}>
                                     {estudiante.nombre} {estudiante.apellido}
                                   </span>
                                   <MonoText>{estudiante.codigoEstudiante}</MonoText>
@@ -808,10 +471,14 @@ const AttendancePage = ({ onLogout }) => {
                               </StudentCell>
                             </Td>
                             {fullTableData.map((session) => {
-                              const recordEnSesion = session.records.find(r => r.listaEstudiantesId === estudiante.listaEstudiantesId);
-                              const estadoActual = recordEnSesion ? (fullTableChanges[`${session.sesionId}-${estudiante.listaEstudiantesId}`] ?? recordEnSesion.estado) : 'Pendiente';
+                              const recordEnSesion = session.records.find(
+                                r => r.listaEstudiantesId === estudiante.listaEstudiantesId,
+                              );
+                              const estadoActual = recordEnSesion
+                                ? (fullTableChanges[`${session.sesionId}-${estudiante.listaEstudiantesId}`] ?? recordEnSesion.estado)
+                                : 'Pendiente';
                               return (
-                                <Td key={`${session.sesionId}-${estudiante.listaEstudiantesId}`} style={{ textAlign: 'center', minWidth: '120px' }}>
+                                <Td key={`${session.sesionId}-${estudiante.listaEstudiantesId}`} style={{ textAlign:'center', minWidth:'120px' }}>
                                   <AttendanceStatusToggle
                                     value={estadoActual}
                                     onChange={newEstado => {
@@ -833,40 +500,28 @@ const AttendancePage = ({ onLogout }) => {
 
             <ModalFooter>
               {saveError && (
-                <ErrorBanner style={{ margin: 0, flex: 1 }}>
-                  <Icon name="error" size="sm" />
-                  {saveError}
+                <ErrorBanner style={{ margin:0, flex:1 }}>
+                  <Icon name="error" size="sm" />{saveError}
                 </ErrorBanner>
               )}
               {saveSuccess && (
-                <SuccessBanner style={{ margin: 0, flex: 1 }}>
-                  <Icon name="check_circle" size="sm" />
-                  Cambios guardados exitosamente
+                <SuccessBanner style={{ margin:0, flex:1 }}>
+                  <Icon name="check_circle" size="sm" />Cambios guardados exitosamente
                 </SuccessBanner>
               )}
-              <Button 
-                variant="outlined"
-                size="sm"
-                onClick={() => setShowFullTable(false)}
-              >
+              <Button variant="outlined" size="sm" onClick={() => setShowFullTable(false)}>
                 Cerrar
               </Button>
-              <Button 
+              <Button
                 size="sm"
                 onClick={handleSaveFullTableChanges}
                 disabled={Object.keys(fullTableChanges).length === 0 || isSaving}
-                title={Object.keys(fullTableChanges).length === 0 ? 'No hay cambios para guardar' : 'Guardar cambios'}
+                title={Object.keys(fullTableChanges).length === 0 ? 'No hay cambios' : 'Guardar cambios'}
               >
                 {isSaving ? (
-                  <>
-                    <Icon name="hourglass_top" size="sm" />
-                    Guardando…
-                  </>
+                  <><Icon name="hourglass_top" size="sm" />Guardando…</>
                 ) : (
-                  <>
-                    Guardar cambios
-                    {Object.keys(fullTableChanges).length > 0 && <ChangeIndicator />}
-                  </>
+                  <>Guardar cambios{Object.keys(fullTableChanges).length > 0 && <ChangeIndicator />}</>
                 )}
               </Button>
             </ModalFooter>
@@ -874,6 +529,7 @@ const AttendancePage = ({ onLogout }) => {
         </ModalOverlay>
       )}
 
+      {/* Tabla de sesión actual */}
       {!showFullTable && (
         <>
           <FilterBar role="group" aria-label="Filtrar por estado">
@@ -889,78 +545,69 @@ const AttendancePage = ({ onLogout }) => {
             {attendanceLoading ? (
               <InlineLoader>Cargando asistencia…</InlineLoader>
             ) : (
-          <Table>
-            <THead>
-              <tr>
-                <Th>Estudiante</Th>
-                <Th>Hora</Th>
-                <Th>Verificación</Th>
-                <Th style={{ textAlign: 'center' }}>Estado</Th>
-              </tr>
-            </THead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <Tr>
-                  <EmptyCell colSpan={4}>
-                    {records.length === 0
-                      ? 'No hay registros de asistencia para esta sesión.'
-                      : 'No hay estudiantes con los filtros actuales.'}
-                  </EmptyCell>
-                </Tr>
-              ) : (
-                filtered.map((r, i) => {
-                  const av = avatarColor(i);
-                  return (
-                    <Tr key={r.listaEstudiantesId}>
-                      <Td>
-                        <StudentCell>
-                          <Avatar $bg={av.bg} $color={av.color}>
-                            {r.nombre[0]}{r.apellido[0]}
-                          </Avatar>
-                          <div>
-                            <span style={{
-                              fontWeight: theme.fontWeights.semibold,
-                              color: theme.colors.onSurface,
-                              display: 'block',
-                            }}>
-                              {r.nombre} {r.apellido}
-                            </span>
-                            <MonoText>{r.codigoEstudiante}</MonoText>
-                          </div>
-                        </StudentCell>
-                      </Td>
-                      <Td>
-                        <span style={{ fontSize: theme.fontSizes.sm, color: theme.colors.onSurfaceVariant }}>
-                          {r.horaRegistro ?? '—'}
-                        </span>
-                      </Td>
-                      <Td>
-                        <VerificationBadge status={r.estadoVerificacion} metodo={r.metodo} />
-                        {r.motivo && (
-                          <div style={{
-                            marginTop: '.25rem',
-                            fontSize: theme.fontSizes.xs,
-                            color: theme.colors.outline,
-                            fontStyle: 'italic',
-                          }}>
-                            "{r.motivo}"
-                          </div>
-                        )}
-                      </Td>
-                      <Td style={{ textAlign: 'center' }}>
-                        <AttendanceStatusToggle
-                          value={r.estado}
-                          onChange={newEstado => handleStatusChange(r.listaEstudiantesId, newEstado)}
-                        />
-                      </Td>
+              <Table>
+                <THead>
+                  <tr>
+                    <Th>Estudiante</Th>
+                    <Th>Hora</Th>
+                    <Th>Verificación</Th>
+                    <Th style={{ textAlign:'center' }}>Estado</Th>
+                  </tr>
+                </THead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <Tr>
+                      <EmptyCell colSpan={4}>
+                        {records.length === 0
+                          ? 'No hay registros de asistencia para esta sesión.'
+                          : 'No hay estudiantes con los filtros actuales.'}
+                      </EmptyCell>
                     </Tr>
-                  );
-                })
-              )}
-            </tbody>
-          </Table>
-        )}
-      </TableWrapper>
+                  ) : (
+                    filtered.map((r, i) => {
+                      const av = avatarColor(i);
+                      return (
+                        <Tr key={r.listaEstudiantesId}>
+                          <Td>
+                            <StudentCell>
+                              <Avatar $bg={av.bg} $color={av.color}>
+                                {r.nombre[0]}{r.apellido[0]}
+                              </Avatar>
+                              <div>
+                                <span style={{ fontWeight:theme.fontWeights.semibold, color:theme.colors.onSurface, display:'block' }}>
+                                  {r.nombre} {r.apellido}
+                                </span>
+                                <MonoText>{r.codigoEstudiante}</MonoText>
+                              </div>
+                            </StudentCell>
+                          </Td>
+                          <Td>
+                            <span style={{ fontSize:theme.fontSizes.sm, color:theme.colors.onSurfaceVariant }}>
+                              {r.horaRegistro ?? '—'}
+                            </span>
+                          </Td>
+                          <Td>
+                            <VerificationBadge status={r.estadoVerificacion} metodo={r.metodo} />
+                            {r.motivo && (
+                              <div style={{ marginTop:'.25rem', fontSize:theme.fontSizes.xs, color:theme.colors.outline, fontStyle:'italic' }}>
+                                "{r.motivo}"
+                              </div>
+                            )}
+                          </Td>
+                          <Td style={{ textAlign:'center' }}>
+                            <AttendanceStatusToggle
+                              value={r.estado}
+                              onChange={newEstado => handleStatusChange(r.listaEstudiantesId, newEstado)}
+                            />
+                          </Td>
+                        </Tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </Table>
+            )}
+          </TableWrapper>
         </>
       )}
     </AppLayout>
