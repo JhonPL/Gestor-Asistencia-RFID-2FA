@@ -4,6 +4,7 @@
 
 import { Router } from 'express';
 import { getTransaction, pool } from '../config/db.js';
+import { sendPushNotification } from '../services/notifications.service.js';
 
 const router = Router();
 
@@ -252,7 +253,7 @@ router.post('/scan', async (req, res, next) => {
       }
 
       await tx.commit();
-      // TODO: sendPushNotification(pushRes.rows[0].push_token, asistenciaId)
+      sendPushNotification(pushRes.rows[0].push_token, asistenciaId)
       return res.json({ accion: 'pendiente_verificacion', asistencia_id: asistenciaId, persona: persona.nombre });
     }
 

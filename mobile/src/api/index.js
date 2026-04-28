@@ -3,7 +3,7 @@
 // En dispositivo físico/Android emulado, reemplaza TU_IP_LOCAL por la IP
 // de tu máquina (ej: '192.168.1.5'). En simulador iOS puedes usar 'localhost'.
 
-export const BASE_URL = 'http://TU_IP_LOCAL:3000';
+export const BASE_URL = 'http://192.168.80.60:3000';
 
 /**
  * Función central de fetch con manejo de errores y headers automáticos.

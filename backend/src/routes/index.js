@@ -12,7 +12,8 @@ import dispositivosRoutes  from './dispositivos.routes.js';
 import aulasRoutes         from './aulas.routes.js';
 import sesionesRoutes      from './sesiones.routes.js';
 import statsRoutes         from './stats.routes.js';
-import movilRoutes         from './movil.routes.js';   // ← NUEVO
+import movilRoutes         from './movil.routes.js';
+import rfidAdminRoutes     from './rfidAdmin.routes.js';
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.use('/personas',     personasRoutes);
 router.use('/cursos',       cursosRoutes);
 router.use('/asistencia',   asistenciaRoutes);
 router.use('/rfid',         rfidRoutes);
+router.use('/rfid',         rfidAdminRoutes); 
 router.use('/facultades',   facultadesRoutes);
 router.use('/programas',    programasRoutes);
 router.use('/horarios',     horariosRoutes);
@@ -28,7 +30,7 @@ router.use('/dispositivos', dispositivosRoutes);
 router.use('/aulas',        aulasRoutes);
 router.use('/sesiones',     sesionesRoutes);
 router.use('/stats',        statsRoutes);
-router.use('/movil',        movilRoutes);              // ← NUEVO
+router.use('/movil',        movilRoutes);             
 
 router.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

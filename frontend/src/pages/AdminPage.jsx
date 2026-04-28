@@ -208,10 +208,14 @@ const AdminPage = ({ onLogout }) => {
     }
   }, [modal.type, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Cargar aulas cuando se abre modal de dispositivo ───────────────────────
+  // ── Cargar aulas/dispositivos cuando se abre modal de dispositivo o linkCard ─
   useEffect(() => {
-    if (modal.type === 'device' && token && aulasHook.aulas.length === 0) {
+    if ((modal.type === 'device' || modal.type === 'linkCard') && token
+      && aulasHook.aulas.length === 0) {
       aulasHook.load();
+    }
+    if (modal.type === 'linkCard' && token && dispositivosHook.devices.length === 0) {
+      dispositivosHook.load();
     }
   }, [modal.type, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -409,6 +413,8 @@ const AdminPage = ({ onLogout }) => {
         isOpen={modal.type === 'linkCard'} onClose={closeM}
         persona={modal.data}
         onSave={(id, code) => handleLinkCard(id, code)}
+        token={token}
+        dispositivos={dispositivosHook.devices}
       />
       <DeviceFormModal
         isOpen={modal.type === 'device'} onClose={closeM}
