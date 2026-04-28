@@ -13,3 +13,12 @@ import { apiFetch } from './index.js';
 export async function getSesionActiva(token) {
   return apiFetch('/api/movil/sesiones/activa', {}, token);
 }
+
+/**
+ * Obtiene TODAS las clases del estudiante para hoy, ordenadas por hora.
+ * @param {string} token - JWT del estudiante
+ * @returns {Promise<array>} - Array de sesiones del día, o [] si no hay clases
+ */
+export async function getClasesHoy(token) {
+  return apiFetch('/api/movil/sesiones/hoy', {}, token);
+}

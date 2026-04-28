@@ -10,7 +10,7 @@ import { colors, spacing, radii, fontSizes, shadows } from '../../constants/toke
 import { Badge, Card, BodyText, Label } from '../../components/ui';
 
 // ── Capa de API y storage ─────────────────────────────────────
-import { getSesionActiva } from '../../src/api/sesiones';
+import { getSesionActiva, getClasesHoy } from '../../src/api/sesiones';
 import { getToken, getUser } from '../../src/storage/auth';
 
 /**
@@ -61,6 +61,7 @@ export default function HomeScreen() {
   // ── Estado local ─────────────────────────────────────────────
   const [student,       setStudent]       = useState(null);
   const [sesionActiva,  setSesionActiva]  = useState(null);
+  const [clasesDelDia,  setClasesDelDia]  = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState(null);
 
@@ -93,10 +94,14 @@ export default function HomeScreen() {
         }
 
         // 2. Obtener sesión activa del día desde el backend
-        const sesion = await getSesionActiva(token);
+        const [sesion, clases] = await Promise.all([
+          getSesionActiva(token),
+          getClasesHoy(token),
+        ]);
 
         if (!cancelled) {
           setSesionActiva(sesion);
+          setClasesDelDia(Array.isArray(clases) ? clases : []);
         }
       } catch (err) {
         if (!cancelled) {
@@ -132,18 +137,26 @@ export default function HomeScreen() {
       }
     : null;
 
-  // Clases de hoy: si hay sesión activa la mostramos, si no lista vacía
-  const clasesHoy = sesionParaUI
-    ? [{
-        id:         sesionActiva.sesion_id ?? 1,
-        codigo:     sesionParaUI.curso.codigo,
-        nombre:     sesionParaUI.curso.nombre,
-        aula:       sesionParaUI.aula,
-        horaInicio: sesionParaUI.horaInicio,
-        horaFin:    sesionParaUI.horaFin,
-        estado:     estadoActual === 'completado' ? 'completado' : 'pendiente',
-      }]
-    : [];
+  // Clases de hoy: mapear desde clasesDelDia del backend
+  const clasesHoy = (clasesDelDia || []).map((clase) => {
+    // Determinar el estado de la clase
+    let estado = 'sin_registrar';
+    if (clase.estado_verificacion === 'completado') {
+      estado = 'completado';
+    } else if (clase.estado_verificacion === 'pendiente') {
+      estado = 'pendiente';
+    }
+
+    return {
+      id:         clase.sesion_id,
+      codigo:     clase.curso.codigo,
+      nombre:     clase.curso.nombre,
+      aula:       clase.aula,
+      horaInicio: formatTime(clase.hora_inicio),
+      horaFin:    formatTime(clase.hora_fin),
+      estado:     estado,
+    };
+  });
 
   // ── Spinner mientras carga ────────────────────────────────────
   if (loading) {

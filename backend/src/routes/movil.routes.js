@@ -83,6 +83,81 @@ router.get(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// A.1) GET /api/movil/sesiones/hoy
+//      Devuelve TODAS las clases del estudiante para hoy, ordenadas por hora.
+//      Incluye la información de asistencia si existe.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get(
+  '/sesiones/hoy',
+  verifyJwt,
+  requireRole('estudiante'),
+  async (req, res, next) => {
+    try {
+      const personaId = req.user.id;
+
+      // Obtener todas las sesiones de hoy donde el estudiante está inscrito
+      // La relación es: lista_estudiantes (curso_id) → aula_curso_horario (curso_id) → sesion_clase
+      const { rows } = await pool.query(
+        `SELECT
+           sc.id                         AS sesion_id,
+           c.id                          AS curso_id,
+           c.codigo                      AS curso_codigo,
+           c.nombre                      AS curso_nombre,
+           au.numero                     AS aula,
+           h.hora_inicio,
+           h.hora_fin,
+           p.nombre || ' ' || p.apellido AS docente,
+           sc.fecha,
+           sc.estado                     AS sesion_estado,
+           COALESCE(a.id, NULL)          AS asistencia_id,
+           COALESCE(ev.nombre, NULL)     AS estado_verificacion
+         FROM lista_estudiantes le
+         JOIN aula_curso_horario ach  ON ach.curso_id = le.curso_id
+         JOIN sesion_clase sc         ON sc.aula_curso_horario_id = ach.id
+         JOIN curso c                 ON c.id = ach.curso_id
+         JOIN aula au                 ON au.id = ach.aula_id
+         JOIN horario h               ON h.id = ach.horario_id
+         JOIN persona p               ON p.id = sc.persona_id
+         LEFT JOIN asistencia a       ON a.lista_estudiantes_id = le.id 
+                                     AND a.sesion_clase_id = sc.id
+         LEFT JOIN estado_verificacion ev ON ev.id = a.estado_verificacion_id
+         WHERE le.persona_id = $1
+           AND sc.fecha      = CURRENT_DATE
+         ORDER BY h.hora_inicio ASC`,
+        [personaId],
+      );
+
+      // Si no hay sesiones, retornar array vacío
+      if (!rows.length) {
+        return res.json([]);
+      }
+
+      // Formatear respuesta
+      const sesiones = rows.map((row) => ({
+        sesion_id: row.sesion_id,
+        curso: {
+          id:     row.curso_id,
+          codigo: row.curso_codigo,
+          nombre: row.curso_nombre,
+        },
+        aula:                row.aula,
+        hora_inicio:         row.hora_inicio,
+        hora_fin:            row.hora_fin,
+        docente:             row.docente,
+        fecha:               row.fecha,
+        sesion_estado:       row.sesion_estado,
+        asistencia_id:       row.asistencia_id,
+        estado_verificacion: row.estado_verificacion,
+      }));
+
+      res.json(sesiones);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // B) POST /api/movil/dispositivo
 //    Registra o actualiza el dispositivo push del estudiante.
 //    Solo un dispositivo puede estar activo por persona.
