@@ -9,29 +9,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, radii, fontSizes, shadows } from '../../constants/tokens';
 import { Button, Divider, BodyText, Label } from '../../components/ui';
 
-// ── Capa de API y storage ─────────────────────────────────────
-import { loginDev }            from '../../src/api/auth';
+import { loginDev }             from '../../src/api/auth';
 import { registrarDispositivo } from '../../src/api/movil';
 import { saveAuth, saveDeviceId } from '../../src/storage/auth';
+import { getPushToken }          from '../../src/notifications/setup';  // ← NUEVO
 
-/**
- * LoginScreen — Tarea 4: conectado a la API real.
- *
- * Flujo real (handleLogin):
- *   1. Llama a loginDev() con el correo del estudiante de prueba.
- *   2. Guarda token + user con saveAuth().
- *   3. Registra el dispositivo en el backend con registrarDispositivo().
- *   4. Guarda el dispositivo_movil_id con saveDeviceId().
- *   5. Navega a /screens/home.
- *
- * Nota: en producción el correo vendrá del input (expo-auth-session + Azure AD).
- * Por ahora está hardcodeado para desarrollo.
- */
-
-// ── Correo de prueba (debe existir en la BD con rol='estudiante') ─
 const CORREO_ESTUDIANTE_DEV = 'jhon.paternina@campusucc.edu.co';
 
-// ── Icono de Microsoft ────────────────────────────────────────
 const MicrosoftIcon = () => (
   <View style={{ width: 20, height: 20, flexWrap: 'wrap', flexDirection: 'row', gap: 1 }}>
     <View style={{ width: 9, height: 9, backgroundColor: '#f25022' }} />
@@ -46,11 +30,6 @@ export default function LoginScreen() {
   const insets  = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
 
-  /**
-   * handleLogin — reemplaza handleSimulated().
-   * Llama a la API real en lugar de hacer setTimeout.
-   * La UI no cambia: el mismo botón dispara este handler.
-   */
   const handleLogin = async () => {
     setLoading(true);
     try {
@@ -60,21 +39,24 @@ export default function LoginScreen() {
       // 2. Persistir sesión en AsyncStorage
       await saveAuth(token, user);
 
-      // 3. Registrar el dispositivo móvil en el backend
-      //    En producción: push_token vendrá de expo-notifications
-      //    Platform.OS devuelve 'ios' o 'android' automáticamente
-      const plataforma  = Platform.OS === 'ios' ? 'ios' : 'android';
-      const pushToken   = `EXPO_DEV_TOKEN_${Date.now()}`;
+      // 3. Obtener el push token real de Expo
+      //    Si el usuario niega permisos o estamos en simulador, getPushToken()
+      //    devuelve null o 'SIMULATOR_DEV_TOKEN'. El fallback 'OFFLINE_...'
+      //    garantiza que el registro del dispositivo siempre tenga un valor único.
+      const expoPushToken = await getPushToken();
+      const pushToken     = expoPushToken ?? ('OFFLINE_' + Date.now());
 
+      // 4. Registrar el dispositivo móvil en el backend con el token real
+      const plataforma  = Platform.OS === 'ios' ? 'ios' : 'android';
       const dispositivo = await registrarDispositivo(token, {
         push_token: pushToken,
         plataforma,
       });
 
-      // 4. Guardar el dispositivo_movil_id para usarlo en verificarAsistencia
+      // 5. Guardar el dispositivo_movil_id para usarlo en verificarAsistencia
       await saveDeviceId(dispositivo.id);
 
-      // 5. Navegar a la pantalla principal
+      // 6. Navegar a la pantalla principal
       router.replace('/screens/home');
 
     } catch (err) {
@@ -97,11 +79,9 @@ export default function LoginScreen() {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Blobs decorativos */}
       <View style={s.blobTL} pointerEvents="none" />
       <View style={s.blobBR} pointerEvents="none" />
 
-      {/* Logo */}
       <View style={s.logoSection}>
         <View style={s.logoBox}>
           <Ionicons name="school" size={34} color="white" />
@@ -110,7 +90,6 @@ export default function LoginScreen() {
         <Label>Acceso Institucional · UCC Villavicencio</Label>
       </View>
 
-      {/* Card */}
       <View style={s.card}>
         <Text style={s.cardTitle}>Bienvenido</Text>
         <BodyText muted style={{ marginBottom: spacing[6] }}>
@@ -119,7 +98,6 @@ export default function LoginScreen() {
           {' '}para acceder al sistema de asistencia.
         </BodyText>
 
-        {/* Botón Microsoft (deshabilitado — pendiente Azure AD) */}
         <View style={s.msRow}>
           <MicrosoftIcon />
           <Text style={s.msTxt}>Iniciar con Microsoft</Text>
@@ -128,7 +106,6 @@ export default function LoginScreen() {
 
         <Divider label="o simular acceso" style={{ marginVertical: spacing[5] }} />
 
-        {/* Banner modo desarrollo */}
         <View style={s.simBanner}>
           <Ionicons name="flask-outline" size={14} color={colors.primary} />
           <Text style={s.simTxt}>
@@ -136,10 +113,9 @@ export default function LoginScreen() {
           </Text>
         </View>
 
-        {/* Botón de login — misma UI, nuevo handler */}
         <TouchableOpacity
           style={[s.simBtn, loading && { opacity: 0.7 }]}
-          onPress={handleLogin}          // ← antes: handleSimulated
+          onPress={handleLogin}
           disabled={loading}
           activeOpacity={0.82}
         >
@@ -167,7 +143,6 @@ export default function LoginScreen() {
   );
 }
 
-// ── Estilos (sin cambios respecto al original) ────────────────
 const s = StyleSheet.create({
   container:    { flexGrow: 1, paddingHorizontal: spacing[6], justifyContent: 'center' },
   blobTL:       { position: 'absolute', top: -50, left: -50, width: 180, height: 180, borderRadius: 90, backgroundColor: colors.primaryContainer, opacity: 0.05 },

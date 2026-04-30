@@ -19,16 +19,25 @@ export async function apiFetch(path, options = {}, token = null) {
     ...(options.headers ?? {}),
   };
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers,
+    });
 
-  const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({}));
 
-  if (!response.ok) {
-    throw new Error(data.error ?? `Error ${response.status}`);
+    if (!response.ok) {
+      throw new Error(data.error ?? `Error ${response.status}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('🔴 API Error:', {
+      url: `${BASE_URL}${path}`,
+      message: error.message,
+      errorName: error.name,
+    });
+    throw error;
   }
-
-  return data;
 }

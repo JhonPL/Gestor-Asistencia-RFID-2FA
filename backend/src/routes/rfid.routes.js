@@ -119,6 +119,47 @@ router.post('/scan', async (req, res, next) => {
 
     // ── Flujo DOCENTE ─────────────────────────────────────────
     if (persona.rol === 'docente') {
+      // ── CIERRE AUTOMÁTICO: Si hay sesiones de este docente en esta aula
+      //    que ya vencieron, cerrarlas antes de continuar
+      const sesionesVencidas = await tx.query(
+        `SELECT sc.id
+         FROM sesion_clase sc
+         JOIN aula_curso_horario ach ON ach.id = sc.aula_curso_horario_id
+         JOIN horario h ON h.id = ach.horario_id
+         WHERE ach.aula_id = $1 
+           AND sc.persona_id = $2 
+           AND sc.estado = 'activa'
+           AND sc.fecha = CURRENT_DATE
+           AND h.hora_fin < CURRENT_TIME`,
+        [aula_id, persona.id],
+      );
+
+      // Cerrar automáticamente todas las sesiones vencidas
+      for (const sesion of sesionesVencidas.rows) {
+        await tx.query(
+          `UPDATE sesion_clase SET estado = 'cerrada', hora_fin_real = CURRENT_TIME WHERE id = $1`,
+          [sesion.id],
+        );
+        // Marcar ausentes a los que no se registraron
+        await tx.query(
+          `INSERT INTO asistencia
+             (lista_estudiantes_id, sesion_clase_id, fecha_registro, hora_registro,
+              estado_asistencia_id, estado_verificacion_id)
+           SELECT le.id, $1, CURRENT_DATE, CURRENT_TIME,
+                  (SELECT id FROM estado_asistencia  WHERE nombre = 'Ausente'),
+                  (SELECT id FROM estado_verificacion WHERE nombre = 'sin_app')
+           FROM lista_estudiantes le
+           WHERE le.curso_id = (SELECT curso_id FROM aula_curso_horario WHERE id =
+                                  (SELECT aula_curso_horario_id FROM sesion_clase WHERE id = $1))
+             AND le.activo = true
+             AND NOT EXISTS (
+               SELECT 1 FROM asistencia a2
+               WHERE a2.lista_estudiantes_id = le.id AND a2.sesion_clase_id = $1
+             )`,
+          [sesion.id],
+        );
+      }
+
       const sesionActiva = await tx.query(
         `SELECT sc.id
          FROM sesion_clase sc
@@ -175,20 +216,26 @@ router.post('/scan', async (req, res, next) => {
         return res.status(400).json({ accion: 'rechazado', motivo: 'Sin curso programado en este aula ahora' });
       }
 
-      const { rows: nuevaSesion } = await tx.query(
+      // Intentar reutilizar sesión existente (estado programada, cerrada, etc)
+      // o crear una nueva si no existe
+      const { rows: sesionRes } = await tx.query(
         `INSERT INTO sesion_clase (aula_curso_horario_id, persona_id, fecha, hora_inicio_real, estado)
          VALUES ($1, $2, CURRENT_DATE, CURRENT_TIME, 'activa')
-         ON CONFLICT (aula_curso_horario_id, fecha) DO NOTHING
+         ON CONFLICT (aula_curso_horario_id, fecha) DO UPDATE SET
+           estado = 'activa',
+           hora_inicio_real = CURRENT_TIME,
+           hora_fin_real = NULL
          RETURNING id`,
         [achRes.rows[0].id, persona.id],
       );
-      if (!nuevaSesion.length) {
+      
+      if (!sesionRes.length) {
         await tx.rollback();
-        return res.status(409).json({ accion: 'rechazado', motivo: 'Ya existe una sesión para este curso hoy' });
+        return res.status(500).json({ accion: 'rechazado', motivo: 'Error al crear/actualizar la sesión' });
       }
 
       await tx.commit();
-      return res.json({ accion: 'sesion_abierta', persona: persona.nombre, sesion_id: nuevaSesion[0].id });
+      return res.json({ accion: 'sesion_abierta', persona: persona.nombre, sesion_id: sesionRes[0].id });
     }
 
     // ── Flujo ESTUDIANTE ──────────────────────────────────────
@@ -354,6 +401,96 @@ router.post('/verificar', async (req, res, next) => {
 
     res.json({ ok: true, estado_verificacion: nuevoEstado, dentro_campus: dentroCampus });
   } catch (err) { next(err); }
+});
+
+/**
+ * @openapi
+ * /api/rfid/diagnostico:
+ *   post:
+ *     tags: [RFID]
+ *     summary: Diagnosticar por qué falla pasar la tarjeta
+ *     description: |
+ *       Endpoint para debugging. Devuelve información detallada de:
+ *       - ¿El dispositivo existe y está activo?
+ *       - ¿La tarjeta existe?
+ *       - ¿Hay curso programado en esta hora?
+ *       - ¿Hay sesión activa?
+ *       - ¿Es estudiante inscrito?
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               codigo_dispositivo:
+ *                 type: string
+ *               codigo_tarjeta:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Información de diagnóstico
+ */
+router.post('/diagnostico', async (req, res, next) => {
+  try {
+    const { codigo_dispositivo, codigo_tarjeta } = req.body;
+    const diagnostico = {};
+
+    // 1. Verificar dispositivo
+    const dispositivoRes = await pool.query(
+      `SELECT dr.id, dr.aula_id, a.numero AS aula_numero, ed.nombre AS estado
+       FROM dispositivo_rfid dr
+       LEFT JOIN aula a ON a.id = dr.aula_id
+       LEFT JOIN estado_dispositivo ed ON ed.id = dr.estado_dispositivo_id
+       WHERE dr.codigo = $1`,
+      [codigo_dispositivo],
+    );
+    
+    if (!dispositivoRes.rows.length) {
+      return res.json({ diagnostico: { dispositivo: { existe: false } }, error: 'Dispositivo no registrado' });
+    }
+    
+    const dispositivo = dispositivoRes.rows[0];
+    diagnostico.dispositivo = {
+      existe: true,
+      id: dispositivo.id,
+      aula_id: dispositivo.aula_id,
+      aula_numero: dispositivo.aula_numero,
+      estado: dispositivo.estado,
+      activo: dispositivo.estado === 'Activo',
+    };
+
+    // 2. Verificar tarjeta
+    const personaRes = await pool.query(
+      `SELECT p.id, p.nombre, p.apellido, r.nombre AS rol
+       FROM persona p
+       JOIN rol r ON r.id = p.rol_id
+       WHERE p.codigo_tarjeta = $1 AND p.activo = true`,
+      [codigo_tarjeta],
+    );
+
+    if (!personaRes.rows.length) {
+      return res.json({ diagnostico: { ...diagnostico, tarjeta: { existe: false } }, error: 'Tarjeta no registrada' });
+    }
+
+    const persona = personaRes.rows[0];
+    diagnostico.tarjeta = {
+      existe: true,
+      id: persona.id,
+      nombre: persona.nombre,
+      apellido: persona.apellido,
+      rol: persona.rol,
+    };
+
+    if (!dispositivo.aula_id) {
+      return res.json({ diagnostico, error: 'Dispositivo sin aula asignada' });
+    }
+
+    res.json({ diagnostico, ok: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "projectId": "dcef63df-50c9-48e7-80e2-bdcda1998b5b",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -13,7 +14,11 @@
       "backgroundColor": "#ffffff"
     },
     "extra": {
-      "IP": "192.168.80.60"
+      "IP": "192.168.80.60",
+      "router": {},
+      "eas": {
+        "projectId": "ee489cd7-cedc-4aa4-8afe-01ae7e0e171a"
+      }
     },
     "ios": {
       "supportsTablet": true
@@ -23,15 +28,24 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.jhonp.mobile",
+      "networkSecurityConfig": "@xml/network_security_config"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-font",
-      "expo-router"
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "networkSecurityConfig": "@xml/network_security_config"
+          }
+        }
+      ]
     ]
-    
   }
 }

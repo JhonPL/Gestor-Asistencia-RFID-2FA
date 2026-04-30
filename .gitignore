@@ -1,0 +1,72 @@
+# Dependencias
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Archivos de entorno (NUNCA a Git)
+.env
+.env.local
+.env.*.local
+.env.production.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build & dist
+dist/
+build/
+out/
+
+# Mobile/expo
+.expo/
+.expo-shared/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Logs
+logs/
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temp
+tmp/
+temp/
+
+# Database (si es local)
+*.db
+*.sqlite
+*.sqlite3
+
+# Secretos y credenciales
+secrets.json
+config/secrets.js
+
+# Backend específico
+backend/node_modules/
+backend/dist/
+
+# Frontend específico
+frontend/build/
+frontend/.next/
+frontend/out/
+
+# Mobile específico
+mobile/.expo/
+mobile/node_modules/
+mobile/dist/
+
+# Archivos generados
+**/.turbo/
+*.tsbuildinfo
