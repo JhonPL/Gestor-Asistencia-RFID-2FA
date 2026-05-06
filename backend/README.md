@@ -1,102 +1,230 @@
 # SmartClass RFID — Backend API
 
-> Node.js + Express 5 + PostgreSQL (`pg`) — SmartClass RFID
+> API REST con **Node.js + Express 5 + PostgreSQL** para el sistema de asistencia con RFID 2FA.
 
 ---
 
-## Puesta en marcha
+## 📋 Requisitos Previos
+
+Antes de instalar, asegúrate de tener:
+
+- **Node.js**: versión 16 o superior ([Descargar](https://nodejs.org/))
+- **npm**: versión 8 o superior (se instala con Node.js)
+- **PostgreSQL**: versión 12 o superior ([Descargar](https://www.postgresql.org/download/))
+- **Git**: para clonar el repositorio
+
+Verifica las versiones instaladas:
+```bash
+node --version
+npm --version
+psql --version
+```
+
+---
+
+## 🚀 Instalación Paso a Paso
+
+### 1️⃣ Instalar las dependencias
 
 ```bash
-# 1. Instalar dependencias
+# Desde la carpeta /backend
+cd backend
+
+# Instalar todas las dependencias del proyecto
 npm install
+```
 
-npm install swagger-ui-express
+Esto instala automáticamente:
+- **express** - Framework web
+- **pg** - Cliente PostgreSQL
+- **dotenv** - Variables de entorno
+- **jsonwebtoken** - Autenticación JWT
+- **cors** - Control de acceso entre dominios
+- **morgan** - Logger HTTP
+- **swagger-jsdoc** y **swagger-ui-express** - Documentación API
+- Y más (ver `package.json`)
 
-# 2. Copiar variables de entorno
+### 2️⃣ Configurar variables de entorno
+
+```bash
+# Copiar el archivo de ejemplo
 cp .env.example .env
-# Editar .env con los datos reales
 
-# 3. Crear la base de datos (desde la raíz del repo)
+# Abrir .env y completar con tus datos:
+# - Credenciales de PostgreSQL
+# - Puerto de ejecución (default: 3000)
+# - Variables de Azure AD (si aplica)
+# - JWT_SECRET para firmar tokens
+```
+
+Ejemplo de archivo `.env`:
+```env
+NODE_ENV=development
+PORT=3000
+DATABASE_URL=postgresql://usuario:password@localhost:5432/smartclass_rfid
+JWT_SECRET=tu_clave_secreta_aqui
+AZURE_CLIENT_ID=tu_client_id
+AZURE_TENANT_ID=tu_tenant_id
+```
+
+### 3️⃣ Crear la base de datos
+
+```bash
+# Crear la base de datos PostgreSQL
 createdb smartclass_rfid
-psql -d smartclass_rfid -f ../database/script_bd_v5.sql
 
-# 4. Arrancar en desarrollo
+# Ejecutar el script de inicialización
+psql -d smartclass_rfid -f ./database/script_bd_v5.sql
+```
+
+**Nota**: Si necesitas la última versión de la BD, usa `script_bd_v6.sql` en su lugar.
+
+### 4️⃣ Iniciar el servidor
+
+```bash
+# Modo desarrollo (con auto-recarga)
 npm run dev
-# → http://localhost:3000
+
+# Modo producción
+npm start
+```
+
+El servidor estará disponible en:
+- **API**: http://localhost:3000
+- **Documentación Swagger**: http://localhost:3000/api-docs
+
+---
+
+## 📁 Estructura de Carpetas
+
+```
+backend/
+├── src/
+│   ├── config/              ← Configuración
+│   │   ├── db.js            ← Pool PostgreSQL
+│   │   ├── env.js           ← Variables de entorno
+│   │   └── swagger.js       ← Documentación API
+│   │
+│   ├── controllers/         ← Lógica de rutas
+│   │   ├── auth.controller.js
+│   │   └── personas.controller.js
+│   │
+│   ├── services/            ← Lógica de negocio
+│   │   ├── auth.service.js
+│   │   ├── personas.service.js
+│   │   ├── cursos.service.js
+│   │   └── ...
+│   │
+│   ├── routes/              ← Definición de endpoints
+│   │   ├── index.js
+│   │   ├── auth.routes.js
+│   │   ├── personas.routes.js
+│   │   ├── cursos.routes.js
+│   │   ├── asistencia.routes.js
+│   │   └── rfid.routes.js
+│   │
+│   ├── middlewares/         ← Middleware
+│   │   ├── auth.js          ← Autenticación JWT
+│   │   ├── roles.js         ← Control de roles
+│   │   └── errorHandler.js  ← Manejo de errores
+│   │
+│   ├── app.js               ← Configuración Express
+│   └── index.js             ← Punto de entrada
+│
+├── database/                ← Scripts SQL
+│   ├── script_bd_v5.sql
+│   └── script_bd_v6.sql
+│
+├── .env.example             ← Plantilla de variables
+├── package.json
+└── README.md
 ```
 
 ---
 
-## Estructura de carpetas
+## 🔌 Endpoints Principales
 
-```
-src/
-├── config/
-│   ├── db.js         ← Pool de conexiones PostgreSQL (pg)
-│   └── env.js        ← Valida y exporta variables de entorno
-│
-├── middlewares/
-│   ├── auth.js       ← verifyAzureToken + verifyJwt + signJwt
-│   ├── roles.js      ← requireRole('docente', 'administrador', ...)
-│   └── errorHandler.js ← Manejo global de errores + createError()
-│
-├── routes/
-│   ├── index.js      ← Monta todos los routers bajo /api
-│   ├── auth.routes.js
-│   ├── personas.routes.js
-│   ├── cursos.routes.js
-│   ├── asistencia.routes.js
-│   └── rfid.routes.js   ← ⭐ Endpoint principal del ESP32
-│
-├── controllers/
-│   ├── auth.controller.js
-│   └── personas.controller.js
-│
-├── services/
-│   ├── auth.service.js     ← login OAuth + login simulado
-│   └── personas.service.js ← CRUD personas
-│
-├── app.js    ← Configuración Express (cors, morgan, rutas)
-└── index.js  ← Arranca el servidor HTTP
+### 🔐 Autenticación
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `POST` | `/api/auth/login` | Login con token de Azure |
+| `POST` | `/api/auth/login-dev` | Login de desarrollo (por correo) |
+| `GET`  | `/api/auth/me` | Obtener datos del usuario autenticado |
+
+### 👥 Personas (Administrador)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET`    | `/api/personas` | Listar personas con filtros |
+| `GET`    | `/api/personas/:id` | Obtener persona por ID |
+| `POST`   | `/api/personas` | Crear nueva persona |
+| `PATCH`  | `/api/personas/:id` | Actualizar persona |
+| `PATCH`  | `/api/personas/:id/tarjeta` | Vincular/desvincular tarjeta RFID |
+
+### 📚 Cursos (Docente + Administrador)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/api/cursos` | Listar cursos |
+| `GET` | `/api/cursos/:id` | Detalle de curso con aulas y horarios |
+
+### 📋 Asistencia (Docente + Administrador)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET`   | `/api/asistencia/sesion/:sesionId` | Listar asistencia de una sesión |
+| `PATCH` | `/api/asistencia/:id` | Actualizar estado de asistencia |
+
+### 📡 RFID (ESP32 + App Móvil)
+
+Endpoints para registrar asistencia y sincronizar datos con dispositivos RFID.
+
+---
+
+## 🛠️ Comandos Disponibles
+
+```bash
+npm run dev      # Iniciar en desarrollo con nodemon
+npm start        # Iniciar en producción
+npm test         # Ejecutar pruebas (si disponible)
 ```
 
 ---
 
-## Endpoints implementados
+## 🔍 Solución de Problemas
 
-### Autenticación
+**Error: "Cannot find module 'pg'"**
+```bash
+npm install pg --save
+```
 
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| `POST` | `/api/auth/login` | Azure token | Valida token de Microsoft → devuelve JWT propio |
-| `POST` | `/api/auth/login-dev` | Ninguna | Solo en `development` — login por correo |
-| `GET`  | `/api/auth/me` | JWT | Datos del usuario autenticado |
+**Error: "ECONNREFUSED - Connection refused"**
+- Verifica que PostgreSQL esté corriendo
+- Comprueba las credenciales en `.env`
 
-### Personas (solo administrador)
+**Error: "Port 3000 already in use"**
+```bash
+# Cambia el puerto en .env
+PORT=3001
+```
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET`    | `/api/personas` | Listado con filtros: `?rol=docente&activo=true&search=Carlos` |
-| `GET`    | `/api/personas/:id` | Detalle de una persona |
-| `POST`   | `/api/personas` | Crear persona |
-| `PATCH`  | `/api/personas/:id` | Actualizar campos |
-| `PATCH`  | `/api/personas/:id/tarjeta` | Vincular / desvincular tarjeta RFID |
+**Error: "Database does not exist"**
+```bash
+# Crea la BD nuevamente
+createdb smartclass_rfid
+psql -d smartclass_rfid -f ./database/script_bd_v5.sql
+```
 
-### Cursos (docente + administrador)
+---
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/cursos` | Cursos del docente autenticado (o todos si es admin) |
-| `GET` | `/api/cursos/:id` | Detalle con aulas y horarios |
+## 📞 Soporte
 
-### Asistencia (docente + administrador)
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET`   | `/api/asistencia/sesion/:sesionId` | Lista de asistencia de una sesión |
-| `PATCH` | `/api/asistencia/:id` | Cambiar estado manualmente (justificar, etc.) |
-
-### RFID — Endpoints del ESP32 y la app móvil
+Si encuentras problemas, verifica:
+1. Que Node.js y PostgreSQL estén instalados
+2. Que el archivo `.env` esté correctamente configurado
+3. Los logs en la consola para más detalles
+4. La documentación en `/api-docs`
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|

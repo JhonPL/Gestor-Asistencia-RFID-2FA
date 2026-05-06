@@ -1,103 +1,269 @@
-# React + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
-
-
---------------------------------------------------------------------------------------------------------------------------------------
-
 # SmartClass RFID — Frontend Web
 
-> Interfaz web para docentes y administradores del sistema de asistencia con RFID.
+> Interfaz web moderna construida con **React 19 + Vite** para docentes y administradores del sistema de asistencia con RFID 2FA.
 
 ---
 
-## Stack
+## 📋 Requisitos Previos
 
-| Tecnología | Versión | Propósito |
-|---|---|---|
-| React | 19 | Framework de UI |
-| Vite | 6 | Bundler y servidor de desarrollo |
-| styled-components | ^6 | CSS-in-JS con temas |
-| react-router-dom | v7 | Enrutamiento SPA |
+Antes de instalar, asegúrate de tener:
+
+- **Node.js**: versión 16 o superior ([Descargar](https://nodejs.org/))
+- **npm**: versión 8 o superior (se instala con Node.js)
+- **Git**: para clonar el repositorio (opcional)
+
+Verifica las versiones:
+```bash
+node --version
+npm --version
+```
 
 ---
 
-## Instalación
+## 🚀 Instalación Paso a Paso
+
+### 1️⃣ Instalar las dependencias
 
 ```bash
-# Desde la raíz del proyecto
+# Desde la carpeta /frontend
+cd frontend
+
+# Instalar todas las dependencias del proyecto
 npm install
-
-# Dependencias principales (si arrancas desde cero)
-npm install react react-dom
-npm install react-router-dom
-npm install styled-components
-
-# Dev dependencies
-npm install -D vite @vitejs/plugin-react-swc eslint
 ```
 
----
+Esto instala automáticamente:
+- **react** - Librería de UI
+- **react-dom** - Integración de React con el DOM
+- **react-router-dom** - Enrutamiento entre páginas
+- **styled-components** - Estilos CSS en JavaScript
+- **vite** - Bundler ultra rápido
+- **eslint** - Linter de código
+- Y más (ver `package.json`)
 
-## Comandos
+### 2️⃣ Configurar variables de entorno
 
 ```bash
-npm run dev      # Servidor de desarrollo en http://localhost:5173
-npm run build    # Build de producción en /dist
-npm run preview  # Preview del build
+# Crear archivo .env en la raíz de /frontend
+# (Puede copiarse de .env.example si existe)
+touch .env
+
+# Editar .env con lo siguiente:
 ```
-
----
-
-## Variables de entorno (`.env`)
 
 ```env
 VITE_API_URL=http://localhost:3000
-VITE_AZURE_CLIENT_ID=       # Pendiente: área de sistemas UCC
-VITE_AZURE_TENANT_ID=       # Pendiente: área de sistemas UCC
+VITE_AZURE_CLIENT_ID=tu_client_id_aqui
+VITE_AZURE_TENANT_ID=tu_tenant_id_aqui
 VITE_AZURE_REDIRECT_URI=http://localhost:5173/login
+```
+
+**Nota**: Los IDs de Azure deben solicitarse al área de sistemas de la institución.
+
+### 3️⃣ Iniciar el servidor de desarrollo
+
+```bash
+npm run dev
+```
+
+La aplicación estará disponible en:
+- **Frontend**: http://localhost:5173
+
+La consola mostrará un mensaje como:
+```
+  VITE v6.0.4 ready in 245 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
 ```
 
 ---
 
-## Estructura de carpetas
+## 🔧 Stack Tecnológico
+
+| Tecnología | Versión | Propósito |
+|---|---|---|
+| **React** | 19 | Framework de interfaz de usuario |
+| **Vite** | 8 | Bundler y servidor de desarrollo |
+| **React Router** | 7 | Enrutamiento y navegación SPA |
+| **styled-components** | 6 | Estilos CSS en JavaScript |
+| **ESLint** | 9 | Linter para validar código |
+
+---
+
+## 📁 Estructura de Carpetas
 
 ```
-src/
-├── context/
-│   └── AuthContext.jsx         ← sesión simulada (swap por MSAL en producción)
-├── styles/
-│   ├── theme.js                ← tokens de diseño (colores, tipografía, espaciado)
-│   └── GlobalStyles.jsx        ← reset CSS + Google Fonts
-├── mocks/
-│   ├── dashboard.mock.js       ← datos simulados del dashboard docente
-│   └── attendance.mock.js      ← datos simulados de asistencia y admin
-├── pages/
-│   ├── LandingPage.jsx         ← ruta /
-│   ├── LoginPage.jsx           ← ruta /login  (redirect_uri de Azure AD)
-│   ├── DashboardPage.jsx       ← ruta /dashboard
-│   ├── AttendancePage.jsx      ← ruta /cursos/:id/asistencia
-│   └── AdminPage.jsx           ← ruta /admin
-└── components/
-    ├── ui/                     ← Button, Badge, Icon, Modal, FormElements
-    ├── layout/                 ← Navbar, Footer, AppLayout
-    ├── landing/                ← HeroSection, DashboardPreview, CtaSection
-    ├── dashboard/              ← CourseCard, widgets de sesiones/horario/acciones
-    ├── attendance/             ← AttendanceStatusToggle, VerificationBadge
-    └── admin/                  ← tablas, modales CRUD de personas y dispositivos
+frontend/
+├── src/
+│   ├── api/                    ← Llamadas a la API backend
+│   │   ├── authApi.js
+│   │   ├── cursosApi.js
+│   │   ├── personasApi.js
+│   │   ├── asistenciaApi.js
+│   │   └── ...
+│   │
+│   ├── context/                ← Estado global
+│   │   └── AuthContext.jsx     ← Gestión de sesión y usuario
+│   │
+│   ├── styles/                 ← Tema y estilos globales
+│   │   ├── theme.js            ← Colores, tipografía, espaciado
+│   │   └── GlobalStyles.jsx    ← Estilos base y fuentes
+│   │
+│   ├── hooks/                  ← Hooks personalizados
+│   │   ├── useCursos.js
+│   │   ├── useAttendance.js
+│   │   ├── useDashboard.js
+│   │   └── ...
+│   │
+│   ├── mocks/                  ← Datos simulados para desarrollo
+│   │   ├── dashboard.mock.js
+│   │   ├── Attendance.mock.js
+│   │   └── Admin.mock.js
+│   │
+│   ├── pages/                  ← Páginas principales
+│   │   ├── LandingPage.jsx     ← Página de inicio (/)
+│   │   ├── LoginPage.jsx       ← Login (/login)
+│   │   ├── DashboardPage.jsx   ← Dashboard (/dashboard)
+│   │   ├── AttendancePage.jsx  ← Asistencia (/cursos/:id/asistencia)
+│   │   └── AdminPage.jsx       ← Panel admin (/admin)
+│   │
+│   ├── components/             ← Componentes reutilizables
+│   │   ├── ui/                 ← Componentes base
+│   │   │   ├── Button.jsx
+│   │   │   ├── Badge.jsx
+│   │   │   ├── Modal.jsx
+│   │   │   └── ...
+│   │   ├── layout/             ← Layout
+│   │   │   ├── Navbar.jsx
+│   │   │   ├── Footer.jsx
+│   │   │   └── AppLayout.jsx
+│   │   ├── landing/            ← Componentes landing
+│   │   ├── dashboard/          ← Componentes dashboard
+│   │   ├── attendance/         ← Componentes de asistencia
+│   │   └── admin/              ← Componentes de administración
+│   │
+│   ├── App.jsx                 ← Componente raíz
+│   ├── main.jsx                ← Punto de entrada
+│   └── index.html              ← HTML base
+│
+├── public/                     ← Archivos estáticos
+├── .env                        ← Variables de entorno (NO subir a git)
+├── .env.example                ← Plantilla de variables (subir a git)
+├── package.json
+├── vite.config.js              ← Configuración de Vite
+├── eslint.config.js            ← Configuración de ESLint
+└── README.md
+```
+
+---
+
+## 🎯 Comandos Disponibles
+
+```bash
+# Iniciar servidor de desarrollo
+npm run dev
+
+# Compilar para producción
+npm run build
+
+# Previsualizar el build de producción
+npm run preview
+
+# Verificar y corregir linting
+npm run lint
+```
+
+---
+
+## 🔍 Flujo de Autenticación
+
+1. Usuario accede a http://localhost:5173
+2. Click en "Iniciar Sesión"
+3. Redirige a Azure AD para login
+4. Azure redirige de vuelta a `/login`
+5. Sistema valida el token de Azure
+6. Genera un JWT propio
+7. Usuario accede al dashboard
+
+En **desarrollo**, usa `/api/auth/login-dev` para login sin Azure.
+
+---
+
+## 🔗 Conexión con el Backend
+
+El frontend se conecta a la API en:
+```
+http://localhost:3000
+```
+
+Asegúrate de que:
+1. El backend esté corriendo (`npm run dev` en `/backend`)
+2. Las CORS estén configuradas correctamente
+3. El `.env` tenga el `VITE_API_URL` correcto
+
+---
+
+## 📦 Estructura de Archivos Importantes
+
+### Context de Autenticación
+`src/context/AuthContext.jsx` - Gestiona el estado de sesión del usuario
+
+### Hooks Personalizados
+- `useCursos.js` - Obtiene cursos del usuario
+- `useAttendance.js` - Gestiona datos de asistencia
+- `useDashboard.js` - Datos del dashboard
+
+### Temas y Estilos
+- `theme.js` - Define colores, tamaños, fuentes
+- `GlobalStyles.jsx` - Estilos globales y reset CSS
+
+---
+
+## 🐛 Solución de Problemas
+
+**Error: "Cannot find module 'react'"**
+```bash
+npm install react react-dom --save
+```
+
+**Error: "Port 5173 is already in use"**
+```bash
+# Especifica otro puerto
+npm run dev -- --port 5174
+```
+
+**Error: "API connection refused"**
+- Verifica que el backend esté corriendo en `http://localhost:3000`
+- Comprueba que `VITE_API_URL` sea correcto en `.env`
+- Verifica CORS en la configuración del backend
+
+**Estilos no cargan correctamente**
+```bash
+# Reinstala las dependencias
+rm -rf node_modules package-lock.json
+npm install
+npm run dev
+```
+
+---
+
+## 💡 Tips de Desarrollo
+
+- Los cambios en el código se reflejan **instantáneamente** (HMR)
+- Los datos mockeados están en `src/mocks/`
+- El tema global se configura en `src/styles/theme.js`
+- Los componentes reutilizables van en `src/components/ui/`
+
+---
+
+## 📞 Soporte
+
+Si encuentras problemas:
+1. Verifica que Node.js esté actualizado
+2. Borra `node_modules` y `package-lock.json`, luego ejecuta `npm install`
+3. Revisa la consola del navegador (F12) para errores
+4. Consulta la documentación en http://localhost:3000/api-docs
 ```
 
 ---

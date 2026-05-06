@@ -91,19 +91,26 @@ export function useAttendance(token, cursoId, sesionId, sesiones = [], showFullT
       // 3. Asistencia — campos planos
       const asistenciaData = await getAsistenciaBySesion(token, sesionId);
 
-      const mappedRecords = (asistenciaData || []).map((a) => ({
-        id:                 a.id > 0 ? a.id : null,
-        listaEstudiantesId: a.lista_estudiantes_id,
-        codigoEstudiante:   a.correo ?? `EST-${a.lista_estudiantes_id}`,
-        nombre:             a.nombre   ?? 'Sin nombre',
-        apellido:           a.apellido ?? '',
-        estado:             a.estado              ?? 'Pendiente',
-        estadoVerificacion: a.estado_verificacion ?? 'sin_app',
-        horaRegistro:       a.hora_registro ? a.hora_registro.slice(0, 5) : null,
-        metodo:             a.metodo_verificacion ?? null,
-        dentroCampus:       a.verificado_biometrico ?? null,
-        motivo:             null,
-      }));
+      const mappedRecords = (asistenciaData || []).map((a) => {
+        // Si la verificación falló, marcar como Ausente automáticamente
+        const estado =
+          a.estado_verificacion === 'fallido' ? 'Ausente' : (a.estado ?? 'Pendiente');
+
+        return {
+          id:                 a.id > 0 ? a.id : null,
+          listaEstudiantesId: a.lista_estudiantes_id,
+          codigoEstudiante:   a.correo ?? `EST-${a.lista_estudiantes_id}`,
+          nombre:             a.nombre   ?? 'Sin nombre',
+          apellido:           a.apellido ?? '',
+          estado,
+          estadoVerificacion: a.estado_verificacion ?? 'sin_app',
+          horaRegistro:       a.hora_registro ? a.hora_registro.slice(0, 5) : null,
+          metodo:             a.metodo_verificacion ?? null,
+          verificadoBiometrico: a.verificado_biometrico ?? false,
+          verificadoUbicacion:  a.verificado_ubicacion ?? false,
+          motivo:             null,
+        };
+      });
 
       setRecords(mappedRecords);
     } catch (err) {
@@ -235,15 +242,18 @@ export function useAttendance(token, cursoId, sesionId, sesiones = [], showFullT
             sesionId:    ses.id,
             sesionFecha: ses.fecha,
             sesionAula:  ses.aula_nombre || ses.aula || '',
-            records:     (asistencia || []).map((a) => ({
-              id:                 a.id > 0 ? a.id : null,
-              listaEstudiantesId: a.lista_estudiantes_id,
-              nombre:             a.nombre   ?? 'Sin nombre',
-              apellido:           a.apellido ?? '',
-              codigoEstudiante:   a.correo   ?? `EST-${a.lista_estudiantes_id}`,
-              estado:             a.estado              ?? 'Pendiente',
-              estadoVerificacion: a.estado_verificacion ?? 'sin_app',
-            })),
+            records:     (asistencia || []).map((a) => {
+              const estado = a.estado_verificacion === 'fallido' ? 'Ausente' : (a.estado ?? 'Pendiente');
+              return {
+                id:                 a.id > 0 ? a.id : null,
+                listaEstudiantesId: a.lista_estudiantes_id,
+                nombre:             a.nombre   ?? 'Sin nombre',
+                apellido:           a.apellido ?? '',
+                codigoEstudiante:   a.correo   ?? `EST-${a.lista_estudiantes_id}`,
+                estado,
+                estadoVerificacion: a.estado_verificacion ?? 'sin_app',
+              };
+            }),
           });
         }
         setFullTableData(allData);
@@ -330,15 +340,18 @@ export function useAttendance(token, cursoId, sesionId, sesiones = [], showFullT
             sesionId:    ses.id,
             sesionFecha: ses.fecha,
             sesionAula:  ses.aula_nombre || ses.aula || '',
-            records:     (asistencia || []).map((a) => ({
-              id:                 a.id > 0 ? a.id : null,
-              listaEstudiantesId: a.lista_estudiantes_id,
-              nombre:             a.nombre   ?? 'Sin nombre',
-              apellido:           a.apellido ?? '',
-              codigoEstudiante:   a.correo   ?? `EST-${a.lista_estudiantes_id}`,
-              estado:             a.estado              ?? 'Pendiente',
-              estadoVerificacion: a.estado_verificacion ?? 'sin_app',
-            })),
+            records:     (asistencia || []).map((a) => {
+              const estado = a.estado_verificacion === 'fallido' ? 'Ausente' : (a.estado ?? 'Pendiente');
+              return {
+                id:                 a.id > 0 ? a.id : null,
+                listaEstudiantesId: a.lista_estudiantes_id,
+                nombre:             a.nombre   ?? 'Sin nombre',
+                apellido:           a.apellido ?? '',
+                codigoEstudiante:   a.correo   ?? `EST-${a.lista_estudiantes_id}`,
+                estado,
+                estadoVerificacion: a.estado_verificacion ?? 'sin_app',
+              };
+            }),
           });
         }
         setFullTableData(newData);

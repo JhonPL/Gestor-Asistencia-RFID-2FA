@@ -357,7 +357,7 @@ router.post('/scan', async (req, res, next) => {
  */
 router.post('/verificar', async (req, res, next) => {
   try {
-    const { asistencia_id, dispositivo_movil_id, metodo, exitoso, latitud, longitud } = req.body;
+    const { asistencia_id, dispositivo_movil_id, metodo, exitoso, ubicacion_valida, latitud, longitud } = req.body;
 
     const CAMPUS_LAT = parseFloat(process.env.CAMPUS_LAT || '-4.142900');
     const CAMPUS_LNG = parseFloat(process.env.CAMPUS_LNG || '-73.626700');
@@ -374,7 +374,9 @@ router.post('/verificar', async (req, res, next) => {
     const distanciaMetros = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const dentroCampus = distanciaMetros <= RADIUS_M;
 
-    const verificacionExitosa = exitoso && dentroCampus;
+    // Usar ubicacion_valida si viene del cliente, sino calcular
+    const ubicacionValida = ubicacion_valida !== undefined ? ubicacion_valida : dentroCampus;
+    const verificacionExitosa = exitoso && ubicacionValida;
     const nuevoEstado = verificacionExitosa ? 'completado' : 'fallido';
 
     const metodoRes = await pool.query(
@@ -388,18 +390,18 @@ router.post('/verificar', async (req, res, next) => {
           exitoso, latitud, longitud, dentro_campus)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [asistencia_id, dispositivo_movil_id, metodoRes.rows[0].id,
-       exitoso, latitud, longitud, dentroCampus],
+       exitoso, latitud, longitud, ubicacionValida],
     );
 
     await pool.query(
       `UPDATE asistencia
        SET estado_verificacion_id = (SELECT id FROM estado_verificacion WHERE nombre = $1),
-           verificado_biometrico  = $2, latitud = $3, longitud = $4
-       WHERE id = $5`,
-      [nuevoEstado, verificacionExitosa, latitud, longitud, asistencia_id],
+           verificado_biometrico  = $2, verificado_ubicacion = $3, latitud = $4, longitud = $5
+       WHERE id = $6`,
+      [nuevoEstado, exitoso, ubicacionValida, latitud, longitud, asistencia_id],
     );
 
-    res.json({ ok: true, estado_verificacion: nuevoEstado, dentro_campus: dentroCampus });
+    res.json({ ok: true, estado_verificacion: nuevoEstado, dentro_campus: ubicacionValida });
   } catch (err) { next(err); }
 });
 

@@ -8,11 +8,13 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
+import * as Location from "expo-location";
 
 import {
   colors,
@@ -26,9 +28,14 @@ import { Badge, BodyText } from "../../components/ui";
 import { verificarAsistencia } from "../../src/api/asistencia";
 import { getToken, getDeviceId } from "../../src/storage/auth";
 
-// ── Coordenadas fijas del campus para desarrollo ──────────────
-const CAMPUS_LAT = -4.1429;
-const CAMPUS_LNG = -73.6267;
+// ── Coordenadas del campus UCC ────────────────────────────────
+const CAMPUS_LAT = 4.11607;
+const CAMPUS_LNG = -73.60909;
+const CAMPUS_RADIUS_METERS = 500; // Radio del campus (500 metros)
+
+// 🗺️ NOTA: Verifica estas coordenadas en Google Maps
+// https://maps.google.com/?q=-4.1429,-73.6267
+// Si las coordenadas son incorrectas, actualiza los valores arriba
 
 // ── Helper: formatea 'HH:MM:SS' → '8:00 AM' ──────────────────
 function formatTime(timeStr) {
@@ -37,6 +44,123 @@ function formatTime(timeStr) {
   const suffix = h >= 12 ? "PM" : "AM";
   const hour = h % 12 || 12;
   return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+// ── Helper: calcula distancia entre dos puntos (Haversine) ────
+function calcularDistancia(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Radio de la Tierra en metros
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distancia en metros
+}
+
+// ── Helper: obtiene la ubicación real del dispositivo ────────
+async function obtenerUbicacion() {
+  try {
+    // Primero, verifica el estado actual del permiso
+    const permisoActual = await Location.getForegroundPermissionsAsync();
+
+    // Si el permiso fue denegado permanentemente, retorna error
+    if (permisoActual.status === "denied" && permisoActual.canAskAgain === false) {
+      return {
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        dentro: false,
+        distancia: null,
+        error: "permiso_denegado_permanentemente",
+      };
+    }
+
+    // Si aún no está concedido, solicita el permiso
+    let status = permisoActual.status;
+    if (status !== "granted") {
+      const resultado = await Location.requestForegroundPermissionsAsync();
+      status = resultado.status;
+
+      if (status !== "granted") {
+        return {
+          latitude: null,
+          longitude: null,
+          accuracy: null,
+          dentro: false,
+          distancia: null,
+          error: "permiso_denegado",
+        };
+      }
+    }
+
+    // Obtiene ubicación actual - con reintentos
+    let ubicacion = null;
+    let intentos = 0;
+    const maxIntentos = 3;
+
+    while (!ubicacion && intentos < maxIntentos) {
+      try {
+        intentos++;
+        ubicacion = await Promise.race([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High, // Máxima precisión
+            timeInterval: 300, // Actualizar cada 300ms
+            maxAge: 0, // No usar caché, obtener ubicación actual
+          }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`Timeout en intento ${intentos}`)),
+              10000 // 10 segundos por intento
+            )
+          ),
+        ]);
+      } catch (err) {
+        if (intentos < maxIntentos) {
+          // Esperar 1 segundo antes de reintentar
+          await new Promise((r) => setTimeout(r, 1000));
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    if (!ubicacion) {
+      throw new Error("No se pudo obtener la ubicación después de 3 intentos");
+    }
+
+    const { latitude, longitude, accuracy } = ubicacion.coords;
+    
+    // Log para debugging
+    console.log("📍 GPS Obtenido:", { latitude, longitude, accuracy });
+
+    const distancia = calcularDistancia(latitude, longitude, CAMPUS_LAT, CAMPUS_LNG);
+    const dentro = distancia <= CAMPUS_RADIUS_METERS;
+
+    console.log("📏 Distancia al campus:", { distancia, dentro, CAMPUS_LAT, CAMPUS_LNG });
+
+    return {
+      latitude,
+      longitude,
+      accuracy,
+      dentro,
+      distancia: Math.round(distancia),
+      error: null,
+    };
+  } catch (err) {
+    console.error("❌ Error obteniendo ubicación:", err.message);
+    return {
+      latitude: null,
+      longitude: null,
+      accuracy: null,
+      dentro: false,
+      distancia: null,
+      error: err.message,
+    };
+  }
 }
 
 // ── Pasos del flujo (sin cambios) ─────────────────────────────
@@ -99,6 +223,14 @@ async function detectarMetodo() {
   return Platform.OS === "ios" ? "face_id" : "fingerprint";
 }
 
+// ── Helper: genera mensaje personalizado según plataforma ────
+function getAuthenticationMessage() {
+  if (Platform.OS === "ios") {
+    return "Usa Face ID para confirmar tu identidad";
+  }
+  return "Confirma tu identidad con huella o Face ID";
+}
+
 export default function AttendanceConfirmScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -148,10 +280,10 @@ export default function AttendanceConfirmScreen() {
       } else {
         // Tiene hardware y biometría enrolada → solicitar autenticación
         const resultado = await LocalAuthentication.authenticateAsync({
-          promptMessage: "Confirma tu identidad para registrar asistencia",
-          fallbackLabel: "Usar PIN del dispositivo",
+          promptMessage: getAuthenticationMessage(),
+          fallbackLabel: Platform.OS === "ios" ? "Usar PIN" : "Usar huella",
           cancelLabel: "Cancelar",
-          disableDeviceFallback: false,
+          disableDeviceFallback: false, // Permitir fallback a PIN
         });
 
         if (resultado.success) {
@@ -173,25 +305,170 @@ export default function AttendanceConfirmScreen() {
           setFase("idle");
           setPasoAct(-1);
           return;
-        } else {
-          // Otro error del sistema (system_cancel, not_available, etc.)
+        } else if (
+          Platform.OS === "ios" &&
+          (resultado.error === "not_available" ||
+            resultado.error === "authentication_failed")
+        ) {
+          // En iOS, Face ID falló — ofrecer reintentar
           Alert.alert(
-            "Error de biometría",
-            resultado.error ??
-              "No se pudo completar la verificación biométrica.",
-            [{ text: "Entendido" }],
+            "Face ID no reconocido",
+            "No se pudo verificar con Face ID. Intenta de nuevo o usa tu PIN.",
+            [
+              {
+                text: "Reintentar Face ID",
+                onPress: () => {
+                  setFase("idle");
+                  setPasoAct(-1);
+                },
+                isPreferred: true,
+              },
+              {
+                text: "Usar PIN",
+                onPress: () => {
+                  // Reintentar autenticación (permitirá fallback a PIN)
+                  setFase("idle");
+                  setPasoAct(-1);
+                },
+              },
+              {
+                text: "Cancelar",
+                onPress: () => {
+                  setFase("idle");
+                  setPasoAct(-1);
+                },
+              },
+            ],
           );
-          // biometriaExitosa permanece false, el flujo continúa hacia el servidor
+          return;
+        } else {
+          // Otro error del sistema
+          const mensaje =
+            Platform.OS === "ios"
+              ? `Error de Face ID: ${resultado.error}. Puedes intentar nuevamente o usar tu PIN.`
+              : `Error de biometría: ${resultado.error ?? "No se pudo completar la verificación"}.`;
+
+          Alert.alert(
+            "Error de verificación",
+            mensaje,
+            [
+              {
+                text: "Reintentar",
+                onPress: () => {
+                  setFase("idle");
+                  setPasoAct(-1);
+                },
+              },
+              {
+                text: "Cancelar",
+                onPress: () => {
+                  setFase("idle");
+                  setPasoAct(-1);
+                },
+              },
+            ],
+          );
+          return;
         }
       }
 
       setPasosOk((prev) => [...prev, "biometria"]);
 
-      // ── Paso 1: GPS (coordenadas fijas del campus por ahora) ──
+      // ── Paso 1: GPS (obtiene ubicación real) ──────────────────
       setPasoAct(1);
-      await new Promise((r) => setTimeout(r, 1000));
-      const latitud = CAMPUS_LAT;
-      const longitud = CAMPUS_LNG;
+
+      const ubicacionData = await obtenerUbicacion();
+
+      if (ubicacionData.error === "permiso_denegado_permanentemente") {
+        // Permiso denegado permanentemente - ofrecer ir a configuración
+        Alert.alert(
+          "Permiso de ubicación requerido",
+          `Para confirmar tu asistencia, necesitamos acceso a tu ubicación GPS.\n\n${
+            Platform.OS === "android"
+              ? "Abre Configuración > Aplicaciones > [Esta app] > Permisos > Ubicación y selecciona 'Permitir siempre'."
+              : "Abre Configuración > Privacidad > Servicios de Ubicación > [Esta app] y selecciona 'Siempre'."
+          }`,
+          [
+            {
+              text: "Reintentar",
+              onPress: () => {
+                setFase("idle");
+                setPasoAct(-1);
+              },
+              isPreferred: true,
+            },
+            {
+              text: "Cancelar",
+              onPress: () => {
+                setFase("idle");
+                setPasoAct(-1);
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      if (ubicacionData.error) {
+        // Error de permiso denegado - ofrecer reintentar
+        Alert.alert(
+          "Error de GPS",
+          `${ubicacionData.error}\n\nVerifica que:\n• GPS esté activado en tu dispositivo\n• Tengas cobertura de satélites\n• La app tenga permiso de ubicación`,
+          [
+            {
+              text: "Reintentar",
+              onPress: () => {
+                setFase("idle");
+                setPasoAct(-1);
+              },
+              isPreferred: true,
+            },
+            {
+              text: "Cancelar",
+              onPress: () => {
+                setFase("idle");
+                setPasoAct(-1);
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      const latitud = ubicacionData.latitude || CAMPUS_LAT;
+      const longitud = ubicacionData.longitude || CAMPUS_LNG;
+      const ubicacionValida = ubicacionData.dentro;
+
+      // Mostrar resultado de verificación de ubicación
+      if (!ubicacionValida) {
+        // Si no está dentro del campus, rechazar la asistencia
+        setPasoAct(2);
+
+        const token = await getToken();
+        const deviceId = await getDeviceId();
+
+        if (!asistencia_id || !deviceId) {
+          throw new Error(
+            "Faltan datos de sesión. Vuelve al inicio e intenta de nuevo.",
+          );
+        }
+
+        // Enviar fallo de verificación al servidor
+        const respuesta = await verificarAsistencia({
+          asistencia_id: Number(asistencia_id),
+          dispositivo_movil_id: deviceId,
+          metodo,
+          exitoso: false, // Envía que la verificación falló
+          ubicacion_valida: false, // Ubicación inválida
+          latitud,
+          longitud,
+        });
+
+        await new Promise((r) => setTimeout(r, 400));
+        setFase("fallido");
+        return;
+      }
+
       setPasosOk((prev) => [...prev, "ubicacion"]);
 
       // ── Paso 2: Llamada real al servidor ─────────────────────
@@ -211,6 +488,7 @@ export default function AttendanceConfirmScreen() {
         dispositivo_movil_id: deviceId,
         metodo,
         exitoso: biometriaExitosa,
+        ubicacion_valida: true, // Ubicación válida
         latitud,
         longitud,
       });

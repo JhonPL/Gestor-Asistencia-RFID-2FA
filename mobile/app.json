@@ -21,7 +21,12 @@
       }
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Necesitamos acceso a Face ID para verificar tu identidad y registrar tu asistencia de forma segura.",
+        "NSBiometryUsageDescription": "Necesitamos acceso a tu biometría para confirmar tu asistencia.",
+        "NSLocationWhenInUseUsageDescription": "Necesitamos tu ubicación GPS para verificar que estés dentro del campus al registrar asistencia."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +35,11 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.jhonp.mobile",
-      "networkSecurityConfig": "@xml/network_security_config"
+      "networkSecurityConfig": "@xml/network_security_config",
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -44,6 +53,12 @@
           "android": {
             "networkSecurityConfig": "@xml/network_security_config"
           }
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID"
         }
       ]
     ]

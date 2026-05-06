@@ -7,7 +7,7 @@ import { getSesionesByCurso } from '../api/sesionesApi';
 import { useAttendance, avatarColor } from '../hooks/useAttendance';
 import AppLayout from '../components/layout/AppLayout';
 import AttendanceStatusToggle from '../components/attendance/AttendanceStatusToggle';
-import VerificationBadge from '../components/attendance/VerificationBadge';
+import VerificationFactorsBadge from '../components/attendance/VerificationFactorsBadge';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import Icon from '../components/ui/Icon';
@@ -587,7 +587,12 @@ const AttendancePage = ({ onLogout }) => {
                             </span>
                           </Td>
                           <Td>
-                            <VerificationBadge status={r.estadoVerificacion} metodo={r.metodo} />
+                            <VerificationFactorsBadge
+                              metodo={r.metodo}
+                              verificadoBiometrico={r.verificadoBiometrico}
+                              verificadoUbicacion={r.verificadoUbicacion}
+                              estadoVerificacion={r.estadoVerificacion}
+                            />
                             {r.motivo && (
                               <div style={{ marginTop:'.25rem', fontSize:theme.fontSizes.xs, color:theme.colors.outline, fontStyle:'italic' }}>
                                 "{r.motivo}"

@@ -288,6 +288,7 @@ CREATE TABLE IF NOT EXISTS public.asistencia (
     estado_asistencia_id   INTEGER       NOT NULL,
     estado_verificacion_id INTEGER       NOT NULL,
     verificado_biometrico  BOOLEAN       DEFAULT false,
+    verificado_ubicacion   BOOLEAN       DEFAULT false,
     latitud                NUMERIC(10,8),
     longitud               NUMERIC(11,8),
     created_at             TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
@@ -305,6 +306,8 @@ CREATE TABLE IF NOT EXISTS public.asistencia (
 
 COMMENT ON COLUMN public.asistencia.estado_asistencia_id   IS 'Presente | Ausente | Justificado';
 COMMENT ON COLUMN public.asistencia.estado_verificacion_id IS 'pendiente | completado | fallido | sin_app';
+COMMENT ON COLUMN public.asistencia.verificado_biometrico  IS 'true si huella/facial fue válida';
+COMMENT ON COLUMN public.asistencia.verificado_ubicacion   IS 'true si ubicación GPS fue dentro del campus';
 
 CREATE INDEX IF NOT EXISTS idx_asistencia_lista  ON public.asistencia (lista_estudiantes_id);
 CREATE INDEX IF NOT EXISTS idx_asistencia_sesion ON public.asistencia (sesion_clase_id);
