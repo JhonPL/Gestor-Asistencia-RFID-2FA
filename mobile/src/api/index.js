@@ -1,9 +1,9 @@
 // mobile/src/api/index.js
 // Wrapper base para todas las llamadas al backend de SmartClass RFID.
-// En dispositivo físico/Android emulado, reemplaza TU_IP_LOCAL por la IP
-// de tu máquina (ej: '192.168.1.5'). En simulador iOS puedes usar 'localhost'.
 
-export const BASE_URL = 'http://172.13.1.87:3000';
+import env from '../config/env.js';
+
+export const BASE_URL = env.API_BASE_URL;
 
 /**
  * Función central de fetch con manejo de errores y headers automáticos.
