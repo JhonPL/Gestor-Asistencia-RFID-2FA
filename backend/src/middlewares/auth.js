@@ -2,7 +2,8 @@
 // Flujo de autenticación en dos pasos:
 //
 //  1. verifyAzureToken  → valida el token de Microsoft con sus claves públicas (JWKS)
-//     Úsalo en POST /api/auth/login (el frontend envía el token de Azure)
+//     (Deprecado) Úsalo en POST /api/auth/login para Azure AD
+//     ⚠️  Actualmente usando Google OAuth: usa POST /api/auth/google/callback
 //
 //  2. verifyJwt         → valida el JWT propio que este backend emite tras el login
 //     Úsalo en todas las rutas protegidas
@@ -13,14 +14,21 @@ import { env } from '../config/env.js';
 
 // ─── Cliente JWKS de Microsoft ────────────────────────────────
 // Descarga y cachea las claves públicas de Azure AD
-const jwks = jwksClient({
-  jwksUri: `https://login.microsoftonline.com/${env.azure.tenantId}/discovery/v2.0/keys`,
-  cache: true,
-  cacheMaxAge: 60 * 60 * 1000, // 1 hora
-});
+// ⚠️  Solo se inicializa si Azure AD está configurado
+let jwks = null;
+if (env.azure?.tenantId) {
+  jwks = jwksClient({
+    jwksUri: `https://login.microsoftonline.com/${env.azure.tenantId}/discovery/v2.0/keys`,
+    cache: true,
+    cacheMaxAge: 60 * 60 * 1000, // 1 hora
+  });
+}
 
 // Obtiene la clave pública usando el kid (key ID) del header del token
 function getSigningKey(header, callback) {
+  if (!jwks) {
+    return callback(new Error('Azure AD no está configurado'));
+  }
   jwks.getSigningKey(header.kid, (err, key) => {
     if (err) return callback(err);
     callback(null, key.getPublicKey());
@@ -30,14 +38,15 @@ function getSigningKey(header, callback) {
 // ─── Middleware 1: Valida token de Microsoft ──────────────────
 // Se usa SOLO en el endpoint POST /api/auth/login
 // El frontend envía:  Authorization: Bearer <azure_token>
+// ⚠️  Actualmente deshabilitado: usar Google OAuth (/api/auth/google/callback) en su lugar
 export async function verifyAzureToken(req, res, next) {
   // Si Azure AD no está configurado, permitir en desarrollo (modo simulación)
-  if (!env.azure.tenantId || !env.azure.clientId) {
+  if (!env.azure?.tenantId || !env.azure?.clientId) {
     if (env.nodeEnv === 'development') {
       console.warn('⚠️  Azure AD no configurado — modo simulación activo');
       return next();
     }
-    return res.status(503).json({ error: 'Autenticación no configurada en el servidor' });
+    return res.status(503).json({ error: 'Autenticación de Azure no configurada. Usa Google OAuth (/api/auth/google/callback).' });
   }
 
   const authHeader = req.headers.authorization;

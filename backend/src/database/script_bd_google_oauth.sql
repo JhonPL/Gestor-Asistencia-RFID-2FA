@@ -1,18 +1,31 @@
 -- ============================================================
 -- Sistema de Gestión de Asistencia con RFID
--- PostgreSQL — Script completo v6
+-- PostgreSQL — Script completo v6+v7 · Variante GOOGLE OAuth 2.0
 -- Universidad Cooperativa de Colombia · Villavicencio, Meta
 -- ============================================================
--- CAMBIOS v6 vs v5:
---   ✎ sesion_clase.estado  → agrega 'programada' al CHECK constraint
---                            y al DEFAULT ('activa' → 'programada')
---   + dispositivo_movil    → UNIQUE constraint en push_token
---                            (necesario para ON CONFLICT en /api/movil/dispositivo)
+-- PROVEEDOR OAuth: Google Identity Platform (OAuth 2.0 / OpenID Connect)
+--
+-- Diferencias respecto al script base (Azure):
+--   ✎ persona.microsoft_id  → persona.google_id
+--       Almacena el claim "sub" del ID Token de Google.
+--       Es único, estable y no cambia aunque el usuario
+--       modifique su correo de Google Workspace.
+--   ✎ Constraint renombrado: persona_microsoft_key → persona_google_key
+--   ✎ Índice renombrado:     idx_persona_microsoft → idx_persona_google
+--
+-- Implementación backend (referencia):
+--   · Endpoint de autorización : https://accounts.google.com/o/oauth2/v2/auth
+--   · Endpoint de token        : https://oauth2.googleapis.com/token
+--   · Endpoint de userinfo     : https://openidconnect.googleapis.com/v1/userinfo
+--   · Scopes mínimos requeridos: openid email profile
+--   · Claim de identidad usado : "sub"  (string, ej: "116524196827155206131")
+--   · Validar siempre "hd" (hosted domain) para restringir a
+--     cuentas del dominio universitario (ej: hd = "ucc.edu.co")
 -- ============================================================
 
 BEGIN;
 
--- ── CATÁLOGOS FIJOS ──────────────────────────────────────────
+-- ── CATÁLOGOS FIJOS ─────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.rol (
     id     SERIAL      NOT NULL,
@@ -26,7 +39,7 @@ INSERT INTO public.rol (nombre) VALUES
     ('docente'), ('estudiante'), ('administrador')
 ON CONFLICT DO NOTHING;
 
--- ──────────────────────────────────────────────────────────────
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.metodo_verificacion (
     id     SERIAL      NOT NULL,
     nombre VARCHAR(20) NOT NULL,
@@ -42,7 +55,7 @@ INSERT INTO public.metodo_verificacion (nombre) VALUES
     ('fingerprint'), ('face_id'), ('ubicacion')
 ON CONFLICT DO NOTHING;
 
--- ──────────────────────────────────────────────────────────────
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.estado_asistencia (
     id     SERIAL      NOT NULL,
     nombre VARCHAR(20) NOT NULL,
@@ -55,7 +68,7 @@ INSERT INTO public.estado_asistencia (nombre) VALUES
     ('Presente'), ('Ausente'), ('Justificado')
 ON CONFLICT DO NOTHING;
 
--- ──────────────────────────────────────────────────────────────
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.estado_verificacion (
     id     SERIAL      NOT NULL,
     nombre VARCHAR(20) NOT NULL,
@@ -71,7 +84,7 @@ INSERT INTO public.estado_verificacion (nombre) VALUES
     ('pendiente'), ('completado'), ('fallido'), ('sin_app')
 ON CONFLICT DO NOTHING;
 
--- ──────────────────────────────────────────────────────────────
+-- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.estado_dispositivo (
     id     SERIAL      NOT NULL,
     nombre VARCHAR(20) NOT NULL,
@@ -84,7 +97,7 @@ INSERT INTO public.estado_dispositivo (nombre) VALUES
     ('Activo'), ('Inactivo'), ('Mantenimiento')
 ON CONFLICT DO NOTHING;
 
--- ── ESTRUCTURA ACADÉMICA ──────────────────────────────────────
+-- ── ESTRUCTURA ACADÉMICA ─────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.facultad (
     id         SERIAL       NOT NULL,
@@ -105,11 +118,16 @@ CREATE TABLE IF NOT EXISTS public.programa (
         REFERENCES public.facultad (id) ON DELETE CASCADE
 );
 
--- ── PERSONA ───────────────────────────────────────────────────
+-- ── PERSONA ──────────────────────────────────────────────────
+-- OAuth: Google Identity Platform
+--   google_id almacena el claim "sub" del ID Token.
+--   Longitud 255 por si Google amplía el formato en el futuro.
+--   El correo institucional debe pertenecer al dominio universitario;
+--   validar el claim "hd" en el backend antes de insertar.
 
 CREATE TABLE IF NOT EXISTS public.persona (
     id             SERIAL       NOT NULL,
-    microsoft_id   VARCHAR(100),
+    google_id      VARCHAR(255),               -- Google "sub" claim del ID Token
     rol_id         INTEGER      NOT NULL,
     nombre         VARCHAR(100) NOT NULL,
     apellido       VARCHAR(100) NOT NULL,
@@ -120,7 +138,7 @@ CREATE TABLE IF NOT EXISTS public.persona (
     created_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT persona_pkey               PRIMARY KEY (id),
     CONSTRAINT persona_correo_key         UNIQUE (correo),
-    CONSTRAINT persona_microsoft_key      UNIQUE (microsoft_id),
+    CONSTRAINT persona_google_key         UNIQUE (google_id),
     CONSTRAINT persona_codigo_tarjeta_key UNIQUE (codigo_tarjeta),
     CONSTRAINT persona_rol_fkey           FOREIGN KEY (rol_id)
         REFERENCES public.rol (id),
@@ -128,15 +146,15 @@ CREATE TABLE IF NOT EXISTS public.persona (
         REFERENCES public.programa (id) ON DELETE SET NULL
 );
 
-COMMENT ON COLUMN public.persona.microsoft_id   IS 'ID único de Microsoft OAuth. NULL hasta el primer login.';
+COMMENT ON COLUMN public.persona.google_id     IS 'Claim "sub" del ID Token de Google OAuth 2.0. NULL hasta el primer login.';
 COMMENT ON COLUMN public.persona.codigo_tarjeta IS 'Código RFID. NULL para administradores puros.';
 COMMENT ON COLUMN public.persona.programa_id    IS 'Solo aplica para estudiantes y docentes.';
 
-CREATE INDEX IF NOT EXISTS idx_persona_correo    ON public.persona (correo);
-CREATE INDEX IF NOT EXISTS idx_persona_microsoft ON public.persona (microsoft_id);
-CREATE INDEX IF NOT EXISTS idx_persona_tarjeta   ON public.persona (codigo_tarjeta);
+CREATE INDEX IF NOT EXISTS idx_persona_correo ON public.persona (correo);
+CREATE INDEX IF NOT EXISTS idx_persona_google  ON public.persona (google_id);
+CREATE INDEX IF NOT EXISTS idx_persona_tarjeta ON public.persona (codigo_tarjeta);
 
--- ── HORARIOS Y AULAS ──────────────────────────────────────────
+-- ── HORARIOS Y AULAS ─────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.dia_semana (
     id     INTEGER     NOT NULL,
@@ -193,7 +211,7 @@ CREATE TABLE IF NOT EXISTS public.dispositivo_rfid (
 CREATE INDEX IF NOT EXISTS idx_dispositivo_rfid_estado
     ON public.dispositivo_rfid (estado_dispositivo_id);
 
--- ── CURSOS ────────────────────────────────────────────────────
+-- ── CURSOS ───────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.curso (
     id           SERIAL       NOT NULL,
@@ -246,11 +264,7 @@ CREATE TABLE IF NOT EXISTS public.lista_estudiantes (
 COMMENT ON COLUMN public.lista_estudiantes.activo IS
     'true=inscripción vigente, false=estudiante retirado/inactivo del curso.';
 
--- ── SESIÓN DE CLASE ───────────────────────────────────────────
--- v6: estado DEFAULT 'programada' y CHECK incluye los 3 valores posibles.
---     programada = pre-generada al crear el curso (aún no ocurrió)
---     activa     = docente abrió pasando su tarjeta RFID
---     cerrada    = docente cerró al terminar la clase
+-- ── SESIÓN DE CLASE ──────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.sesion_clase (
     id                    SERIAL      NOT NULL,
@@ -277,7 +291,7 @@ COMMENT ON COLUMN public.sesion_clase.estado     IS
 CREATE INDEX IF NOT EXISTS idx_sesion_estado ON public.sesion_clase (estado);
 CREATE INDEX IF NOT EXISTS idx_sesion_ach    ON public.sesion_clase (aula_curso_horario_id);
 
--- ── ASISTENCIA ────────────────────────────────────────────────
+-- ── ASISTENCIA ───────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.asistencia (
     id                     SERIAL        NOT NULL,
@@ -312,9 +326,7 @@ COMMENT ON COLUMN public.asistencia.verificado_ubicacion   IS 'true si ubicació
 CREATE INDEX IF NOT EXISTS idx_asistencia_lista  ON public.asistencia (lista_estudiantes_id);
 CREATE INDEX IF NOT EXISTS idx_asistencia_sesion ON public.asistencia (sesion_clase_id);
 
--- ── APP MÓVIL ─────────────────────────────────────────────────
--- v6: se agrega UNIQUE constraint en push_token para que
---     ON CONFLICT (push_token) DO UPDATE funcione en /api/movil/dispositivo.
+-- ── APP MÓVIL ────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.dispositivo_movil (
     id            SERIAL       NOT NULL,
@@ -339,7 +351,6 @@ COMMENT ON CONSTRAINT dispositivo_movil_push_token_key ON public.dispositivo_mov
     'Garantiza unicidad del token para soportar ON CONFLICT (push_token) DO UPDATE en /api/movil/dispositivo.';
 
 CREATE INDEX IF NOT EXISTS idx_dispositivo_persona ON public.dispositivo_movil (persona_id);
--- El índice sobre push_token lo crea automáticamente el UNIQUE constraint arriba.
 
 CREATE TABLE IF NOT EXISTS public.verificacion_biometrica (
     id                     SERIAL        NOT NULL,

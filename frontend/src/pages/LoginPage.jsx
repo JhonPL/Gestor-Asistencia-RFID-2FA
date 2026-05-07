@@ -1,22 +1,13 @@
 // src/pages/LoginPage.jsx
-// Cambios respecto al original:
-//   1. Importa loginDev de authApi
-//   2. ROL_CORREOS mapea el botón al correo del seed en la BD
-//   3. handleRoleLogin llama a la API real y propaga errores visibles
-//   4. onLogin(token, user) en lugar de onLogin(rol)
+// Login con OAuth 2.0 de Google
+// Autenticación segura: usuario → Google → Backend JWT → App
 
 import { useState } from 'react';
-import styled, { keyframes, css } from 'styled-components';
+import styled, { keyframes } from 'styled-components';
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import theme from '../styles/theme';
 import Icon from '../components/ui/Icon';
-import { loginDev } from '../api/authApi';
-
-// ─── Correos que deben existir en la BD (script_bd_v5.sql) ───────────────────
-// Si usas correos distintos en el seed, cámbialos aquí.
-const ROL_CORREOS = {
-  administrador: 'admin@campusucc.edu.co',
-  docente: 'francy.lopez@campusucc.edu.co' // cambia por un docente real de tu BD para probar mejor el rol y permisos
-};
+import { loginWithGoogle } from '../api/authApi';
 
 // ─── Styled (igual que el original) ──────────────────────────────────────────
 const fadeIn  = keyframes`from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}`;
@@ -76,58 +67,26 @@ const CardDesc = styled.p`
   line-height:1.6;margin-bottom:1.75rem;
   strong{color:${theme.colors.onSurface};font-weight:${theme.fontWeights.semibold}}
 `;
-const MicrosoftButton = styled.button`
-  display:flex;align-items:center;justify-content:center;gap:.875rem;
-  width:100%;height:3.5rem;background-color:${theme.colors.surfaceContainerHigh};
-  color:${theme.colors.onSurfaceVariant};font-family:${theme.fonts.body};
-  font-size:${theme.fontSizes.base};font-weight:${theme.fontWeights.semibold};
-  border-radius:${theme.radii.xl};border:1px solid ${theme.colors.outlineVariant}4D;
-  cursor:not-allowed;opacity:.6;box-shadow:${theme.shadows.sm};
+const GoogleButtonContainer = styled.div`
+  width: 100%;
+  margin-bottom: 1.5rem;
+  
+  .google-button-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  
+  [role="button"] {
+    height: 3.5rem !important;
+    width: 100% !important;
+    border-radius: ${theme.radii.xl} !important;
+  }
+  
+  svg, span {
+    height: 1.25rem !important;
+  }
 `;
-const MicrosoftIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    <rect x="1"  y="1"  width="9" height="9" fill="#f25022"/>
-    <rect x="11" y="1"  width="9" height="9" fill="#7fba00"/>
-    <rect x="1"  y="11" width="9" height="9" fill="#00a4ef"/>
-    <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-  </svg>
-);
-const Spinner = styled.div`
-  width:1.125rem;height:1.125rem;border:2px solid rgba(255,255,255,.3);
-  border-top-color:white;border-radius:50%;animation:${spin} .7s linear infinite;
-`;
-const Divider = styled.div`
-  position:relative;margin:1.5rem 0;
-  &::before{content:'';position:absolute;inset:0;top:50%;height:1px;
-    background-color:${theme.colors.outlineVariant}4D;}
-`;
-const DividerLabel = styled.span`
-  position:relative;z-index:1;display:block;text-align:center;
-  font-size:${theme.fontSizes.xs};font-weight:${theme.fontWeights.semibold};
-  text-transform:uppercase;letter-spacing:.12em;color:${theme.colors.outline};
-  background-color:${theme.colors.surfaceContainerLowest};
-  padding:0 .75rem;width:fit-content;margin:0 auto;
-`;
-const SimBanner = styled.div`
-  background-color:${theme.colors.primaryFixed};border-radius:${theme.radii.lg};
-  padding:.75rem 1rem;margin-bottom:1rem;
-  display:flex;align-items:center;gap:.5rem;
-  font-size:${theme.fontSizes.xs};color:${theme.colors.primary};font-weight:${theme.fontWeights.medium};
-`;
-const RoleGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:.75rem;`;
-const RoleBtn = styled.button`
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:.5rem;padding:1.125rem .75rem;border-radius:${theme.radii.xl};
-  border:1px solid ${({ $active }) => $active ? theme.colors.primary : theme.colors.outlineVariant}4D;
-  background-color:${({ $active }) => $active ? theme.colors.primaryFixed : 'white'};
-  color:${({ $active }) => $active ? theme.colors.primary : theme.colors.onSurfaceVariant};
-  font-family:${theme.fonts.body};font-size:${theme.fontSizes.sm};
-  font-weight:${theme.fontWeights.semibold};cursor:pointer;
-  transition:all ${theme.transitions.base};box-shadow:${theme.shadows.sm};
-  &:hover{border-color:${theme.colors.primary}66;background-color:${theme.colors.primaryFixed};color:${theme.colors.primary}}
-  ${({ $loading }) => $loading && css`opacity:.5;pointer-events:none;`}
-`;
-const RoleLabel = styled.span`font-size:${theme.fontSizes.xs};text-transform:uppercase;letter-spacing:.08em;`;
 const ErrorBanner = styled.div`
   background-color:${theme.colors.errorContainer};
   color:${theme.colors.error};
@@ -140,10 +99,17 @@ const ErrorBanner = styled.div`
   align-items:center;
   gap:.5rem;
 `;
-const AccessNote = styled.p`
-  text-align:center;font-size:${theme.fontSizes.xs};color:${theme.colors.outline};
-  margin-top:1.25rem;line-height:1.6;
-  strong{color:${theme.colors.onSurfaceVariant};font-weight:${theme.fontWeights.semibold}}
+const SuccessBanner = styled.div`
+  background-color:${theme.colors.tertiaryContainer};
+  color:${theme.colors.tertiary};
+  border-radius:${theme.radii.lg};
+  padding:.75rem 1rem;
+  font-size:${theme.fontSizes.sm};
+  font-weight:${theme.fontWeights.medium};
+  margin-bottom:1rem;
+  display:flex;
+  align-items:center;
+  gap:.5rem;
 `;
 const PageFooter = styled.footer`text-align:center;margin-top:3rem;`;
 const FooterText = styled.p`font-size:${theme.fontSizes.xs};color:${theme.colors.outline};text-transform:uppercase;letter-spacing:.12em;`;
@@ -165,26 +131,39 @@ const QuoteText = styled.p`
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 const LoginPage = ({ onLogin }) => {
-  const [loading,    setLoading]    = useState(false);
-  const [activeRole, setActiveRole] = useState(null);
-  const [error,      setError]      = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+  const [success, setSuccess] = useState(null);
 
-  const handleRoleLogin = async (rol) => {
+  const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true);
-    setActiveRole(rol);
     setError(null);
+    setSuccess(null);
 
     try {
-      const { token, user } = await loginDev(ROL_CORREOS[rol]);
-      // Propaga el token y el usuario al handler de App.jsx
-      await onLogin?.(token, user);
+      setSuccess('Autenticando con Google...');
+      const { token, user } = await loginWithGoogle(credentialResponse.credential);
+      setSuccess(`¡Bienvenido ${user.nombre}!`);
+      
+      // Pequeña pausa para mostrar el mensaje de éxito
+      setTimeout(() => {
+        onLogin?.(token, user);
+      }, 800);
     } catch (err) {
-      setError(err.message ?? 'No se pudo conectar con el servidor');
+      setError(err.message ?? 'Error al autenticar con Google');
+      setSuccess(null);
     } finally {
       setLoading(false);
-      setActiveRole(null);
     }
   };
+
+  const handleGoogleError = () => {
+    setError('No se pudo completar la autenticación con Google');
+    setSuccess(null);
+    setLoading(false);
+  };
+
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
   return (
     <Page>
@@ -198,26 +177,14 @@ const LoginPage = ({ onLogin }) => {
         <LogoSection>
           <LogoBox><Icon name="school" size="lg" fill={1} /></LogoBox>
           <AppName>SmartClass</AppName>
-          <AppSubtitle>Acceso Institucional · UCC Villavicencio</AppSubtitle>
+          <AppSubtitle>Gestión de Asistencia · UCC Villavicencio</AppSubtitle>
         </LogoSection>
 
         <Card>
-          <CardTitle>Bienvenido</CardTitle>
-          <CardDesc>Usa tu correo <strong>@campusucc.edu.co</strong> para acceder al sistema de gestión de asistencia.</CardDesc>
+          <CardTitle>Acceso al Sistema</CardTitle>
+          <CardDesc>Inicia sesión con tu cuenta de <strong>Google</strong> para acceder a SmartClass.</CardDesc>
 
-          <MicrosoftButton disabled title="Pendiente de configuración Azure AD">
-            <MicrosoftIcon />
-            Iniciar sesión con Microsoft
-          </MicrosoftButton>
-
-          <Divider><DividerLabel>o simular acceso</DividerLabel></Divider>
-
-          <SimBanner>
-            <Icon name="science" size="sm" />
-            Modo simulación — requiere backend activo en {import.meta.env.VITE_API_URL ?? 'http://localhost:3000'}
-          </SimBanner>
-
-          {/* Error del backend */}
+          {/* Mensajes */}
           {error && (
             <ErrorBanner role="alert">
               <Icon name="error" size="sm" />
@@ -225,29 +192,32 @@ const LoginPage = ({ onLogin }) => {
             </ErrorBanner>
           )}
 
-          <RoleGrid>
-            <RoleBtn
-              onClick={() => handleRoleLogin('docente')}
-              $active={activeRole === 'docente'}
-              $loading={loading && activeRole !== 'docente'}
-              aria-label="Ingresar como docente"
-            >
-              {loading && activeRole === 'docente' ? <Spinner /> : <Icon name="school" size="md" />}
-              <RoleLabel>Docente</RoleLabel>
-            </RoleBtn>
+          {success && (
+            <SuccessBanner role="status">
+              <Icon name="check_circle" size="sm" />
+              {success}
+            </SuccessBanner>
+          )}
 
-            <RoleBtn
-              onClick={() => handleRoleLogin('administrador')}
-              $active={activeRole === 'administrador'}
-              $loading={loading && activeRole !== 'administrador'}
-              aria-label="Ingresar como administrador"
-            >
-              {loading && activeRole === 'administrador' ? <Spinner /> : <Icon name="admin_panel_settings" size="md" />}
-              <RoleLabel>Administrador</RoleLabel>
-            </RoleBtn>
-          </RoleGrid>
-
-          <AccessNote>Producción: acceso exclusivo con correo <strong>@ucc.edu.co</strong>.</AccessNote>
+          {/* Google OAuth */}
+          {googleClientId ? (
+            <GoogleOAuthProvider clientId={googleClientId}>
+              <GoogleButtonContainer>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  text="signin"
+                  locale="es_ES"
+                  disabled={loading}
+                />
+              </GoogleButtonContainer>
+            </GoogleOAuthProvider>
+          ) : (
+            <ErrorBanner role="alert">
+              <Icon name="warning" size="sm" />
+              ⚠️ Google OAuth no está configurado. Configura <strong>VITE_GOOGLE_CLIENT_ID</strong> en .env.local
+            </ErrorBanner>
+          )}
         </Card>
 
         <PageFooter>
@@ -261,7 +231,7 @@ const LoginPage = ({ onLogin }) => {
 
       <AcademicQuote aria-hidden="true">
         <Icon name="history_edu" size="xl" style={{ color: `${theme.colors.primaryContainer}33`, marginBottom: '.5rem' }} />
-        <QuoteText>"La mente no es un recipiente que llenar, sino un fuego que encender."</QuoteText>
+        <QuoteText>"La educación es la herramienta más poderosa para cambiar el mundo."</QuoteText>
       </AcademicQuote>
     </Page>
   );

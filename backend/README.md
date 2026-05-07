@@ -73,11 +73,11 @@ AZURE_TENANT_ID=tu_tenant_id
 # Crear la base de datos PostgreSQL
 createdb smartclass_rfid
 
-# Ejecutar el script de inicialización
-psql -d smartclass_rfid -f ./database/script_bd_v5.sql
+# Ejecutar el script de inicialización con Google OAuth
+psql -d smartclass_rfid -f ./src/database/script_bd_google_oauth.sql
 ```
 
-**Nota**: Si necesitas la última versión de la BD, usa `script_bd_v6.sql` en su lugar.
+**Nota**: Este script es para Google OAuth 2.0. Para migrar de una versión anterior, consulta la documentación en `GOOGLE_OAUTH_SETUP.md`.
 
 ### 4️⃣ Iniciar el servidor
 

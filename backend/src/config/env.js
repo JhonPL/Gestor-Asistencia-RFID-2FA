@@ -2,7 +2,12 @@
 // Valida y exporta variables de entorno.
 // Si falta una variable crítica, el proceso muere con un mensaje claro.
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const required = ['DB_HOST', 'DB_NAME', 'DB_USER', 'JWT_SECRET'];
 
@@ -28,9 +33,15 @@ export const env = {
   },
 
   // Azure AD
-  azure: {
-    clientId: process.env.AZURE_CLIENT_ID || '',
-    tenantId: process.env.AZURE_TENANT_ID || '',
+  // azure: {
+  //   clientId: process.env.AZURE_CLIENT_ID || '',
+  //   tenantId: process.env.AZURE_TENANT_ID || '',
+  // },
+
+  google: {
+    clientId:     process.env.GOOGLE_CLIENT_ID     || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    redirectUri:  process.env.GOOGLE_REDIRECT_URI  || 'http://localhost:3000/api/auth/google/callback',
   },
 
   // JWT propio
@@ -41,8 +52,8 @@ export const env = {
 
   // Campus UCC Villavicencio
   campus: {
-    lat:           parseFloat(process.env.CAMPUS_LAT    || '-4.142900'),
-    lng:           parseFloat(process.env.CAMPUS_LNG    || '-73.626700'),
+    lat:           parseFloat(process.env.CAMPUS_LAT    || '  '),
+    lng:           parseFloat(process.env.CAMPUS_LNG    || '-73.60909'),
     radiusMeters:  parseInt(process.env.CAMPUS_RADIUS_METERS || '200', 10),
   },
 };
