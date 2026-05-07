@@ -33,21 +33,38 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [devMode, setDevMode] = useState(false);
 
+  // Redirect URI para Expo Proxy (usuario: jhonp)
+  const redirectUri = 'https://auth.expo.io/@jhonp/mobile';
+
   // Google OAuth 2.0
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: GOOGLE_CLIENT_ID,
     iosClientId: GOOGLE_CLIENT_ID,
     androidClientId: GOOGLE_CLIENT_ID,
     scopes: ['openid', 'email', 'profile'],
+    redirectUri,
     useProxy: true, // Expo proxy para OAuth redirects
   });
+  console.log('Redirect URI:', redirectUri);
 
   // Escuchar cambios en la respuesta de Google
   useEffect(() => {
-    if (response?.type === 'success' && response.authentication?.idToken) {
-      handleGoogleLoginResponse(response);
+    console.log('Google response:', response);
+    
+    if (response?.type === 'success') {
+      console.log('✅ Google OAuth success');
+      console.log('Authentication:', response.authentication);
+      if (response.authentication?.idToken) {
+        console.log('✅ Token recibido, iniciando login...');
+        handleGoogleLoginResponse(response);
+      } else {
+        console.log('❌ No idToken en response');
+      }
     } else if (response?.type === 'error') {
+      console.log('❌ Google OAuth error:', response.error);
       Alert.alert('Error', response.error?.message || 'Error en la autenticación de Google');
+    } else if (response?.type === 'dismiss') {
+      console.log('⚠️ Google OAuth dismissed');
     }
   }, [response]);
 

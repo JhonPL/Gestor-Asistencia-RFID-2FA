@@ -2,6 +2,7 @@
   "expo": {
     "name": "mobile",
     "slug": "mobile",
+    "scheme": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,10 +15,10 @@
       "backgroundColor": "#ffffff"
     },
     "extra": {
-      "IP": "localhost",
-      "API_HOST": "localhost",
+      "IP": "172.13.1.87",
+      "API_HOST": "172.13.1.87",
       "API_PORT": 3000,
-      "API_BASE_URL": "http://localhost:3000",
+      "API_BASE_URL": "http://172.13.1.87:3000",
       "GOOGLE_CLIENT_ID": "1027858475506-rnvthesejtmn4usfmvctmsvv7i3s9ug0.apps.googleusercontent.com",
       "router": {},
       "eas": {
