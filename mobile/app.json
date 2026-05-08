@@ -8,18 +8,19 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "projectId": "dcef63df-50c9-48e7-80e2-bdcda1998b5b",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "extra": {
-      "IP": "172.13.1.87",
-      "API_HOST": "172.13.1.87",
+      "IP": "192.168.80.60",
+      "API_HOST": "192.168.80.60",
       "API_PORT": 3000,
-      "API_BASE_URL": "http://172.13.1.87:3000",
+      "API_BASE_URL": "http://192.168.80.60:3000",
       "GOOGLE_CLIENT_ID": "1027858475506-rnvthesejtmn4usfmvctmsvv7i3s9ug0.apps.googleusercontent.com",
+      "GOOGLE_ANDROID_CLIENT_ID": "1027858475506-f5e73v1mhqnilb3vjvfophdlhca2ecmt.apps.googleusercontent.com",
       "router": {},
       "eas": {
         "projectId": "ee489cd7-cedc-4aa4-8afe-01ae7e0e171a"
@@ -40,7 +41,6 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.jhonp.mobile",
-      "networkSecurityConfig": "@xml/network_security_config",
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
@@ -56,7 +56,7 @@
         "expo-build-properties",
         {
           "android": {
-            "networkSecurityConfig": "@xml/network_security_config"
+            "usesCleartextTraffic": true
           }
         }
       ],
@@ -65,7 +65,9 @@
         {
           "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID"
         }
-      ]
+      ],
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin"
     ]
   }
 }

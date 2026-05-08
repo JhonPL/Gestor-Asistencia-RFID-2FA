@@ -19,11 +19,17 @@ export async function apiFetch(path, options = {}, token = null) {
     ...(options.headers ?? {}),
   };
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos
+
   try {
     const response = await fetch(`${BASE_URL}${path}`, {
       ...options,
       headers,
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
 
     const data = await response.json().catch(() => ({}));
 
@@ -38,6 +44,11 @@ export async function apiFetch(path, options = {}, token = null) {
       message: error.message,
       errorName: error.name,
     });
+    
+    if (error.name === 'AbortError') {
+      throw new Error('Tiempo de espera agotado. Verifica tu conexión a internet y asegúrate de que el backend esté accesible (IP y Firewall).');
+    }
+    
     throw error;
   }
 }

@@ -6,8 +6,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 
 import { colors, spacing, radii, fontSizes, shadows } from '../../constants/tokens';
 import { Button, Divider, BodyText, Label } from '../../components/ui';
@@ -18,9 +17,7 @@ import { saveAuth, saveDeviceId } from '../../src/storage/auth';
 import { getPushToken } from '../../src/notifications/setup';
 import env from '../../src/config/env';
 
-WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
 const CORREO_ESTUDIANTE_DEV = 'jhon.paternina@campusucc.edu.co';
 
 const GoogleIcon = () => (
@@ -33,40 +30,46 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [devMode, setDevMode] = useState(false);
 
-  // Redirect URI para Expo Proxy (usuario: jhonp)
-  const redirectUri = 'https://auth.expo.io/@jhonp/mobile';
+  const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
 
-  // Google OAuth 2.0
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: GOOGLE_CLIENT_ID,
-    iosClientId: GOOGLE_CLIENT_ID,
-    androidClientId: GOOGLE_CLIENT_ID,
-    scopes: ['openid', 'email', 'profile'],
-    redirectUri,
-    useProxy: true, // Expo proxy para OAuth redirects
-  });
-  console.log('Redirect URI:', redirectUri);
-
-  // Escuchar cambios en la respuesta de Google
   useEffect(() => {
-    console.log('Google response:', response);
-    
-    if (response?.type === 'success') {
-      console.log('✅ Google OAuth success');
-      console.log('Authentication:', response.authentication);
-      if (response.authentication?.idToken) {
-        console.log('✅ Token recibido, iniciando login...');
-        handleGoogleLoginResponse(response);
-      } else {
-        console.log('❌ No idToken en response');
+    GoogleSignin.configure({
+      webClientId: GOOGLE_CLIENT_ID,
+      offlineAccess: false,
+    });
+  }, []);
+
+  const handleNativeGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo?.data?.idToken || userInfo?.idToken;
+
+      if (!idToken) {
+        throw new Error("No se recibió el token de autenticación de Google");
       }
-    } else if (response?.type === 'error') {
-      console.log('❌ Google OAuth error:', response.error);
-      Alert.alert('Error', response.error?.message || 'Error en la autenticación de Google');
-    } else if (response?.type === 'dismiss') {
-      console.log('⚠️ Google OAuth dismissed');
+
+      console.log('✅ Token nativo recibido, iniciando login...');
+      await handleGoogleLoginResponse({
+        type: 'success',
+        authentication: { idToken }
+      });
+
+    } catch (error) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        console.log('User cancelled the login flow');
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        console.log('Sign in is in progress already');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Error', 'Google Play Services no está disponible');
+      } else {
+        console.log('Google Auth Error:', error);
+        Alert.alert('Error', error.message || 'Error en la autenticación nativa');
+      }
+      setLoading(false);
     }
-  }, [response]);
+  };
 
   const handleGoogleLoginResponse = async (googleResponse) => {
     setLoading(true);
@@ -171,10 +174,9 @@ export default function LoginScreen() {
           style={[
             s.googleBtn,
             loading && { opacity: 0.7 },
-            !request && { opacity: 0.5 },
           ]}
-          onPress={() => promptAsync()}
-          disabled={loading || !request}
+          onPress={handleNativeGoogleLogin}
+          disabled={loading}
           activeOpacity={0.82}
         >
           {loading ? (

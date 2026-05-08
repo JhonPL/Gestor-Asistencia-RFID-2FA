@@ -9,6 +9,7 @@
 
 import * as Notifications from 'expo-notifications';
 import { Platform }       from 'react-native';
+import Constants          from 'expo-constants';
 
 /**
  * Solicita permisos de notificación y devuelve el ExponentPushToken del dispositivo.
@@ -46,7 +47,16 @@ export async function getPushToken() {
 
   // ── Obtener el token de Expo ──────────────────────────────
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    
+    // Timeout de 5 segundos para evitar que se quede cargando si no hay internet
+    const tokenPromise = Notifications.getExpoPushTokenAsync({ projectId });
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout al obtener Push Token')), 5000)
+    );
+    
+    const tokenData = await Promise.race([tokenPromise, timeoutPromise]);
+    
     console.log('[notifications] Push token obtenido:', tokenData.data);
     return tokenData.data; // "ExponentPushToken[xxxxxxxx]"
 

@@ -7,6 +7,7 @@ import Constants from 'expo-constants';
 const DEFAULT_API_HOST = '192.168.80.60';
 const DEFAULT_API_PORT = 3000;
 const DEFAULT_GOOGLE_CLIENT_ID = '1027858475506-rnvthesejtmn4usfmvctmsvv7i3s9ug0.apps.googleusercontent.com';
+const DEFAULT_GOOGLE_ANDROID_CLIENT_ID = '1027858475506-f5e73v1mhqnilb3vjvfophdlhca2ecmt.apps.googleusercontent.com';
 
 /**
  * Obtiene variables del archivo .env y app.json
@@ -20,6 +21,7 @@ export const env = {
 
   // Google OAuth
   GOOGLE_CLIENT_ID: Constants.expoConfig?.extra?.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID,
+  GOOGLE_ANDROID_CLIENT_ID: Constants.expoConfig?.extra?.GOOGLE_ANDROID_CLIENT_ID || DEFAULT_GOOGLE_ANDROID_CLIENT_ID,
 
   // Expo
   PROJECT_ID: Constants.expoConfig?.extra?.eas?.projectId,
