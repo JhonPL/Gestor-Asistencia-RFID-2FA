@@ -1,8 +1,3 @@
-// src/components/ProtectedRoute.jsx
-// Añade manejo del estado loading mientras se valida el token al arrancar la app.
-// Sin esto, al refrescar la página con sesión activa redirige a /login antes de
-// que getMe() termine.
-
 import { Navigate, useLocation } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { useAuth } from '../context/AuthContext';
@@ -40,7 +35,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (allowedRoles && !allowedRoles.includes(user.rol)) {
-    return <Navigate to={user.rol === 'administrador' ? '/admin' : '/mis-cursos'} replace />;
+    return <Navigate to="/acceso-denegado" replace />;
   }
 
   return children;

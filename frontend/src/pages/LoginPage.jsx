@@ -4,14 +4,14 @@
 
 import { useState } from 'react';
 import styled, { keyframes } from 'styled-components';
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { GoogleLogin } from '@react-oauth/google';
 import theme from '../styles/theme';
 import Icon from '../components/ui/Icon';
 import { loginWithGoogle } from '../api/authApi';
 
 // ─── Styled (igual que el original) ──────────────────────────────────────────
-const fadeIn  = keyframes`from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}`;
-const spin    = keyframes`to{transform:rotate(360deg)}`;
+const fadeIn = keyframes`from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}`;
+const spin = keyframes`to{transform:rotate(360deg)}`;
 const blobFloat = keyframes`0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-20px) scale(1.05)}`;
 
 const Page = styled.div`
@@ -132,7 +132,7 @@ const QuoteText = styled.p`
 // ─── Componente ───────────────────────────────────────────────────────────────
 const LoginPage = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState(null);
+  const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
   const handleGoogleSuccess = async (credentialResponse) => {
@@ -144,7 +144,7 @@ const LoginPage = ({ onLogin }) => {
       setSuccess('Autenticando con Google...');
       const { token, user } = await loginWithGoogle(credentialResponse.credential);
       setSuccess(`¡Bienvenido ${user.nombre}!`);
-      
+
       // Pequeña pausa para mostrar el mensaje de éxito
       setTimeout(() => {
         onLogin?.(token, user);
@@ -163,14 +163,13 @@ const LoginPage = ({ onLogin }) => {
     setLoading(false);
   };
 
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
   return (
     <Page>
       <BlobTL aria-hidden="true" /><BlobBR aria-hidden="true" />
       <ArchSvg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="0.3" aria-hidden="true">
-        <circle cx="50" cy="50" r="40"/><path d="M50 10V90M10 50H90"/>
-        <rect x="20" y="20" width="60" height="60"/><circle cx="50" cy="50" r="20"/>
+        <circle cx="50" cy="50" r="40" /><path d="M50 10V90M10 50H90" />
+        <rect x="20" y="20" width="60" height="60" /><circle cx="50" cy="50" r="20" />
       </ArchSvg>
 
       <Main>
@@ -200,24 +199,15 @@ const LoginPage = ({ onLogin }) => {
           )}
 
           {/* Google OAuth */}
-          {googleClientId ? (
-            <GoogleOAuthProvider clientId={googleClientId}>
-              <GoogleButtonContainer>
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleError}
-                  text="signin"
-                  locale="es_ES"
-                  disabled={loading}
-                />
-              </GoogleButtonContainer>
-            </GoogleOAuthProvider>
-          ) : (
-            <ErrorBanner role="alert">
-              <Icon name="warning" size="sm" />
-              ⚠️ Google OAuth no está configurado. Configura <strong>VITE_GOOGLE_CLIENT_ID</strong> en .env.local
-            </ErrorBanner>
-          )}
+          <GoogleButtonContainer>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              text="signin"
+              locale="es_ES"
+              disabled={loading}
+            />
+          </GoogleButtonContainer>
         </Card>
 
         <PageFooter>

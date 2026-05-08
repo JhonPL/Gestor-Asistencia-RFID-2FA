@@ -1,6 +1,3 @@
-// src/App.jsx
-// Cambio clave: handleLogin(token, user) en lugar de handleLogin(rol)
-
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import GlobalStyles from './styles/GlobalStyles';
@@ -12,6 +9,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AttendancePage from './pages/AttendancePage';
 import AdminPage from './pages/AdminPage';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 const AppRoutes = () => {
   const navigate = useNavigate();
@@ -67,11 +65,23 @@ const AppRoutes = () => {
       />
 
       <Route path="*" element={<Navigate to="/" replace />} />
+
+      <Route path="/acceso-denegado" element={
+        <div style={{ padding: '3rem', textAlign: 'center' }}>
+          <h2>Acceso denegado</h2>
+          <p>Tu cuenta no tiene permisos para acceder a esta sección.</p>
+          <button onClick={() => { logout(); navigate('/'); }}>
+            Cerrar sesión
+          </button>
+        </div>
+      } />
+
     </Routes>
   );
 };
 
 const App = () => (
+  <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
   <ThemeProvider theme={theme}>
     <GlobalStyles />
     <BrowserRouter>
@@ -80,6 +90,7 @@ const App = () => (
       </AuthProvider>
     </BrowserRouter>
   </ThemeProvider>
+  </GoogleOAuthProvider>
 );
 
 export default App;

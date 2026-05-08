@@ -202,6 +202,25 @@ router.post(
         [personaId, push_token.trim(), plataforma],
       );
 
+      await pool.query(
+  `UPDATE asistencia
+   SET estado_verificacion_id = (
+     SELECT id FROM estado_verificacion WHERE nombre = 'pendiente'
+   )
+   WHERE estado_verificacion_id = (
+     SELECT id FROM estado_verificacion WHERE nombre = 'sin_app'
+   )
+   AND lista_estudiantes_id IN (
+     SELECT id FROM lista_estudiantes WHERE persona_id = $1
+   )
+   AND sesion_clase_id IN (
+     SELECT sc.id FROM sesion_clase sc
+     WHERE sc.estado = 'activa'
+       AND sc.fecha = CURRENT_DATE
+   )`,
+  [personaId],
+);
+
       res.status(201).json(rows[0]);
     } catch (err) {
       next(err);

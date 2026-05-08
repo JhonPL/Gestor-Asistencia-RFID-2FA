@@ -136,30 +136,22 @@ export async function loginWithGoogle({ idToken }) {
     let persona;
 
     if (rows.length === 0) {
-      // Persona no existe: crear con rol de estudiante (rol_id = 3)
-      const { rows: newPersona } = await pool.query(
-        `INSERT INTO persona (nombre, apellido, correo, google_id, rol_id, activo)
-         VALUES ($1, $2, $3, $4, 3, true)
-         RETURNING id, nombre, apellido, correo, activo`,
-        [nombre, apellido, correo, googleId],
-      );
-      persona = newPersona[0];
-      persona.rol = 'estudiante';
-    } else {
-      persona = rows[0];
+  throw createError(403, 'Acceso denegado: correo no registrado en el sistema');
+} else {
+  persona = rows[0];
 
-      // Actualiza google_id si no lo tenía
-      if (!persona.google_id && googleId) {
-        await pool.query(
-          'UPDATE persona SET google_id = $1 WHERE id = $2',
-          [googleId, persona.id],
-        );
-      }
+  // Actualiza google_id si no lo tenía
+  if (!persona.google_id && googleId) {
+    await pool.query(
+      'UPDATE persona SET google_id = $1 WHERE id = $2',
+      [googleId, persona.id],
+    );
+  }
 
-      if (!persona.activo) {
-        throw createError(403, 'Cuenta desactivada. Contacta al administrador.');
-      }
-    }
+  if (!persona.activo) {
+    throw createError(403, 'Cuenta desactivada. Contacta al administrador.');
+  }
+}
 
     // Emite el JWT propio
     const jwtToken = signJwt({

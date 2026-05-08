@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -22,19 +23,8 @@ import { Badge, Card, BodyText, Label } from "../../components/ui";
 // ── Capa de API y storage ─────────────────────────────────────
 import { getSesionActiva, getClasesHoy } from "../../src/api/sesiones";
 import { getToken, getUser } from "../../src/storage/auth";
+import { clearAuth } from '../../src/storage/auth';
 
-/**
- * HomeScreen — Tarea 5: datos reales desde la API.
- *
- * Cambios respecto a la versión con mocks:
- *   • useEffect carga token + user desde AsyncStorage y llama a getSesionActiva().
- *   • MOCK_STUDENT     → estado local `student`
- *   • MOCK_SESION_ACTIVA → estado local `sesionActiva`
- *   • MOCK_CLASES_HOY  → derivado de sesionActiva (sesión del día si existe)
- *   • Al tocar "Confirmar asistencia" pasa asistencia_id como param de ruta.
- *
- * La UI (StyleSheet y estructura JSX) es idéntica al original.
- */
 
 // ── Helper: formatea 'HH:MM:SS' → '8:00 AM' ──────────────────
 function formatTime(timeStr) {
@@ -102,6 +92,24 @@ export default function HomeScreen() {
   const [clasesDelDia, setClasesDelDia] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Estás seguro que deseas salir?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar sesión',
+          style: 'destructive',
+          onPress: async () => {
+            await clearAuth();
+            router.replace('/screens/login');
+          },
+        },
+      ]
+    );
+  };
 
   // ── Cargar datos al montar ────────────────────────────────────
   useEffect(() => {
@@ -227,16 +235,21 @@ export default function HomeScreen() {
         <View>
           <Label>Bienvenido de nuevo</Label>
           <Text style={s.greeting}>
-            {student?.nombre ?? ""} {student?.apellido ?? ""}
+            {student?.nombre ?? ''} {student?.apellido ?? ''}
           </Text>
           <BodyText muted style={{ fontSize: fontSizes.sm, marginTop: 2 }}>
-            {student?.programa ?? ""}
+            {student?.programa ?? ''}
           </BodyText>
         </View>
-        <View style={s.avatar}>
-          <Text style={s.avatarTxt}>{student?.iniciales ?? "?"}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing[3] }}>
+          <View style={s.avatar}>
+            <Text style={s.avatarTxt}>{student?.iniciales ?? '?'}</Text>
+          </View>
+          <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
+            <Ionicons name="log-out-outline" size={22} color={colors.error} />
+          </TouchableOpacity>
         </View>
-      </View>
+      </View> 
 
       {/* Card de estado de sesión */}
       <View style={[s.statusCard, { backgroundColor: status.bg }]}>
@@ -517,4 +530,12 @@ const s = StyleSheet.create({
     fontWeight: "600",
     color: colors.primary,
   },
+  logoutBtn: {
+  width: 36,
+  height: 36,
+  borderRadius: radii.full,
+  backgroundColor: colors.errorContainer,
+  justifyContent: 'center',
+  alignItems: 'center',
+},
 });
