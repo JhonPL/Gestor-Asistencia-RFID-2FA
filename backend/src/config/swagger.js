@@ -18,7 +18,7 @@ API REST del sistema de gestión de asistencia con tarjetas RFID y segundo facto
 **Universidad Cooperativa de Colombia — Sede Villavicencio, Meta**
 
 ### Autenticación
-La mayoría de endpoints requieren un **JWT propio** que se obtiene en \`POST /api/auth/login\` (o \`/api/auth/login-dev\` en desarrollo).
+La mayoría de endpoints requieren un **JWT propio** que se obtiene en \`POST /api/auth/login\` o mediante OAuth con \`POST /api/auth/google/callback\`.
 Incluirlo en el header: \`Authorization: Bearer <token>\`
 
 ### Roles

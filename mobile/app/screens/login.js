@@ -11,14 +11,12 @@ import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-si
 import { colors, spacing, radii, fontSizes, shadows } from '../../constants/tokens';
 import { Button, Divider, BodyText, Label } from '../../components/ui';
 
-import { loginWithGoogle, loginDev } from '../../src/api/auth';
+import { loginWithGoogle } from '../../src/api/auth';
 import { registrarDispositivo } from '../../src/api/movil';
 import { saveAuth, saveDeviceId } from '../../src/storage/auth';
 import { getPushToken } from '../../src/notifications/setup';
 import env from '../../src/config/env';
 
-
-const CORREO_ESTUDIANTE_DEV = 'jhon.paternina@campusucc.edu.co';
 
 const GoogleIcon = () => (
   <Ionicons name="logo-google" size={20} color="white" />
@@ -28,7 +26,6 @@ export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
-  const [devMode, setDevMode] = useState(false);
 
   const GOOGLE_CLIENT_ID = env.GOOGLE_CLIENT_ID;
 
@@ -106,40 +103,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleDevLogin = async () => {
-    setLoading(true);
-    try {
-      // 1. Login con el backend (modo desarrollo)
-      const { token, user } = await loginDev(CORREO_ESTUDIANTE_DEV);
-
-      // 2. Persistir sesión en AsyncStorage
-      await saveAuth(token, user);
-
-      // 3. Obtener el push token real de Expo
-      const expoPushToken = await getPushToken();
-      const pushToken = expoPushToken ?? ('OFFLINE_' + Date.now());
-
-      // 4. Registrar el dispositivo móvil en el backend con el token real
-      const plataforma = Platform.OS === 'ios' ? 'ios' : 'android';
-      const dispositivo = await registrarDispositivo(token, {
-        push_token: pushToken,
-        plataforma,
-      });
-
-      // 5. Guardar el dispositivo_movil_id para usarlo en verificarAsistencia
-      await saveDeviceId(dispositivo.id);
-
-      // 6. Navegar a la pantalla principal
-      router.replace('/screens/home');
-    } catch (err) {
-      Alert.alert(
-        'Error al iniciar sesión',
-        err.message ?? 'No se pudo conectar con el servidor. Verifica que el backend esté activo.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <ScrollView
@@ -189,49 +152,6 @@ export default function LoginScreen() {
           )}
         </TouchableOpacity>
 
-        <Divider label="o continuar" style={{ marginVertical: spacing[5] }} />
-
-        <TouchableOpacity
-          style={[s.toggleDevBtn]}
-          onPress={() => setDevMode(!devMode)}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={devMode ? 'chevron-up' : 'chevron-down'}
-            size={20}
-            color={colors.primary}
-          />
-          <Text style={s.toggleDevTxt}>
-            {devMode ? 'Ocultar modo desarrollo' : 'Mostrar modo desarrollo'}
-          </Text>
-        </TouchableOpacity>
-
-        {devMode && (
-          <>
-            <View style={s.simBanner}>
-              <Ionicons name="flask-outline" size={14} color={colors.primary} />
-              <Text style={s.simTxt}>
-                Modo desarrollo · estudiante: {CORREO_ESTUDIANTE_DEV}
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[s.simBtn, loading && { opacity: 0.7 }]}
-              onPress={handleDevLogin}
-              disabled={loading}
-              activeOpacity={0.82}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
-                <>
-                  <Ionicons name="person-circle-outline" size={22} color="white" />
-                  <Text style={s.simBtnTxt}>Entrar como estudiante</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </>
-        )}
 
         <Text style={s.note}>
           Producción: solo cuentas{' '}
@@ -262,15 +182,6 @@ const s = StyleSheet.create({
   googleBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing[2], height: 54, backgroundColor: colors.primary, borderRadius: radii.full, ...shadows.md },
   googleBtnTxt: { color: 'white', fontSize: fontSizes.base, fontWeight: '700' },
 
-  // Development Mode Toggle
-  toggleDevBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing[2], paddingVertical: spacing[2] },
-  toggleDevTxt:    { fontSize: fontSizes.sm, fontWeight: '600', color: colors.primary },
-
-  simBanner:    { flexDirection: 'row', alignItems: 'center', gap: spacing[2], backgroundColor: colors.primaryFixed, borderRadius: radii.lg, padding: spacing[3], marginBottom: spacing[3] },
-  simTxt:       { fontSize: fontSizes.xs, color: colors.primary, fontWeight: '500', flex: 1 },
-
-  simBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing[2], height: 54, backgroundColor: colors.primary, borderRadius: radii.full, ...shadows.md },
-  simBtnTxt:    { color: 'white', fontSize: fontSizes.base, fontWeight: '700' },
 
   note:         { textAlign: 'center', fontSize: fontSizes.xs, color: colors.outline, marginTop: spacing[4] },
   footer:       { textAlign: 'center', fontSize: fontSizes.xs, color: colors.outline, marginTop: spacing[6] },

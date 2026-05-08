@@ -4,18 +4,6 @@
 import { apiFetch } from './index.js';
 
 /**
- * Login simulado (solo NODE_ENV=development en el backend).
- * @param {string} correo - correo institucional del estudiante
- * @returns {Promise<{ token: string, user: object }>}
- */
-export async function loginDev(correo) {
-  return apiFetch('/api/auth/login-dev', {
-    method: 'POST',
-    body: JSON.stringify({ correo }),
-  });
-}
-
-/**
  * Enviar el token de identidad de Google al backend para validación
  *
  * @param {object} response - respuesta con la estructura { type: 'success', authentication: { idToken } }
