@@ -95,6 +95,15 @@ router.get(
     try {
       const personaId = req.user.id;
 
+      // Verificar si el estudiante tiene app registrada
+      const deviceCheck = await pool.query(
+        `SELECT id FROM dispositivo_movil 
+         WHERE persona_id = $1 AND activo = true LIMIT 1`,
+        [personaId],
+      );
+      const tieneApp = deviceCheck.rows.length > 0;
+
+
       // Obtener todas las sesiones de hoy donde el estudiante está inscrito
       // La relación es: lista_estudiantes (curso_id) → aula_curso_horario (curso_id) → sesion_clase
       const { rows } = await pool.query(
@@ -110,7 +119,7 @@ router.get(
            sc.fecha,
            sc.estado                     AS sesion_estado,
            COALESCE(a.id, NULL)          AS asistencia_id,
-           COALESCE(ev.nombre, NULL)     AS estado_verificacion
+           ev.nombre                     AS estado_verificacion_real
          FROM lista_estudiantes le
          JOIN aula_curso_horario ach  ON ach.curso_id = le.curso_id
          JOIN sesion_clase sc         ON sc.aula_curso_horario_id = ach.id
@@ -127,28 +136,38 @@ router.get(
         [personaId],
       );
 
-      // Si no hay sesiones, retornar array vacío
-      if (!rows.length) {
-        return res.json([]);
-      }
-
       // Formatear respuesta
-      const sesiones = rows.map((row) => ({
-        sesion_id: row.sesion_id,
-        curso: {
-          id:     row.curso_id,
-          codigo: row.curso_codigo,
-          nombre: row.curso_nombre,
-        },
-        aula:                row.aula,
-        hora_inicio:         row.hora_inicio,
-        hora_fin:            row.hora_fin,
-        docente:             row.docente,
-        fecha:               row.fecha,
-        sesion_estado:       row.sesion_estado,
-        asistencia_id:       row.asistencia_id,
-        estado_verificacion: row.estado_verificacion,
-      }));
+      const sesiones = rows.map((row) => {
+        let estadoVerificacion;
+
+        if (row.estado_verificacion_real) {
+          // Tiene registro de asistencia — usar el estado real guardado
+          estadoVerificacion = row.estado_verificacion_real;
+        } else if (row.sesion_estado === 'cerrada') {
+          // Sesión cerrada sin registro → sin_app histórico
+          estadoVerificacion = 'sin_app';
+        } else {
+          // Sesión activa o programada sin registro → calcular por dispositivo
+          estadoVerificacion = tieneApp ? 'pendiente' : 'sin_app';
+        }
+
+        return {
+          sesion_id:           row.sesion_id,
+          curso: {
+            id:     row.curso_id,
+            codigo: row.curso_codigo,
+            nombre: row.curso_nombre,
+          },
+          aula:                row.aula,
+          hora_inicio:         row.hora_inicio,
+          hora_fin:            row.hora_fin,
+          docente:             row.docente,
+          fecha:               row.fecha,
+          sesion_estado:       row.sesion_estado,
+          asistencia_id:       row.asistencia_id,
+          estado_verificacion: estadoVerificacion,
+        };
+      });
 
       res.json(sesiones);
     } catch (err) {
@@ -182,7 +201,19 @@ router.post(
 
       // Desactivar todos los dispositivos anteriores del usuario
       await pool.query(
-        'UPDATE dispositivo_movil SET activo = false WHERE persona_id = $1',
+        `UPDATE asistencia
+        SET estado_verificacion_id = (
+          SELECT id FROM estado_verificacion WHERE nombre = 'pendiente'
+        )
+        WHERE estado_verificacion_id = (
+          SELECT id FROM estado_verificacion WHERE nombre = 'sin_app'
+        )
+        AND lista_estudiantes_id IN (
+          SELECT id FROM lista_estudiantes WHERE persona_id = $1
+        )
+        AND sesion_clase_id IN (
+          SELECT id FROM sesion_clase WHERE estado = 'activa'
+        )`,
         [personaId],
       );
 
