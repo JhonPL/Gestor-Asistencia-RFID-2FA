@@ -39,10 +39,11 @@ import { getToken }      from '../../src/storage/auth';
 
 // ── Configuraciones de badges (sin cambios) ──────────────────
 const VERIF_CONFIG = {
-  completado: { icon: 'checkmark-circle', color: colors.secondary,  label: 'Verificado' },
-  pendiente:  { icon: 'time',             color: colors.primary,    label: 'Pendiente'  },
-  fallido:    { icon: 'close-circle',     color: colors.error,      label: 'Fallido'    },
-  sin_app:    { icon: 'phone-portrait',   color: colors.outline,    label: 'Sin app'    },
+  verificado:  { icon: 'checkmark-circle', color: colors.secondary, label: 'Verificado' },
+  registrado:  { icon: 'phone-portrait',   color: colors.primary,   label: 'Registrado' },
+  pendiente:   { icon: 'time',             color: colors.primary,   label: 'Pendiente'  },
+  rechazado:   { icon: 'close-circle',     color: colors.error,     label: 'Rechazado'  },
+  sin_app:     { icon: 'phone-portrait',   color: colors.outline,   label: 'Sin app'    },
 };
 
 const METODO_ICON  = { fingerprint: 'finger-print', face_id: 'scan-circle', ubicacion: 'location' };

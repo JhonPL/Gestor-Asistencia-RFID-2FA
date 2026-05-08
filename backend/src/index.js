@@ -12,5 +12,5 @@ app.listen(env.port, '0.0.0.0', () => {
   console.log(`📋  Entorno: ${env.nodeEnv}`);
   console.log(`🏥  Health:  http://localhost:${env.port}/api/health`);
   console.log(`📖  Swagger: http://localhost:${env.port}/api-docs`);
-  console.log(`📱  En red: http://172.13.1.87:${env.port}`);
+  console.log(`📱  En red: http://192.168.80.60:${env.port}`);
 });

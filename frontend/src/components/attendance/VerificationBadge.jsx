@@ -11,11 +11,17 @@ import Icon from '../ui/Icon';
  */
 
 const CONFIG = {
-  completado: {
+  verificado: {
     bg: theme.colors.secondaryFixed,
     color: theme.colors.secondary,
     icon: 'verified',
     label: 'Verificado',
+  },
+  registrado: {
+    bg: theme.colors.primaryFixed,
+    color: theme.colors.primary,
+    icon: 'smartphone',
+    label: 'Registrado',
   },
   pendiente: {
     bg: theme.colors.primaryFixed,
@@ -23,11 +29,11 @@ const CONFIG = {
     icon: 'schedule',
     label: 'Pendiente',
   },
-  fallido: {
+  rechazado: {
     bg: theme.colors.errorContainer,
     color: theme.colors.error,
     icon: 'gpp_bad',
-    label: 'Fallido',
+    label: 'Rechazado',
   },
   sin_app: {
     bg: theme.colors.tertiaryFixed,

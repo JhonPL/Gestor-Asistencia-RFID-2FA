@@ -2,13 +2,12 @@
   "expo": {
     "name": "mobile",
     "slug": "mobile",
-    "scheme": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "projectId": "dcef63df-50c9-48e7-80e2-bdcda1998b5b",
-    "newArchEnabled": false,
+    "projectId": "4bb62ef7-86f4-4405-9a07-331b47dca6fb",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -16,23 +15,13 @@
     },
     "extra": {
       "IP": "192.168.80.60",
-      "API_HOST": "192.168.80.60",
-      "API_PORT": 3000,
-      "API_BASE_URL": "http://192.168.80.60:3000",
-      "GOOGLE_CLIENT_ID": "1027858475506-rnvthesejtmn4usfmvctmsvv7i3s9ug0.apps.googleusercontent.com",
-      "GOOGLE_ANDROID_CLIENT_ID": "1027858475506-f5e73v1mhqnilb3vjvfophdlhca2ecmt.apps.googleusercontent.com",
       "router": {},
       "eas": {
-        "projectId": "ee489cd7-cedc-4aa4-8afe-01ae7e0e171a"
+        "projectId": "4bb62ef7-86f4-4405-9a07-331b47dca6fb"
       }
     },
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSFaceIDUsageDescription": "Necesitamos acceso a Face ID para verificar tu identidad y registrar tu asistencia de forma segura.",
-        "NSBiometryUsageDescription": "Necesitamos acceso a tu biometría para confirmar tu asistencia.",
-        "NSLocationWhenInUseUsageDescription": "Necesitamos tu ubicación GPS para verificar que estés dentro del campus al registrar asistencia."
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
@@ -40,11 +29,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.jhonp.mobile",
-      "permissions": [
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
-      ]
+      "package": "com.jhonp.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -59,15 +44,11 @@
             "usesCleartextTraffic": true
           }
         }
-      ],
-      [
-        "expo-local-authentication",
-        {
-          "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID"
-        }
-      ],
-      "expo-web-browser",
-      "@react-native-google-signin/google-signin"
-    ]
+      ]
+    ],
+    "owner": "jhonl",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
   }
 }

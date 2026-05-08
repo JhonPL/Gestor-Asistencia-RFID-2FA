@@ -77,9 +77,12 @@ const STATUS_CONFIG = {
 };
 
 const CLASE_BADGE = {
-  completado: { label: "Confirmada", variant: "success" },
-  pendiente: { label: "Pendiente", variant: "default" },
-  sin_registrar: { label: "Sin clase", variant: "warning" },
+  verificado:  { label: 'Verificado',  variant: 'success'  },
+  registrado:  { label: 'Registrado',  variant: 'default'  },
+  pendiente:   { label: 'Pendiente',   variant: 'default'  },
+  rechazado:   { label: 'Rechazado',   variant: 'error'    },
+  sin_app:     { label: 'Sin app',     variant: 'warning'  },
+  sin_registrar: { label: 'Sin clase', variant: 'warning'  },
 };
 
 export default function HomeScreen() {
@@ -188,13 +191,12 @@ export default function HomeScreen() {
 
   // Clases de hoy: mapear desde clasesDelDia del backend
   const clasesHoy = (clasesDelDia || []).map((clase) => {
-    // Determinar el estado de la clase
-    let estado = "sin_registrar";
-    if (clase.estado_verificacion === "completado") {
-      estado = "completado";
-    } else if (clase.estado_verificacion === "pendiente") {
-      estado = "pendiente";
-    }
+    let estado = 'sin_registrar';
+    if (clase.estado_verificacion === 'verificado') estado = 'verificado';
+    else if (clase.estado_verificacion === 'pendiente') estado = 'pendiente';
+    else if (clase.estado_verificacion === 'registrado') estado = 'registrado';
+    else if (clase.estado_verificacion === 'rechazado') estado = 'rechazado';
+    else if (clase.estado_verificacion === 'sin_app') estado = 'sin_app';
 
     return {
       id: clase.sesion_id,
@@ -203,7 +205,7 @@ export default function HomeScreen() {
       aula: clase.aula,
       horaInicio: formatTime(clase.hora_inicio),
       horaFin: formatTime(clase.hora_fin),
-      estado: estado,
+      estado,
     };
   });
 

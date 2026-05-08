@@ -8,6 +8,42 @@ import { sendPushNotification } from '../services/notifications.service.js';
 
 const router = Router();
 
+// ── Helper para insertar ausentes con estado correcto ─────────
+async function insertarAusentes(sesionId, tx) {
+  const inscritos = await tx.query(
+    `SELECT le.id, le.persona_id FROM lista_estudiantes le
+     WHERE le.curso_id = (
+       SELECT curso_id FROM aula_curso_horario WHERE id =
+         (SELECT aula_curso_horario_id FROM sesion_clase WHERE id = $1)
+     )
+     AND le.activo = true
+     AND NOT EXISTS (
+       SELECT 1 FROM asistencia a2
+       WHERE a2.lista_estudiantes_id = le.id AND a2.sesion_clase_id = $1
+     )`,
+    [sesionId],
+  );
+
+  for (const est of inscritos.rows) {
+    const tieneApp = await tx.query(
+      `SELECT id FROM dispositivo_movil 
+       WHERE persona_id = $1 AND activo = true LIMIT 1`,
+      [est.persona_id],
+    );
+    const estadoVerif = tieneApp.rows.length > 0 ? 'registrado' : 'sin_app';
+
+    await tx.query(
+      `INSERT INTO asistencia
+         (lista_estudiantes_id, sesion_clase_id, fecha_registro, hora_registro,
+          estado_asistencia_id, estado_verificacion_id)
+       VALUES ($1, $2, CURRENT_DATE, CURRENT_TIME,
+         (SELECT id FROM estado_asistencia  WHERE nombre = 'Ausente'),
+         (SELECT id FROM estado_verificacion WHERE nombre = $3))`,
+      [est.id, sesionId, estadoVerif],
+    );
+  }
+}
+
 /**
  * @openapi
  * tags:
@@ -140,24 +176,7 @@ router.post('/scan', async (req, res, next) => {
           `UPDATE sesion_clase SET estado = 'cerrada', hora_fin_real = CURRENT_TIME WHERE id = $1`,
           [sesion.id],
         );
-        // Marcar ausentes a los que no se registraron
-        await tx.query(
-          `INSERT INTO asistencia
-             (lista_estudiantes_id, sesion_clase_id, fecha_registro, hora_registro,
-              estado_asistencia_id, estado_verificacion_id)
-           SELECT le.id, $1, CURRENT_DATE, CURRENT_TIME,
-                  (SELECT id FROM estado_asistencia  WHERE nombre = 'Ausente'),
-                  (SELECT id FROM estado_verificacion WHERE nombre = 'sin_app')
-           FROM lista_estudiantes le
-           WHERE le.curso_id = (SELECT curso_id FROM aula_curso_horario WHERE id =
-                                  (SELECT aula_curso_horario_id FROM sesion_clase WHERE id = $1))
-             AND le.activo = true
-             AND NOT EXISTS (
-               SELECT 1 FROM asistencia a2
-               WHERE a2.lista_estudiantes_id = le.id AND a2.sesion_clase_id = $1
-             )`,
-          [sesion.id],
-        );
+        await insertarAusentes(sesion.id, tx);
       }
 
       const sesionActiva = await tx.query(
@@ -175,23 +194,7 @@ router.post('/scan', async (req, res, next) => {
           `UPDATE sesion_clase SET estado = 'cerrada', hora_fin_real = CURRENT_TIME WHERE id = $1`,
           [sesionId],
         );
-        await tx.query(
-          `INSERT INTO asistencia
-             (lista_estudiantes_id, sesion_clase_id, fecha_registro, hora_registro,
-              estado_asistencia_id, estado_verificacion_id)
-           SELECT le.id, $1, CURRENT_DATE, CURRENT_TIME,
-                  (SELECT id FROM estado_asistencia  WHERE nombre = 'Ausente'),
-                  (SELECT id FROM estado_verificacion WHERE nombre = 'sin_app')
-           FROM lista_estudiantes le
-           WHERE le.curso_id = (SELECT curso_id FROM aula_curso_horario WHERE id =
-                                  (SELECT aula_curso_horario_id FROM sesion_clase WHERE id = $1))
-             AND le.activo = true
-             AND NOT EXISTS (
-               SELECT 1 FROM asistencia a2
-               WHERE a2.lista_estudiantes_id = le.id AND a2.sesion_clase_id = $1
-             )`,
-          [sesionId],
-        );
+        await insertarAusentes(sesionId, tx);
         await tx.commit();
         return res.json({ accion: 'sesion_cerrada', persona: persona.nombre });
       }
@@ -290,18 +293,13 @@ router.post('/scan', async (req, res, next) => {
       );
 
       if (!pushRes.rows.length) {
-        await tx.query(
-          `UPDATE asistencia SET estado_verificacion_id =
-             (SELECT id FROM estado_verificacion WHERE nombre = 'sin_app') WHERE id = $1`,
-          [asistenciaId],
-        );
         await tx.commit();
         return res.json({ accion: 'sin_app', asistencia_id: asistenciaId });
       }
 
       await tx.commit();
-      sendPushNotification(pushRes.rows[0].push_token, asistenciaId)
-      return res.json({ accion: 'pendiente_verificacion', asistencia_id: asistenciaId, persona: persona.nombre });
+      sendPushNotification(pushRes.rows[0].push_token, asistenciaId);
+      return res.json({ accion: 'pendiente', asistencia_id: asistenciaId, persona: persona.nombre });
     }
 
     await tx.rollback();
@@ -359,8 +357,8 @@ router.post('/verificar', async (req, res, next) => {
   try {
     const { asistencia_id, dispositivo_movil_id, metodo, exitoso, ubicacion_valida, latitud, longitud } = req.body;
 
-    const CAMPUS_LAT = parseFloat(process.env.CAMPUS_LAT || '-4.142900');
-    const CAMPUS_LNG = parseFloat(process.env.CAMPUS_LNG || '-73.626700');
+    const CAMPUS_LAT = parseFloat(process.env.CAMPUS_LAT);
+    const CAMPUS_LNG = parseFloat(process.env.CAMPUS_LNG);
     const RADIUS_M   = parseInt(process.env.CAMPUS_RADIUS_METERS || '200', 10);
 
     const R = 6371000;
@@ -377,7 +375,7 @@ router.post('/verificar', async (req, res, next) => {
     // Usar ubicacion_valida si viene del cliente, sino calcular
     const ubicacionValida = ubicacion_valida !== undefined ? ubicacion_valida : dentroCampus;
     const verificacionExitosa = exitoso && ubicacionValida;
-    const nuevoEstado = verificacionExitosa ? 'completado' : 'fallido';
+    const nuevoEstado = verificacionExitosa ? 'verificado' : 'rechazado';
 
     const metodoRes = await pool.query(
       'SELECT id FROM metodo_verificacion WHERE nombre = $1', [metodo],

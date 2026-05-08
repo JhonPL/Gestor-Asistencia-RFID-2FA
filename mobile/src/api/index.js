@@ -1,9 +1,9 @@
 // mobile/src/api/index.js
 // Wrapper base para todas las llamadas al backend de SmartClass RFID.
+// En dispositivo físico/Android emulado, reemplaza TU_IP_LOCAL por la IP
+// de tu máquina (ej: '192.168.1.5'). En simulador iOS puedes usar 'localhost'.
 
-import env from '../config/env.js';
-
-export const BASE_URL = env.API_BASE_URL;
+export const BASE_URL = 'http://192.168.80.60:3000';
 
 /**
  * Función central de fetch con manejo de errores y headers automáticos.
@@ -19,17 +19,11 @@ export async function apiFetch(path, options = {}, token = null) {
     ...(options.headers ?? {}),
   };
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos
-
   try {
     const response = await fetch(`${BASE_URL}${path}`, {
       ...options,
       headers,
-      signal: controller.signal,
     });
-    
-    clearTimeout(timeoutId);
 
     const data = await response.json().catch(() => ({}));
 
@@ -44,11 +38,6 @@ export async function apiFetch(path, options = {}, token = null) {
       message: error.message,
       errorName: error.name,
     });
-    
-    if (error.name === 'AbortError') {
-      throw new Error('Tiempo de espera agotado. Verifica tu conexión a internet y asegúrate de que el backend esté accesible (IP y Firewall).');
-    }
-    
     throw error;
   }
 }

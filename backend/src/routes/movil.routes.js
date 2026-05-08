@@ -141,14 +141,11 @@ router.get(
         let estadoVerificacion;
 
         if (row.estado_verificacion_real) {
-          // Tiene registro de asistencia — usar el estado real guardado
           estadoVerificacion = row.estado_verificacion_real;
         } else if (row.sesion_estado === 'cerrada') {
-          // Sesión cerrada sin registro → sin_app histórico
-          estadoVerificacion = 'sin_app';
+          estadoVerificacion = tieneApp ? 'registrado' : 'sin_app';
         } else {
-          // Sesión activa o programada sin registro → calcular por dispositivo
-          estadoVerificacion = tieneApp ? 'pendiente' : 'sin_app';
+          estadoVerificacion = tieneApp ? 'registrado' : 'sin_app';
         }
 
         return {
@@ -236,7 +233,7 @@ router.post(
       await pool.query(
   `UPDATE asistencia
    SET estado_verificacion_id = (
-     SELECT id FROM estado_verificacion WHERE nombre = 'pendiente'
+     SELECT id FROM estado_verificacion WHERE nombre = 'registrado'
    )
    WHERE estado_verificacion_id = (
      SELECT id FROM estado_verificacion WHERE nombre = 'sin_app'
@@ -245,9 +242,9 @@ router.post(
      SELECT id FROM lista_estudiantes WHERE persona_id = $1
    )
    AND sesion_clase_id IN (
-     SELECT sc.id FROM sesion_clase sc
-     WHERE sc.estado = 'activa'
-       AND sc.fecha = CURRENT_DATE
+     SELECT id FROM sesion_clase 
+     WHERE fecha >= CURRENT_DATE
+       AND estado != 'cerrada'
    )`,
   [personaId],
 );
