@@ -20,7 +20,10 @@ async function handleResponse(res) {
 export async function getUltimoScan(token, codigoDispositivo) {
   const res = await fetch(
     `${BASE}/api/rfid/ultimo-scan/${encodeURIComponent(codigoDispositivo)}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { 
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store'
+    },
   );
   return handleResponse(res); // { uid: string | null }
 }

@@ -23,6 +23,7 @@ export async function apiFetch(path, options = {}, token = null) {
     const response = await fetch(`${BASE_URL}${path}`, {
       ...options,
       headers,
+      cache: 'no-store',
     });
 
     const data = await response.json().catch(() => ({}));

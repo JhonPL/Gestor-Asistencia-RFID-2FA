@@ -59,23 +59,31 @@ router.get(
       // Obtener todos los estudiantes inscritos con su estado de asistencia (si existe)
       const { rows } = await pool.query(
         `SELECT
-           COALESCE(a.id, 0) AS id,
-           le.id AS lista_estudiantes_id,
-           p.nombre, p.apellido, p.correo,
-           COALESCE(ea.nombre, 'Pendiente') AS estado,
-           COALESCE(ev.nombre, 'sin_app') AS estado_verificacion,
-           a.fecha_registro, a.hora_registro,
-           COALESCE(a.verificado_biometrico, false) AS verificado_biometrico,
-           mv.nombre  AS metodo_verificacion
-         FROM lista_estudiantes le
-         JOIN persona p ON p.id = le.persona_id
-         LEFT JOIN asistencia a ON a.lista_estudiantes_id = le.id AND a.sesion_clase_id = $1
-         LEFT JOIN estado_asistencia ea ON ea.id = a.estado_asistencia_id
-         LEFT JOIN estado_verificacion ev ON ev.id = a.estado_verificacion_id
-         LEFT JOIN verificacion_biometrica vb ON vb.asistencia_id = a.id
-         LEFT JOIN metodo_verificacion mv ON mv.id = vb.metodo_verificacion_id
-         WHERE le.curso_id = $2 AND le.activo = true
-         ORDER BY p.apellido`,
+          COALESCE(a.id, 0) AS id,
+          le.id AS lista_estudiantes_id,
+          p.nombre, p.apellido, p.correo,
+          COALESCE(ea.nombre, 'Pendiente') AS estado,
+          -- ← CAMBIO AQUÍ: verificar si tiene app registrada
+          CASE
+            WHEN ev.nombre IS NOT NULL THEN ev.nombre
+            WHEN EXISTS (
+              SELECT 1 FROM dispositivo_movil dm 
+              WHERE dm.persona_id = p.id AND dm.activo = true
+            ) THEN 'registrado'
+            ELSE 'sin_app'
+          END AS estado_verificacion,
+          a.fecha_registro, a.hora_registro,
+          COALESCE(a.verificado_biometrico, false) AS verificado_biometrico,
+          mv.nombre AS metodo_verificacion
+        FROM lista_estudiantes le
+        JOIN persona p ON p.id = le.persona_id
+        LEFT JOIN asistencia a ON a.lista_estudiantes_id = le.id AND a.sesion_clase_id = $1
+        LEFT JOIN estado_asistencia ea ON ea.id = a.estado_asistencia_id
+        LEFT JOIN estado_verificacion ev ON ev.id = a.estado_verificacion_id
+        LEFT JOIN verificacion_biometrica vb ON vb.asistencia_id = a.id
+        LEFT JOIN metodo_verificacion mv ON mv.id = vb.metodo_verificacion_id
+        WHERE le.curso_id = $2 AND le.activo = true
+        ORDER BY p.apellido`,
         [req.params.sesionId, cursoId],
       );
       res.json(rows);

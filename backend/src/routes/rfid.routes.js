@@ -9,7 +9,18 @@ import { sendPushNotification } from '../services/notifications.service.js';
 const router = Router();
 
 // ── Helper para insertar ausentes con estado correcto ─────────
-async function insertarAusentes(sesionId, tx) {
+export async function insertarAusentes(sesionId, tx) {
+  // 1. Marcar como Ausentes a los que pasaron la tarjeta pero nunca verificaron en la app
+  await tx.query(
+    `UPDATE asistencia
+     SET estado_asistencia_id = (SELECT id FROM estado_asistencia WHERE nombre = 'Ausente'),
+         estado_verificacion_id = (SELECT id FROM estado_verificacion WHERE nombre = 'rechazado')
+     WHERE sesion_clase_id = $1
+       AND estado_verificacion_id = (SELECT id FROM estado_verificacion WHERE nombre = 'pendiente')`,
+    [sesionId]
+  );
+
+  // 2. Insertar ausentes para los que nunca pasaron la tarjeta
   const inscritos = await tx.query(
     `SELECT le.id, le.persona_id FROM lista_estudiantes le
      WHERE le.curso_id = (
@@ -357,6 +368,19 @@ router.post('/verificar', async (req, res, next) => {
   try {
     const { asistencia_id, dispositivo_movil_id, metodo, exitoso, ubicacion_valida, latitud, longitud } = req.body;
 
+    const sesionRes = await pool.query(
+      `SELECT sc.estado 
+       FROM asistencia a
+       JOIN sesion_clase sc ON sc.id = a.sesion_clase_id
+       WHERE a.id = $1`,
+      [asistencia_id]
+    );
+
+    if (!sesionRes.rows.length) return res.status(404).json({ error: 'Asistencia no encontrada' });
+    if (sesionRes.rows[0].estado === 'cerrada') {
+      return res.status(400).json({ error: 'La clase ya ha sido cerrada. No es posible verificar.' });
+    }
+
     const CAMPUS_LAT = parseFloat(process.env.CAMPUS_LAT);
     const CAMPUS_LNG = parseFloat(process.env.CAMPUS_LNG);
     const RADIUS_M   = parseInt(process.env.CAMPUS_RADIUS_METERS || '200', 10);
@@ -394,6 +418,10 @@ router.post('/verificar', async (req, res, next) => {
     await pool.query(
       `UPDATE asistencia
        SET estado_verificacion_id = (SELECT id FROM estado_verificacion WHERE nombre = $1),
+           estado_asistencia_id = (
+             SELECT id FROM estado_asistencia 
+             WHERE nombre = CASE WHEN $1 = 'rechazado' THEN 'Ausente' ELSE 'Presente' END
+           ),
            verificado_biometrico  = $2, verificado_ubicacion = $3, latitud = $4, longitud = $5
        WHERE id = $6`,
       [nuevoEstado, exitoso, ubicacionValida, latitud, longitud, asistencia_id],

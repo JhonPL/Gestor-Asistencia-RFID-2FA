@@ -2,7 +2,7 @@
 // Controladores delgados: solo reciben el request,
 // llaman al servicio y devuelven la respuesta.
 
-import { loginWithAzure, loginWithGoogle } from '../services/auth.service.js';
+import { loginWithAzure, loginSimulado, loginWithGoogle } from '../services/auth.service.js';
 import { env } from '../config/env.js';
 
 // POST /api/auth/login
@@ -22,6 +22,22 @@ export async function login(req, res, next) {
   }
 }
 
+// POST /api/auth/login-dev
+// Solo disponible en desarrollo (sin Azure AD configurado)
+export async function loginDev(req, res, next) {
+  if (env.nodeEnv !== 'development') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  try {
+    const { correo } = req.body;
+    if (!correo) return res.status(400).json({ error: 'correo requerido' });
+    const result = await loginSimulado({ correo });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /api/auth/me
 // Devuelve los datos del usuario autenticado (desde el JWT)
 export function me(req, res) {
@@ -32,14 +48,34 @@ export function me(req, res) {
 // Recibe el token de Google (JWT) y devuelve nuestro JWT
 export async function googleCallback(req, res, next) {
   try {
+    console.log('🌐 [GOOGLE CALLBACK] Solicitud recibida');
+    console.log('📨 Headers:', req.headers);
+    console.log('📦 Body:', JSON.stringify(req.body, null, 2));
+    
     const { credential } = req.body;
     if (!credential) {
-      return res.status(400).json({ error: 'Token de Google requerido' });
+      console.error('❌ [ERROR] No hay "credential" en el body');
+      console.error('   Se esperaba: { credential: "idToken..." }');
+      console.error('   Se recibió:', Object.keys(req.body));
+      return res.status(400).json({ 
+        error: 'Token de Google requerido',
+        received: Object.keys(req.body),
+        expected: ['credential']
+      });
     }
 
+    console.log('✅ Token recibido, longitud:', credential.length);
+    console.log('🔐 Verificando token contra Google API...');
+    
     const result = await loginWithGoogle({ idToken: credential });
+    
+    console.log('✅ Login exitoso');
+    console.log('👤 Usuario:', result.user.correo);
     res.json(result);
   } catch (err) {
+    console.error('❌ [ERROR en googleCallback]');
+    console.error('   Mensaje:', err.message);
+    console.error('   Stack:', err.stack);
     next(err);
   }
 }

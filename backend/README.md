@@ -149,6 +149,7 @@ backend/
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | `POST` | `/api/auth/login` | Login con token de Azure |
+| `POST` | `/api/auth/login-dev` | Login de desarrollo (por correo) |
 | `GET`  | `/api/auth/me` | Obtener datos del usuario autenticado |
 
 ### 👥 Personas (Administrador)
@@ -251,6 +252,15 @@ Frontend                   Backend                    Microsoft
    │                          │── guarda microsoft_id       │
    │◄── { token, user } ──────│                            │
    │    (JWT propio 8h)        │                            │
+```
+
+### Modo desarrollo (sin Azure AD)
+
+```bash
+# Crear persona en la BD primero, luego:
+curl -X POST http://localhost:3000/api/auth/login-dev \
+  -H "Content-Type: application/json" \
+  -d '{"correo": "carlos.ramirez@campusucc.edu.co"}'
 ```
 
 ---

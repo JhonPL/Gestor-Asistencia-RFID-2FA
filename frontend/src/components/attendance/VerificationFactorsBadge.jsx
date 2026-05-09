@@ -39,9 +39,9 @@ const VerificationFactorsBadge = ({
   metodo,
   verificadoBiometrico,
   verificadoUbicacion,
-  estadoVerificacion = 'pendiente',
+  estadoVerificacion = 'sin_app',
 }) => {
-  // Si no hay verificación (sin_app)
+
   if (estadoVerificacion === 'sin_app') {
     return (
       <FactorChip $bg={theme.colors.tertiaryFixed} $color="#7b2e12" title="Sin app">
@@ -51,45 +51,80 @@ const VerificationFactorsBadge = ({
     );
   }
 
-  // Lógica: mostrar lo relevante
-  // Si ambos pasaron: mostrar solo biometría
-  if (verificadoBiometrico && verificadoUbicacion) {
-    const bg = theme.colors.secondaryFixed;
-    const color = theme.colors.secondary;
-    const icon = metodo ? METODO_ICON[metodo] : 'fingerprint';
-    const label = metodo === 'fingerprint' ? 'Huella' : 'Facial';
+  if (estadoVerificacion === 'registrado') {
+    return (
+      <FactorChip $bg={theme.colors.primaryFixed} $color={theme.colors.primary} title="Tiene app">
+        <Icon name="smartphone" size="sm" fill={1} />
+        Registrado
+      </FactorChip>
+    );
+  }
+
+  if (estadoVerificacion === 'pendiente') {
+    return (
+      <FactorChip $bg={theme.colors.primaryFixed} $color={theme.colors.primary} title="Pendiente">
+        <Icon name="schedule" size="sm" fill={1} />
+        Pendiente
+      </FactorChip>
+    );
+  }
+
+  if (estadoVerificacion === 'rechazado') {
+    if (!metodo) {
+      return (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <FactorChip $bg={theme.colors.errorContainer} $color={theme.colors.error} title="Rechazado">
+            <Icon name="gpp_bad" size="sm" fill={1} />
+            Rechazado
+          </FactorChip>
+          <FactorChip $bg={theme.colors.errorContainer} $color={theme.colors.error} title="No verificó en la app">
+            <Icon name="help_outline" size="sm" fill={1} />
+            No verificó en la app
+          </FactorChip>
+        </div>
+      );
+    }
 
     return (
-      <FactorChip $bg={bg} $color={color} title="Verificación completa">
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <FactorChip $bg={theme.colors.errorContainer} $color={theme.colors.error} title="Rechazado">
+          <Icon name="gpp_bad" size="sm" fill={1} />
+          Rechazado
+        </FactorChip>
+        
+        {verificadoBiometrico === false && (
+          <FactorChip $bg={theme.colors.errorContainer} $color={theme.colors.error} title="Fallo Biometría">
+            <Icon name="warning" size="sm" fill={1} />
+            Fallo Biometría
+          </FactorChip>
+        )}
+        
+        {verificadoUbicacion === false && (
+          <FactorChip $bg={theme.colors.errorContainer} $color={theme.colors.error} title="Fuera de rango GPS">
+            <Icon name="location_off" size="sm" fill={1} />
+            Fallo GPS
+          </FactorChip>
+        )}
+      </div>
+    );
+  }
+
+  if (estadoVerificacion === 'verificado') {
+    const icon = metodo ? METODO_ICON[metodo] : 'fingerprint';
+    const label = metodo === 'fingerprint' ? 'Huella' : 'Facial';
+    return (
+      <FactorChip $bg={theme.colors.secondaryFixed} $color={theme.colors.secondary} title="Verificado">
         <Icon name={icon} size="sm" fill={1} />
         {label}
       </FactorChip>
     );
   }
 
-  // Si ubicación falló: mostrar solo GPS
-  if (!verificadoUbicacion) {
-    const bg = theme.colors.errorContainer;
-    const color = theme.colors.error;
-
-    return (
-      <FactorChip $bg={bg} $color={color} title="Fuera del campus">
-        <Icon name="location_on" size="sm" fill={1} />
-        GPS
-      </FactorChip>
-    );
-  }
-
-  // Si biometría falló (y ubicación pasó - caso raro): mostrar solo biometría
-  const biometriaBg = theme.colors.errorContainer;
-  const biometriaColor = theme.colors.error;
-  const icon = metodo ? METODO_ICON[metodo] : 'fingerprint';
-  const label = metodo === 'fingerprint' ? 'Huella' : 'Facial';
-
+  // Fallback
   return (
-    <FactorChip $bg={biometriaBg} $color={biometriaColor} title="Biometría fallida">
-      <Icon name={icon} size="sm" fill={1} />
-      {label}
+    <FactorChip $bg={theme.colors.surfaceContainerHigh} $color={theme.colors.outline}>
+      <Icon name="help" size="sm" />
+      Desconocido
     </FactorChip>
   );
 };

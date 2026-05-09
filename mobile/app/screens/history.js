@@ -64,6 +64,7 @@ function mapItem(raw) {
     estadoVerificacion: raw.estado_verificacion ?? raw.estadoVerificacion ?? 'sin_app',
     metodo:            raw.metodo ?? null,
     dentroCampus:      raw.dentro_campus      ?? raw.dentroCampus  ?? null,
+    biometriaExitosa:  raw.biometria_exitosa  ?? raw.biometriaExitosa ?? null,
     motivo:            raw.motivo             ?? null,
   };
 }
@@ -248,16 +249,25 @@ export default function HistoryScreen() {
                       <Text style={s.chipTxt}>{item.horaRegistro}</Text>
                     </View>
                   )}
-                  {metIcon && (
+                  {item.metodo && item.biometriaExitosa !== null && (
                     <View style={s.chip}>
-                      <Ionicons name={metIcon} size={11} color={colors.onSurfaceVariant} />
-                      <Text style={s.chipTxt}>{item.metodo?.replace('_', ' ')}</Text>
+                      <Ionicons 
+                        name={item.biometriaExitosa ? metIcon : 'warning'} 
+                        size={11} 
+                        color={item.biometriaExitosa ? colors.secondary : colors.error} 
+                      />
+                      <Text style={[
+                        s.chipTxt, 
+                        { color: item.biometriaExitosa ? colors.secondary : colors.error }
+                      ]}>
+                        {item.biometriaExitosa ? item.metodo?.replace('_', ' ') : 'Fallo biométrico'}
+                      </Text>
                     </View>
                   )}
                   {item.dentroCampus !== null && (
                     <View style={s.chip}>
                       <Ionicons
-                        name={item.dentroCampus ? 'checkmark-circle' : 'close-circle'}
+                        name={item.dentroCampus ? 'location' : 'location-outline'}
                         size={11}
                         color={item.dentroCampus ? colors.secondary : colors.error}
                       />
@@ -265,8 +275,14 @@ export default function HistoryScreen() {
                         s.chipTxt,
                         { color: item.dentroCampus ? colors.secondary : colors.error },
                       ]}>
-                        {item.dentroCampus ? 'En campus' : 'Fuera campus'}
+                        {item.dentroCampus ? 'En campus' : 'Fuera de rango GPS'}
                       </Text>
+                    </View>
+                  )}
+                  {item.estadoVerificacion === 'rechazado' && !item.metodo && (
+                    <View style={s.chip}>
+                      <Ionicons name="help-circle-outline" size={11} color={colors.error} />
+                      <Text style={[s.chipTxt, { color: colors.error }]}>No verificó en app</Text>
                     </View>
                   )}
                   <View style={s.chip}>

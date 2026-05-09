@@ -200,7 +200,7 @@ router.post(
       await pool.query(
         `UPDATE asistencia
         SET estado_verificacion_id = (
-          SELECT id FROM estado_verificacion WHERE nombre = 'pendiente'
+          SELECT id FROM estado_verificacion WHERE nombre = 'registrado'
         )
         WHERE estado_verificacion_id = (
           SELECT id FROM estado_verificacion WHERE nombre = 'sin_app'
@@ -209,7 +209,9 @@ router.post(
           SELECT id FROM lista_estudiantes WHERE persona_id = $1
         )
         AND sesion_clase_id IN (
-          SELECT id FROM sesion_clase WHERE estado = 'activa'
+          SELECT id FROM sesion_clase 
+          WHERE fecha >= CURRENT_DATE
+            AND estado != 'cerrada'
         )`,
         [personaId],
       );
@@ -280,6 +282,7 @@ router.get(
            ev.nombre                         AS estado_verificacion,
            mv.nombre                         AS metodo,
            vb.dentro_campus,
+           vb.exitoso                        AS biometria_exitosa,
            -- fecha_formateada en español  (ej: "Lunes, 7 de julio")
            TO_CHAR(
              sc.fecha,
