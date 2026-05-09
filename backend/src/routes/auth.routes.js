@@ -1,8 +1,8 @@
 // src/routes/auth.routes.js
 
 import { Router } from 'express';
-import { verifyAzureToken, verifyJwt } from '../middlewares/auth.js';
-import { login, loginDev, me, googleCallback } from '../controllers/auth.controller.js';
+import { login, me, googleCallback } from '../controllers/auth.controller.js';
+import { verifyJwt } from '../middlewares/auth.js';
 
 const router = Router();
 
@@ -50,51 +50,6 @@ const router = Router();
  *               $ref: '#/components/schemas/Error'
  */
 router.post('/login', login);
-
-/**
- * @openapi
- * /api/auth/login-dev:
- *   post:
- *     tags: [Auth]
- *     summary: Login simulado (solo en NODE_ENV=development)
- *     description: |
- *       Permite iniciar sesión enviando únicamente el correo institucional,
- *       **sin validar token de Azure**. Útil mientras no está configurado el
- *       tenant de Azure AD. Este endpoint devuelve 404 en producción.
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [correo]
- *             properties:
- *               correo:
- *                 type: string
- *                 format: email
- *                 example: carlos.ramirez@campusucc.edu.co
- *     responses:
- *       200:
- *         description: Login exitoso
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/AuthResponse'
- *       403:
- *         description: Correo no registrado o cuenta desactivada
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       404:
- *         description: Endpoint no disponible en producción
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-router.post('/login-dev', loginDev);
 
 /**
  * @openapi

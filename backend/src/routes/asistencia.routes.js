@@ -63,7 +63,6 @@ router.get(
           le.id AS lista_estudiantes_id,
           p.nombre, p.apellido, p.correo,
           COALESCE(ea.nombre, 'Pendiente') AS estado,
-          -- ← CAMBIO AQUÍ: verificar si tiene app registrada
           CASE
             WHEN ev.nombre IS NOT NULL THEN ev.nombre
             WHEN EXISTS (
@@ -74,14 +73,19 @@ router.get(
           END AS estado_verificacion,
           a.fecha_registro, a.hora_registro,
           COALESCE(a.verificado_biometrico, false) AS verificado_biometrico,
-          mv.nombre AS metodo_verificacion
+          COALESCE(a.verificado_ubicacion, false) AS verificado_ubicacion,
+          (
+            SELECT mv.nombre 
+            FROM verificacion_biometrica vb
+            JOIN metodo_verificacion mv ON mv.id = vb.metodo_verificacion_id
+            WHERE vb.asistencia_id = a.id
+            ORDER BY vb.created_at DESC LIMIT 1
+          ) AS metodo_verificacion
         FROM lista_estudiantes le
         JOIN persona p ON p.id = le.persona_id
         LEFT JOIN asistencia a ON a.lista_estudiantes_id = le.id AND a.sesion_clase_id = $1
         LEFT JOIN estado_asistencia ea ON ea.id = a.estado_asistencia_id
         LEFT JOIN estado_verificacion ev ON ev.id = a.estado_verificacion_id
-        LEFT JOIN verificacion_biometrica vb ON vb.asistencia_id = a.id
-        LEFT JOIN metodo_verificacion mv ON mv.id = vb.metodo_verificacion_id
         WHERE le.curso_id = $2 AND le.activo = true
         ORDER BY p.apellido`,
         [req.params.sesionId, cursoId],

@@ -30,19 +30,6 @@ function getGoogleRequest() {
 }
 
 /**
- * Login simulado (solo NODE_ENV=development en el backend).
- * @deprecated Usar loginWithGoogle en su lugar
- * @param {string} correo - correo institucional del estudiante
- * @returns {Promise<{ token: string, user: object }>}
- */
-export async function loginDev(correo) {
-  return apiFetch('/api/auth/login-dev', {
-    method: 'POST',
-    body: JSON.stringify({ correo }),
-  });
-}
-
-/**
  * Login con Google OAuth 2.0
  * Usa expo-auth-session para obtener el token de identidad de Google,
  * luego lo envía al backend para validación y emisión de JWT propio.

@@ -47,12 +47,12 @@ export async function getPushToken() {
 
   // ── Obtener el token de Expo ──────────────────────────────
   try {
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    const projectId = Constants.expoConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId ?? '4bb62ef7-86f4-4405-9a07-331b47dca6fb';
     
-    // Timeout de 5 segundos para evitar que se quede cargando si no hay internet
+    // Timeout de 10 segundos para evitar que se quede cargando si la red es lenta
     const tokenPromise = Notifications.getExpoPushTokenAsync({ projectId });
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Timeout al obtener Push Token')), 5000)
+      setTimeout(() => reject(new Error('Timeout al obtener Push Token')), 10000)
     );
     
     const tokenData = await Promise.race([tokenPromise, timeoutPromise]);
@@ -61,12 +61,8 @@ export async function getPushToken() {
     return tokenData.data; // "ExponentPushToken[xxxxxxxx]"
 
   } catch (err) {
-    // Falla en simulador de iOS o si no hay acceso a internet
-    if (__DEV__) {
-      console.warn('[notifications] No se pudo obtener token real (¿simulador?):', err.message);
-      return 'SIMULATOR_DEV_TOKEN';
-    }
-    console.error('[notifications] Error obteniendo push token:', err.message);
+    console.warn('[notifications] No se pudo obtener token real:', err.message);
+    if (__DEV__) return 'SIMULATOR_DEV_TOKEN';
     return null;
   }
 }

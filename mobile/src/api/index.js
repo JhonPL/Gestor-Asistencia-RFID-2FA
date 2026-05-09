@@ -26,17 +26,22 @@ export async function apiFetch(path, options = {}, token = null) {
       cache: 'no-store',
     });
 
-    const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(() => null);
 
+    // Si response.ok es false pero no hay JSON, devolver error genérico
     if (!response.ok) {
-      throw new Error(data.error ?? `Error ${response.status}`);
+      const errorMsg = data?.error ?? data?.mensaje ?? `Error ${response.status}`;
+      throw new Error(errorMsg);
     }
 
-    return data;
+    // Si la respuesta fue ok pero no hay data, retornar {}
+    return data ?? {};
   } catch (error) {
     console.error('🔴 API Error:', {
       url: `${BASE_URL}${path}`,
+      method: options.method ?? 'GET',
       message: error.message,
+      statusCode: error.statusCode,
       errorName: error.name,
     });
     throw error;

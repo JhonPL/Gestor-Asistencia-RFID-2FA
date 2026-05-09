@@ -7,8 +7,8 @@ import { apiFetch } from './index.js';
 /**
  * Envía el resultado del segundo factor (biometría + GPS) al backend.
  * Este endpoint es público — no requiere JWT.
- * @param {{ asistencia_id: number, dispositivo_movil_id: number, metodo: string, exitoso: boolean, ubicacion_valida: boolean, latitud: number, longitud: number }} body
- * @returns {Promise<{ ok: boolean, estado_verificacion: 'completado'|'fallido', dentro_campus: boolean }>}
+ * @param {{ asistencia_id: number, dispositivo_movil_id: number, metodo: string, exitoso: boolean, ubicacion_valida: boolean, latitud: number, longitud: number, motivo_rechazo?: string }} body
+ * @returns {Promise<{ ok: boolean, estado_verificacion: string, dentro_campus: boolean, metodo: string, motivo_rechazo?: string }>}
  */
 export async function verificarAsistencia({
   asistencia_id,
@@ -18,6 +18,7 @@ export async function verificarAsistencia({
   ubicacion_valida,
   latitud,
   longitud,
+  motivo_rechazo,
 }) {
   return apiFetch('/api/rfid/verificar', {
     method: 'POST',
@@ -29,6 +30,7 @@ export async function verificarAsistencia({
       ubicacion_valida,
       latitud,
       longitud,
+      motivo_rechazo,
     }),
   });
   // Sin token — tercer argumento omitido intencionalmente

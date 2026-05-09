@@ -22,8 +22,7 @@ import { Badge, Card, BodyText, Label } from "../../components/ui";
 
 // ── Capa de API y storage ─────────────────────────────────────
 import { getSesionActiva, getClasesHoy } from "../../src/api/sesiones";
-import { getToken, getUser } from "../../src/storage/auth";
-import { clearAuth } from '../../src/storage/auth';
+import { getToken, getUser, clearAuth } from "../../src/storage/auth";
 
 
 // ── Helper: formatea 'HH:MM:SS' → '8:00 AM' ──────────────────
@@ -128,6 +127,18 @@ export default function HomeScreen() {
         if (!token || !savedUser) {
           // No hay sesión — redirigir al login
           router.replace("/screens/login");
+          return;
+        }
+
+        // ── Guard de rol: solo estudiantes pueden usar la app ──
+        if (savedUser.rol !== 'estudiante') {
+          await clearAuth();
+          Alert.alert(
+            'Acceso denegado',
+            `Esta aplicación es exclusiva para estudiantes.\nTu cuenta tiene rol de ${savedUser.rol}. Usa el portal web SmartClass.`,
+            [{ text: 'Entendido', onPress: () => router.replace('/screens/login') }],
+            { cancelable: false },
+          );
           return;
         }
 

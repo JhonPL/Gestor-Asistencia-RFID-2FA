@@ -212,11 +212,13 @@ router.post('/scan', async (req, res, next) => {
 
       // APERTURA
       const achRes = await tx.query(
-        `SELECT ach.id
+        `SELECT ach.id, c.codigo AS codigo, c.nombre AS nombre, a.nombre AS aula, 
+                h.hora_inicio, h.hora_fin
          FROM aula_curso_horario ach
          JOIN horario h ON h.id = ach.horario_id
          JOIN dia_semana d ON d.id = h.dia_semana_id
          JOIN curso c ON c.id = ach.curso_id
+         JOIN aula a ON a.id = ach.aula_id
          WHERE ach.aula_id = $1
            AND c.persona_id = $2
            AND c.activo = true
@@ -291,25 +293,47 @@ router.post('/scan', async (req, res, next) => {
            (lista_estudiantes_id, sesion_clase_id, fecha_registro, hora_registro,
             estado_asistencia_id, estado_verificacion_id)
          VALUES ($1, $2, CURRENT_DATE, CURRENT_TIME,
-           (SELECT id FROM estado_asistencia  WHERE nombre = 'Presente'),
-           (SELECT id FROM estado_verificacion WHERE nombre = 'pendiente'))
+           (SELECT id FROM estado_asistencia WHERE nombre = 'Presente'),
+           (SELECT id FROM estado_verificacion WHERE nombre = 'registrado'))
          RETURNING id`,
         [listaEstudiantesId, sesionId],
       );
       const asistenciaId = nuevaAsistencia[0].id;
 
       const pushRes = await pool.query(
-        `SELECT push_token FROM dispositivo_movil WHERE persona_id = $1 AND activo = true LIMIT 1`,
+        `SELECT id, push_token FROM dispositivo_movil WHERE persona_id = $1 AND activo = true LIMIT 1`,
         [persona.id],
       );
 
       if (!pushRes.rows.length) {
+        console.warn(`[rfid] Estudiante ${persona.id} sin dispositivo móvil registrado — asistencia ${asistenciaId}`);
+        await tx.commit();
+        return res.json({ accion: 'sin_app', asistencia_id: asistenciaId });
+      }
+
+      const { push_token: pushToken, id: deviceId } = pushRes.rows[0];
+      
+      // Validar que el push_token no sea null o vacío
+      if (!pushToken || !pushToken.trim()) {
+        console.warn(`[rfid] Dispositivo ${deviceId} (persona ${persona.id}) tiene push_token vacío/null — asistencia ${asistenciaId}`);
         await tx.commit();
         return res.json({ accion: 'sin_app', asistencia_id: asistenciaId });
       }
 
       await tx.commit();
-      sendPushNotification(pushRes.rows[0].push_token, asistenciaId);
+      
+      // Enviar notificación de forma asíncrona (fire-and-forget) con datos del curso
+      console.log(`[rfid] ✓ Asistencia ${asistenciaId} creada para ${persona.nombre}, enviando push...`);
+      const cursoInfo = {
+        codigo: achRes.rows[0].codigo,
+        nombre: achRes.rows[0].nombre,
+        aula: achRes.rows[0].aula,
+        docente: persona.nombre,
+        hora_inicio: achRes.rows[0].hora_inicio,
+        hora_fin: achRes.rows[0].hora_fin,
+      };
+      sendPushNotification(pushToken, asistenciaId, cursoInfo);
+      
       return res.json({ accion: 'pendiente', asistencia_id: asistenciaId, persona: persona.nombre });
     }
 
@@ -399,6 +423,19 @@ router.post('/verificar', async (req, res, next) => {
     // Usar ubicacion_valida si viene del cliente, sino calcular
     const ubicacionValida = ubicacion_valida !== undefined ? ubicacion_valida : dentroCampus;
     const verificacionExitosa = exitoso && ubicacionValida;
+    
+    // Determinar el motivo del rechazo si aplica
+    let motivoRechazo = null;
+    if (!verificacionExitosa) {
+      if (!exitoso) {
+        // Falló la biometría
+        motivoRechazo = metodo; // fingerprint, face_id, etc.
+      } else if (!ubicacionValida) {
+        // Falló el GPS
+        motivoRechazo = 'ubicacion';
+      }
+    }
+    
     const nuevoEstado = verificacionExitosa ? 'verificado' : 'rechazado';
 
     const metodoRes = await pool.query(
@@ -406,6 +443,7 @@ router.post('/verificar', async (req, res, next) => {
     );
     if (!metodoRes.rows.length) return res.status(400).json({ error: `Método inválido: ${metodo}` });
 
+    // Guardar el registro de verificación biométrica
     await pool.query(
       `INSERT INTO verificacion_biometrica
          (asistencia_id, dispositivo_movil_id, metodo_verificacion_id,
@@ -415,6 +453,7 @@ router.post('/verificar', async (req, res, next) => {
        exitoso, latitud, longitud, ubicacionValida],
     );
 
+    // Actualizar estado de asistencia
     await pool.query(
       `UPDATE asistencia
        SET estado_verificacion_id = (SELECT id FROM estado_verificacion WHERE nombre = $1),
@@ -422,12 +461,25 @@ router.post('/verificar', async (req, res, next) => {
              SELECT id FROM estado_asistencia 
              WHERE nombre = CASE WHEN $1 = 'rechazado' THEN 'Ausente' ELSE 'Presente' END
            ),
-           verificado_biometrico  = $2, verificado_ubicacion = $3, latitud = $4, longitud = $5
+           verificado_biometrico  = $2, 
+           verificado_ubicacion   = $3, 
+           latitud                = $4, 
+           longitud               = $5
        WHERE id = $6`,
       [nuevoEstado, exitoso, ubicacionValida, latitud, longitud, asistencia_id],
     );
 
-    res.json({ ok: true, estado_verificacion: nuevoEstado, dentro_campus: ubicacionValida });
+    console.log(
+      `[rfid] Verificación ${asistencia_id}: ${nuevoEstado}${motivoRechazo ? ` (falló: ${motivoRechazo})` : ''}`
+    );
+
+    res.json({ 
+      ok: true, 
+      estado_verificacion: nuevoEstado, 
+      metodo: metodo,
+      motivo_rechazo: motivoRechazo,
+      dentro_campus: ubicacionValida,
+    });
   } catch (err) { next(err); }
 });
 

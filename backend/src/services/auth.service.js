@@ -69,36 +69,6 @@ export async function loginWithAzure({ correo, microsoftId }) {
   };
 }
 
-// ─── Modo simulación (desarrollo sin Azure AD) ────────────────
-// El frontend envía { correo, rol } directamente.
-// SOLO funciona si NODE_ENV=development
-export async function loginSimulado({ correo }) {
-  const { rows } = await pool.query(
-    `SELECT p.id, p.nombre, p.apellido, p.correo, p.activo, r.nombre AS rol
-     FROM persona p
-     JOIN rol r ON r.id = p.rol_id
-     WHERE p.correo = $1`,
-    [correo],
-  );
-
-  if (rows.length === 0) {
-    throw createError(403, 'Correo no registrado');
-  }
-
-  const persona = rows[0];
-  if (!persona.activo) throw createError(403, 'Cuenta desactivada');
-
-  const token = signJwt({
-    id:       persona.id,
-    correo:   persona.correo,
-    rol:      persona.rol,
-    nombre:   persona.nombre,
-    apellido: persona.apellido,
-  });
-
-  return { token, user: { id: persona.id, nombre: persona.nombre, apellido: persona.apellido, correo: persona.correo, rol: persona.rol } };
-}
-
 // ─── OAuth 2.0 con Google ─────────────────────────────────────
 // El frontend envía el ID token JWT de Google.
 // Backend valida el token directamente contra Google.

@@ -1,7 +1,7 @@
 // src/context/AuthContext.jsx
 // Gestiona la sesión real con JWT del backend.
 // Al iniciar la app valida el token almacenado contra /api/auth/me.
-// En producción reemplazar loginDev por loginConAzure + MSAL.
+// En producción reemplazar login por loginConAzure + MSAL.
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getMe } from '../api/authApi';

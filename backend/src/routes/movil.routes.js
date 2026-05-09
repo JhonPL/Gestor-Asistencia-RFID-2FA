@@ -217,14 +217,15 @@ router.post(
       );
 
       // Insertar el nuevo dispositivo.
-      // ON CONFLICT en push_token: si el token ya existe (mismo dispositivo,
-      // nuevo login) reactivarlo y actualizarlo en lugar de duplicar.
+      // ON CONFLICT en persona_id: solo un dispositivo activo por persona.
+      // Si el usuario hace login de nuevo, actualizar el registro existente
+      // con el nuevo push_token (puede cambiar si reinstala la app).
       const { rows } = await pool.query(
         `INSERT INTO dispositivo_movil (persona_id, push_token, plataforma, activo, ultima_sesion)
          VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP)
-         ON CONFLICT (push_token)
+         ON CONFLICT (persona_id)
            DO UPDATE SET
-             persona_id    = EXCLUDED.persona_id,
+             push_token    = EXCLUDED.push_token,
              plataforma    = EXCLUDED.plataforma,
              activo        = true,
              ultima_sesion = CURRENT_TIMESTAMP

@@ -2,7 +2,7 @@
 // Controladores delgados: solo reciben el request,
 // llaman al servicio y devuelven la respuesta.
 
-import { loginWithAzure, loginSimulado, loginWithGoogle } from '../services/auth.service.js';
+import { loginWithAzure, loginWithGoogle } from '../services/auth.service.js';
 import { env } from '../config/env.js';
 
 // POST /api/auth/login
@@ -16,22 +16,6 @@ export async function login(req, res, next) {
     }
 
     const result = await loginWithAzure({ correo, microsoftId: googleId });
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-}
-
-// POST /api/auth/login-dev
-// Solo disponible en desarrollo (sin Azure AD configurado)
-export async function loginDev(req, res, next) {
-  if (env.nodeEnv !== 'development') {
-    return res.status(404).json({ error: 'Not found' });
-  }
-  try {
-    const { correo } = req.body;
-    if (!correo) return res.status(400).json({ error: 'correo requerido' });
-    const result = await loginSimulado({ correo });
     res.json(result);
   } catch (err) {
     next(err);

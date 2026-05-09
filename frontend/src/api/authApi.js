@@ -22,16 +22,6 @@ export async function loginConAzure(azureToken) {
   return handleResponse(res); // { token, user }
 }
 
-/** Login simulado por correo — solo funciona con NODE_ENV=development en el backend */
-export async function loginDev(correo) {
-  const res = await fetch(`${BASE}/api/auth/login-dev`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ correo }),
-  });
-  return handleResponse(res); // { token, user }
-}
-
 /** Login con OAuth 2.0 de Google usando el token JWT */
 export async function loginWithGoogle(credential) {
   const res = await fetch(`${BASE}/api/auth/google/callback`, {
