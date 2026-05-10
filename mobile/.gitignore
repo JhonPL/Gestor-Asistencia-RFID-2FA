@@ -42,3 +42,7 @@ ios
 android
 
 eas.json
+
+# Google/Firebase secrets — never commit these
+google-services.json
+GoogleService-Info.plist
