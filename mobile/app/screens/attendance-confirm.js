@@ -496,7 +496,7 @@ export default function AttendanceConfirmScreen() {
           <View style={s.pendienteBanner}>
             <View style={s.statusHeader}>
               <Text style={s.statusLabel}>Pendiente</Text>
-              <Ionicons name="timer-sand" size={20} color={colors.primary} />
+              <MaterialCommunityIcons name="timer-sand" size={20} color="white" />
             </View>
             <Text style={s.statusMessage}>Verifica tu presencia para completar el registro</Text>
           </View>
@@ -695,8 +695,8 @@ const s = StyleSheet.create({
     marginBottom: spacing[6],
   },
   statusHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[2] },
-  statusLabel: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.primary },
-  statusMessage: { fontSize: fontSizes.sm, color: colors.primary, opacity: 0.8 },
+  statusLabel: { fontSize: fontSizes.lg, fontWeight: '800', color: 'white' },
+  statusMessage: { fontSize: fontSizes.sm, color: 'rgba(255,255,255,0.85)' },
   intentosBanner: {
     flexDirection: 'row', alignItems: 'center', gap: spacing[2],
     backgroundColor: colors.errorContainer, borderRadius: radii.lg,
