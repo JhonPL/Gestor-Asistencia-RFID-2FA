@@ -41,7 +41,7 @@ export async function insertarAusentes(sesionId, tx) {
        WHERE persona_id = $1 AND activo = true LIMIT 1`,
       [est.persona_id],
     );
-    const estadoVerif = tieneApp.rows.length > 0 ? 'registrado' : 'sin_app';
+    const estadoVerif = tieneApp.rows.length > 0 ? 'rechazado' : 'sin_app';
 
     await tx.query(
       `INSERT INTO asistencia
@@ -294,13 +294,28 @@ router.post('/scan', async (req, res, next) => {
             estado_asistencia_id, estado_verificacion_id)
          VALUES ($1, $2, CURRENT_DATE, CURRENT_TIME,
            (SELECT id FROM estado_asistencia WHERE nombre = 'Presente'),
-           (SELECT id FROM estado_verificacion WHERE nombre = 'registrado'))
+           (SELECT id FROM estado_verificacion WHERE nombre = 'pendiente'))
          RETURNING id`,
         [listaEstudiantesId, sesionId],
       );
       const asistenciaId = nuevaAsistencia[0].id;
 
-      const pushRes = await pool.query(
+      // ── Obtener datos del curso para la notificación push ────
+      const cursoRes = await tx.query(
+        `SELECT c.codigo, c.nombre, a.nombre AS aula,
+                p2.nombre AS docente_nombre,
+                h.hora_inicio, h.hora_fin
+         FROM sesion_clase sc
+         JOIN aula_curso_horario ach ON ach.id = sc.aula_curso_horario_id
+         JOIN curso c ON c.id = ach.curso_id
+         JOIN aula a ON a.id = ach.aula_id
+         JOIN horario h ON h.id = ach.horario_id
+         JOIN persona p2 ON p2.id = c.persona_id
+         WHERE sc.id = $1`,
+        [sesionId],
+      );
+
+      const pushRes = await tx.query(
         `SELECT id, push_token FROM dispositivo_movil WHERE persona_id = $1 AND activo = true LIMIT 1`,
         [persona.id],
       );
@@ -324,13 +339,14 @@ router.post('/scan', async (req, res, next) => {
       
       // Enviar notificación de forma asíncrona (fire-and-forget) con datos del curso
       console.log(`[rfid] ✓ Asistencia ${asistenciaId} creada para ${persona.nombre}, enviando push...`);
+      const infoCurso = cursoRes.rows[0];
       const cursoInfo = {
-        codigo: achRes.rows[0].codigo,
-        nombre: achRes.rows[0].nombre,
-        aula: achRes.rows[0].aula,
-        docente: persona.nombre,
-        hora_inicio: achRes.rows[0].hora_inicio,
-        hora_fin: achRes.rows[0].hora_fin,
+        codigo:      infoCurso?.codigo      ?? '',
+        nombre:      infoCurso?.nombre      ?? '',
+        aula:        infoCurso?.aula        ?? '',
+        docente:     infoCurso?.docente_nombre ?? persona.nombre,
+        hora_inicio: infoCurso?.hora_inicio ?? '',
+        hora_fin:    infoCurso?.hora_fin    ?? '',
       };
       sendPushNotification(pushToken, asistenciaId, cursoInfo);
       

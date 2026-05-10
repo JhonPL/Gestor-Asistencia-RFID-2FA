@@ -50,7 +50,7 @@ router.get(
          WHERE le.persona_id = $1
            AND sc.fecha      = CURRENT_DATE
            AND sc.estado     = 'activa'
-           AND ev.nombre    IN ('pendiente', 'completado', 'fallido')
+           AND ev.nombre    IN ('pendiente', 'verificado', 'rechazado')
          ORDER BY a.id DESC
          LIMIT 1`,
         [personaId],

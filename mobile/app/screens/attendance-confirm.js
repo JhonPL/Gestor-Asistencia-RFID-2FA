@@ -23,6 +23,15 @@ const CAMPUS_RADIUS_METERS = 500;
 
 const MAX_INTENTOS = 3;
 
+// ── Helper para formatear 'HH:MM:SS' → '8:00 AM' ────────────
+function formatTime(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, '0')} ${suffix}`;
+}
+
 // ── Helpers para formatear el método ──────────────────────────
 function formatearMetodo(metodo) {
   const metodos = {

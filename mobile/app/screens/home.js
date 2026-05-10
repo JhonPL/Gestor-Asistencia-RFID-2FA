@@ -113,24 +113,21 @@ export default function HomeScreen() {
     );
   };
 
-  // ── Cargar datos al montar ────────────────────────────────────
+  // ── Cargar datos al montar + polling cada 5 segundos ─────────
   useEffect(() => {
     let cancelled = false;
 
-    async function loadData() {
-      setLoading(true);
+    async function loadData(isFirstLoad = false) {
+      if (isFirstLoad) setLoading(true);
       setError(null);
       try {
-        // 1. Recuperar sesión guardada (no hace fetch al backend)
         const [token, savedUser] = await Promise.all([getToken(), getUser()]);
 
         if (!token || !savedUser) {
-          // No hay sesión — redirigir al login
           router.replace("/screens/login");
           return;
         }
 
-        // ── Guard de rol: solo estudiantes pueden usar la app ──
         if (savedUser.rol !== 'estudiante') {
           await clearAuth();
           Alert.alert(
@@ -142,18 +139,16 @@ export default function HomeScreen() {
           return;
         }
 
-        if (!cancelled) {
+        if (!cancelled && isFirstLoad) {
           setStudent({
             nombre: savedUser.nombre,
             apellido: savedUser.apellido,
             iniciales: getIniciales(savedUser.nombre, savedUser.apellido),
             correo: savedUser.correo,
-            // programa no viene en el JWT; se muestra el rol como fallback
             programa: savedUser.programa ?? savedUser.rol ?? "",
           });
         }
 
-        // 2. Obtener sesión activa del día desde el backend
         const [sesion, clases] = await Promise.all([
           getSesionActiva(token),
           getClasesHoy(token),
@@ -166,22 +161,34 @@ export default function HomeScreen() {
       } catch (err) {
         if (!cancelled) {
           setError(err.message);
-          // Si el token expiró, mostrar estado sin_clase en lugar de bloquear
           setSesionActiva({ estado: "sin_clase" });
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && isFirstLoad) setLoading(false);
       }
     }
 
-    loadData();
+    loadData(true);
+
+    // Polling cada 5 segundos para detectar cambios de estado
+    const interval = setInterval(() => loadData(false), 5000);
+
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, []);
 
   // ── Valores derivados ─────────────────────────────────────────
-  const estadoActual = sesionActiva?.estado ?? "sin_clase";
+  // Mapa de estados BD → clave de STATUS_CONFIG
+  const ESTADO_MAP = {
+    pendiente:  'pendiente',   // tarjeta pasada, esperando verificación
+    registrado: 'pendiente',   // fallback por compatibilidad
+    verificado: 'completado',  // biometría + GPS ok → Presente
+    rechazado:  'fallido',     // falló la verificación
+  };
+  const rawEstado = sesionActiva?.estado ?? 'sin_clase';
+  const estadoActual = ESTADO_MAP[rawEstado] ?? rawEstado;
   const status = STATUS_CONFIG[estadoActual] ?? STATUS_CONFIG.sin_clase;
 
   // Adaptar la respuesta de la API al shape que usa la UI
