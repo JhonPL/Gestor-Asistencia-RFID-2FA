@@ -144,7 +144,7 @@ const RESULTADO = {
     color: colors.error,
     bg: colors.errorContainer,
     label: 'No estás en el campus',
-    desc: 'Verificación rechazada. Tu ubicación actual está fuera del radio permitido (500 m). Debes estar físicamente en el campus UCC Villavicencio para registrar asistencia.',
+    desc: 'Verificación rechazada. Tu ubicación actual está fuera del radio permitido. Debes estar físicamente en el campus UCC Villavicencio para registrar asistencia.',
   },
   gps_error: {
     icon: 'location-outline',
@@ -425,9 +425,12 @@ export default function AttendanceConfirmScreen() {
         await new Promise((r) => setTimeout(r, 400));
         setFase('completado');
       } else {
-        // El servidor rechazó la verificación (biometría no válida en el registro)
+        // El servidor es la autoridad final sobre la ubicación.
         setMetodoVerificacion(respuesta.metodo);
-        registrarFallo('biometria_fallida', respuesta.metodo);
+        registrarFallo(
+          respuesta.dentro_campus === false ? 'gps_fuera' : 'biometria_fallida',
+          respuesta.metodo,
+        );
       }
     } catch (err) {
       console.error('[attendance-confirm] Error en handleConfirm:', {
@@ -532,7 +535,7 @@ export default function AttendanceConfirmScreen() {
                 {p.id === 'biometria'
                   ? 'Huella digital o Face ID'
                   : p.id === 'ubicacion'
-                    ? 'Validación GPS · campus UCC (500 m)'
+                    ? 'Validación GPS · campus UCC'
                     : 'Registro en el servidor SmartClass'}
               </Text>
             </View>

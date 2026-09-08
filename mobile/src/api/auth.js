@@ -4,12 +4,10 @@
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { apiFetch } from './index.js';
+import env from '../config/env';
 
 // Cerrar automáticamente el WebBrowser cuando sea necesario
 WebBrowser.maybeCompleteAuthSession();
-
-// Google OAuth Client ID (debe coincidir con el configurado en Google Cloud Console)
-const GOOGLE_CLIENT_ID = '1027858475506-rnvthesejtmn4usfmvctmsvv7i3s9ug0.apps.googleusercontent.com';
 
 /**
  * Request para Google OAuth 2.0 usando Expo Auth Session
@@ -19,9 +17,9 @@ let googleRequest;
 function getGoogleRequest() {
   if (!googleRequest) {
     const [request] = Google.useAuthRequest({
-      clientId: GOOGLE_CLIENT_ID,
-      iosClientId: GOOGLE_CLIENT_ID, // Mismo para iOS
-      androidClientId: GOOGLE_CLIENT_ID, // Mismo para Android
+      clientId: env.GOOGLE_CLIENT_ID,
+      iosClientId: env.GOOGLE_CLIENT_ID,
+      androidClientId: env.GOOGLE_ANDROID_CLIENT_ID,
       scopes: ['openid', 'email', 'profile'],
     });
     googleRequest = request;
@@ -66,9 +64,9 @@ export function promptGoogleAsync() {
     throw new Error('Google Auth no está configurado');
   }
   return Google.useAuthRequest({
-    clientId: GOOGLE_CLIENT_ID,
-    iosClientId: GOOGLE_CLIENT_ID,
-    androidClientId: GOOGLE_CLIENT_ID,
+    clientId: env.GOOGLE_CLIENT_ID,
+    iosClientId: env.GOOGLE_CLIENT_ID,
+    androidClientId: env.GOOGLE_ANDROID_CLIENT_ID,
     scopes: ['openid', 'email', 'profile'],
   });
 }

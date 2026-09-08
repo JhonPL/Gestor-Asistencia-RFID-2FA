@@ -406,7 +406,7 @@ router.post('/scan', async (req, res, next) => {
  */
 router.post('/verificar', async (req, res, next) => {
   try {
-    const { asistencia_id, dispositivo_movil_id, metodo, exitoso, ubicacion_valida, latitud, longitud } = req.body;
+    const { asistencia_id, dispositivo_movil_id, metodo, exitoso, latitud, longitud } = req.body;
 
     const sesionRes = await pool.query(
       `SELECT sc.estado 
@@ -436,8 +436,8 @@ router.post('/verificar', async (req, res, next) => {
     const distanciaMetros = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const dentroCampus = distanciaMetros <= RADIUS_M;
 
-    // Usar ubicacion_valida si viene del cliente, sino calcular
-    const ubicacionValida = ubicacion_valida !== undefined ? ubicacion_valida : dentroCampus;
+    // La ubicación enviada por el cliente no es confiable; el servidor decide según el GPS.
+    const ubicacionValida = dentroCampus;
     const verificacionExitosa = exitoso && ubicacionValida;
     
     // Determinar el motivo del rechazo si aplica

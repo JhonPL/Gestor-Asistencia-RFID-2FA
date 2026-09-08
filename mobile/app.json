@@ -14,14 +14,18 @@
       "backgroundColor": "#ffffff"
     },
     "extra": {
-      "IP": "192.168.80.60",
       "router": {},
       "eas": {
         "projectId": "4bb62ef7-86f4-4405-9a07-331b47dca6fb"
       }
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jhonp.mobile",
+      "scheme": "smartclass",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -41,6 +45,9 @@
       [
         "expo-build-properties",
         {
+          "ios": {
+            "useFrameworks": "dynamic"
+          },
           "android": {
             "usesCleartextTraffic": true
           }

@@ -296,8 +296,13 @@ router.get(
          JOIN curso c                ON c.id   = ach.curso_id
          JOIN estado_asistencia  ea  ON ea.id  = a.estado_asistencia_id
          JOIN estado_verificacion ev ON ev.id  = a.estado_verificacion_id
-         LEFT JOIN verificacion_biometrica vb
-           ON vb.asistencia_id = a.id
+         LEFT JOIN LATERAL (
+           SELECT vb.*
+           FROM verificacion_biometrica vb
+           WHERE vb.asistencia_id = a.id
+           ORDER BY vb.id DESC
+           LIMIT 1
+         ) vb ON true
          LEFT JOIN metodo_verificacion mv
            ON mv.id = vb.metodo_verificacion_id
          WHERE le.persona_id = $1

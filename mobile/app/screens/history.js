@@ -222,11 +222,11 @@ export default function HistoryScreen() {
         <>
           <Text style={s.sectionTitle}>Sesiones registradas</Text>
 
-          {historial.map(item => {
+          {historial.map((item, index) => {
             const verif   = VERIF_CONFIG[item.estadoVerificacion] ?? VERIF_CONFIG.pendiente;
             const metIcon = METODO_ICON[item.metodo];
             return (
-              <Card key={item.id} style={{ marginBottom: spacing[3] }}>
+              <Card key={`${item.id ?? 'historial'}-${index}`} style={{ marginBottom: spacing[3] }}>
                 {/* Top: curso + badge estado */}
                 <View style={s.sessionTop}>
                   <View style={{ flex: 1, marginRight: spacing[3] }}>
