@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -81,6 +82,8 @@ const CLASE_BADGE = {
   pendiente:   { label: 'Pendiente',   variant: 'default'  },
   rechazado:   { label: 'Rechazado',   variant: 'error'    },
   sin_app:     { label: 'Sin app',     variant: 'warning'  },
+  ausente:     { label: 'No asistió',  variant: 'error'    },
+  activa:      { label: 'Activa',      variant: 'success'  },
   sin_registrar: { label: 'Sin clase', variant: 'warning'  },
 };
 
@@ -132,7 +135,7 @@ export default function HomeScreen() {
           await clearAuth();
           Alert.alert(
             'Acceso denegado',
-            `Esta aplicación es exclusiva para estudiantes.\nTu cuenta tiene rol de ${savedUser.rol}. Usa el portal web SmartClass.`,
+            'Tu cuenta no tiene permisos para acceder a esta sección.',
             [{ text: 'Entendido', onPress: () => router.replace('/screens/login') }],
             { cancelable: false },
           );
@@ -210,14 +213,18 @@ export default function HomeScreen() {
   // Clases de hoy: mapear desde clasesDelDia del backend
   const clasesHoy = (clasesDelDia || []).map((clase) => {
     let estado = 'sin_registrar';
-    if (clase.estado_verificacion === 'verificado') estado = 'verificado';
+    if (clase.estado_asistencia === 'Ausente') estado = 'ausente';
+    else if (clase.estado_verificacion === 'verificado') estado = 'verificado';
     else if (clase.estado_verificacion === 'pendiente') estado = 'pendiente';
     else if (clase.estado_verificacion === 'registrado') estado = 'registrado';
     else if (clase.estado_verificacion === 'rechazado') estado = 'rechazado';
     else if (clase.estado_verificacion === 'sin_app') estado = 'sin_app';
+    else if (clase.sesion_estado === 'activa') estado = 'activa';
 
     return {
       id: clase.sesion_id,
+      asistenciaId: clase.asistencia_id,
+      sesionEstado: clase.sesion_estado,
       codigo: clase.curso.codigo,
       nombre: clase.curso.nombre,
       aula: clase.aula,
@@ -250,6 +257,10 @@ export default function HomeScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
+      <View style={s.brandHeader}>
+        <Image source={require('../../assets/LUXALOGO.png')} style={s.brandLogo} resizeMode="contain" />
+        <Text style={s.brandName}>LUXA</Text>
+      </View>
       {/* Header */}
       <View style={s.header}>
         <View>
@@ -367,41 +378,55 @@ export default function HomeScreen() {
       ) : (
         clasesHoy.map((curso) => {
           const badge = CLASE_BADGE[curso.estado] ?? CLASE_BADGE.sin_registrar;
-          return (
-            <Card key={curso.id} style={{ marginBottom: spacing[3] }}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                }}
-              >
+          const puedeAcceder = Boolean(curso.asistenciaId)
+            && curso.sesionEstado === 'activa'
+            && ['pendiente', 'rechazado'].includes(curso.estado);
+          const contenido = (
+            <Card key={`card-${curso.id}`} style={{ marginBottom: spacing[3] }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <View style={{ flex: 1, marginRight: spacing[3] }}>
-                  <Badge variant="default" style={{ marginBottom: spacing[2] }}>
-                    {curso.codigo}
-                  </Badge>
+                  <Badge variant="default" style={{ marginBottom: spacing[2] }}>{curso.codigo}</Badge>
                   <Text style={s.courseName}>{curso.nombre}</Text>
                   <View style={s.courseMeta}>
-                    <Ionicons
-                      name="location-outline"
-                      size={12}
-                      color={colors.onSurfaceVariant}
-                    />
+                    <Ionicons name="location-outline" size={12} color={colors.onSurfaceVariant} />
                     <Text style={s.metaTxt}>{curso.aula}</Text>
-                    <Ionicons
-                      name="time-outline"
-                      size={12}
-                      color={colors.onSurfaceVariant}
-                      style={{ marginLeft: spacing[3] }}
-                    />
-                    <Text style={s.metaTxt}>
-                      {curso.horaInicio} – {curso.horaFin}
-                    </Text>
+                    <Ionicons name="time-outline" size={12} color={colors.onSurfaceVariant} style={{ marginLeft: spacing[3] }} />
+                    <Text style={s.metaTxt}>{curso.horaInicio} – {curso.horaFin}</Text>
                   </View>
                 </View>
                 <Badge variant={badge.variant}>{badge.label}</Badge>
               </View>
+              {puedeAcceder && (
+                <View style={s.accessHint}>
+                  <Text style={s.accessHintText}>
+                    {curso.estado === 'rechazado' ? 'Toca para volver a intentar' : 'Toca para confirmar asistencia'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </View>
+              )}
             </Card>
+          );
+
+          if (!puedeAcceder) return contenido;
+
+          return (
+            <TouchableOpacity
+              key={`access-${curso.id}`}
+              activeOpacity={0.8}
+              onPress={() => router.push({
+                pathname: '/screens/attendance-confirm',
+                params: {
+                  asistencia_id: curso.asistenciaId,
+                  curso_codigo: curso.codigo,
+                  curso_nombre: curso.nombre,
+                  aula: curso.aula,
+                  hora_inicio: curso.horaInicio,
+                  hora_fin: curso.horaFin,
+                },
+              })}
+            >
+              {contenido}
+            </TouchableOpacity>
           );
         })
       )}
@@ -435,6 +460,9 @@ const s = StyleSheet.create({
   },
 
   scroll: { paddingHorizontal: spacing[6] },
+  brandHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginBottom: spacing[4] },
+  brandLogo: { width: 40, height: 40, borderRadius: radii.md },
+  brandName: { fontFamily: 'Miroge', fontSize: fontSizes.xl, color: colors.primary },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -520,6 +548,16 @@ const s = StyleSheet.create({
     borderRadius: radii.xl,
     marginBottom: spacing[4],
   },
+  accessHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing[3],
+    paddingTop: spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: colors.outlineVariant,
+  },
+  accessHintText: { color: colors.primary, fontSize: fontSizes.xs, fontWeight: '700' },
   courseName: {
     fontSize: fontSizes.base,
     fontWeight: "700",

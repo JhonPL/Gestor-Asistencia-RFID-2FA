@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import theme from '../styles/theme';
 import { useAuth } from '../context/AuthContext';
 import { getSesionesByCurso } from '../api/sesionesApi';
+import Pagination from '../components/ui/Pagination';
 import { useAttendance, avatarColor } from '../hooks/useAttendance';
 import AppLayout from '../components/layout/AppLayout';
 import AttendanceStatusToggle from '../components/attendance/AttendanceStatusToggle';
@@ -183,21 +184,35 @@ const AttendancePage = ({ onLogout }) => {
   const [sesionesError,    setSesionesError]    = useState(null);
   const [currentSessionIdx, setCurrentSessionIdx] = useState(0);
   const [showFullTable,    setShowFullTable]    = useState(false);
+  const [sessionsPagination, setSessionsPagination] = useState(null);
 
   // ── Cargar lista de sesiones ──────────────────────────────────────────────
   useEffect(() => {
     if (!token || !cursoId) return;
     setSesionesLoading(true);
-    getSesionesByCurso(token, cursoId)
+    getSesionesByCurso(token, cursoId, { page: 1, limit: 20 })
       .then((data) => {
-        const ordenadas = (data || []).sort(
+        const ordenadas = (data.items || []).sort(
           (a, b) => new Date(a.fecha) - new Date(b.fecha),
         );
         setSesiones(ordenadas);
+        setSessionsPagination(data.pagination);
       })
       .catch((err) => setSesionesError(err.message))
       .finally(() => setSesionesLoading(false));
   }, [token, cursoId]);
+
+  const changeSessionsPage = (page) => {
+    setSesionesLoading(true);
+    getSesionesByCurso(token, cursoId, { page, limit: 20 })
+      .then(data => {
+        setSesiones(data.items || []);
+        setSessionsPagination(data.pagination);
+        setCurrentSessionIdx(0);
+      })
+      .catch(err => setSesionesError(err.message))
+      .finally(() => setSesionesLoading(false));
+  };
 
   const currentSesion = sesiones[currentSessionIdx] ?? null;
 
@@ -328,6 +343,7 @@ const AttendancePage = ({ onLogout }) => {
             </DateNavBtn>
           </DateNav>
         </HeaderRow>
+        <Pagination {...sessionsPagination} onPageChange={changeSessionsPage} />
       </PageHeader>
 
       {/* Banners de estado */}

@@ -20,11 +20,13 @@ function authHeaders(token) {
 // ─── PERSONAS ─────────────────────────────────────────────────
 
 /** Obtiene listado de personas con filtros opcionales */
-export async function getPersonas(token, { rol, activo, search } = {}) {
+export async function getPersonas(token, { rol, activo, search, page, limit } = {}) {
   const params = new URLSearchParams();
   if (rol) params.set('rol', rol);
   if (activo !== undefined) params.set('activo', activo);
   if (search) params.set('search', search);
+  if (page !== undefined) params.set('page', page);
+  if (limit !== undefined) params.set('limit', limit);
 
   const url = `${BASE}/api/personas${params.toString() ? `?${params}` : ''}`;
   const res = await fetch(url, { headers: authHeaders(token) });
@@ -76,6 +78,14 @@ export async function linkTarjetaPersona(token, id, codigoTarjeta) {
     method: 'PATCH',
     headers: authHeaders(token),
     body: JSON.stringify({ codigo_tarjeta: codigoTarjeta }),
+  });
+  return handleResponse(res);
+}
+
+export async function resetDispositivoPersona(token, id) {
+  const res = await fetch(`${BASE}/api/personas/${id}/dispositivo`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
   });
   return handleResponse(res);
 }

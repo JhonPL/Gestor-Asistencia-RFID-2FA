@@ -86,7 +86,7 @@ router.get('/me', verifyJwt, me);
  *     description: |
  *       Recibe el JWT token (credential) de Google emitido por el cliente JavaScript,
  *       lo valida contra los servidores de Google, extrae el email y devuelve un JWT propio.
- *       Si el correo no existe en el sistema, se crea automáticamente como estudiante.
+ *       El correo debe existir previamente en el sistema y tener un rol autorizado.
  *     security: []
  *     requestBody:
  *       required: true

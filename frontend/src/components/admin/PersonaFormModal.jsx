@@ -32,12 +32,22 @@ const PersonaFormModal = ({
   onSave,
   programas = [],
   facultades = [],
+  onResetDevice,
 }) => {
   const [form, setForm] = useState(EMPTY);
+  const [deviceStatus, setDeviceStatus] = useState(null);
   const isEditing = !!persona;
 
   useEffect(() => {
     if (!isOpen) return;
+    setDeviceStatus(persona?.app_movil_vinculada
+      ? {
+          linked: true,
+          active: persona.app_movil_activa,
+          platform: persona.app_movil_plataforma,
+          lastSession: persona.app_movil_ultima_sesion,
+        }
+      : { linked: false });
     setForm(
       persona
         ? {
@@ -65,6 +75,12 @@ const PersonaFormModal = ({
       programa_id: form.programa_id ? Number(form.programa_id) : null,
       programa:    prog?.nombre ?? null,
     });
+  };
+
+  const handleResetDevice = async () => {
+    if (!onResetDevice || !persona) return;
+    await onResetDevice(persona);
+    setDeviceStatus({ linked: false });
   };
 
   const requierePrograma = form.rol === 'estudiante' || form.rol === 'docente';
@@ -174,6 +190,48 @@ const PersonaFormModal = ({
           </label>
           <HelperText>Las cuentas inactivas no pueden iniciar sesión.</HelperText>
         </FormGroup>
+
+        {isEditing && form.rol === 'estudiante' && (
+          <FormGroup>
+            <Label>Aplicación móvil</Label>
+            <div style={{
+              border: '1px solid #c6c5d4',
+              borderRadius: '.75rem',
+              padding: ' .75rem',
+              display: 'grid',
+              gap: '.5rem',
+            }}>
+              <strong>
+                {deviceStatus?.linked
+                  ? deviceStatus.active ? 'Dispositivo vinculado' : 'Dispositivo liberado'
+                  : 'Sin dispositivo vinculado'}
+              </strong>
+              {deviceStatus?.linked && (
+                <HelperText>
+                  Plataforma: {deviceStatus.platform ?? 'No disponible'}
+                  {deviceStatus.lastSession
+                    ? ` · Último acceso: ${new Date(deviceStatus.lastSession).toLocaleString()}`
+                    : ''}
+                </HelperText>
+              )}
+              {deviceStatus?.linked && (
+                <Button
+                  type="button"
+                  variant="outlined"
+                  size="sm"
+                  onClick={handleResetDevice}
+                >
+                  Liberar dispositivo
+                </Button>
+              )}
+              {!deviceStatus?.linked && (
+                <HelperText>
+                  El estudiante podrá vincular un celular al iniciar sesión.
+                </HelperText>
+              )}
+            </div>
+          </FormGroup>
+        )}
 
         <FormActions>
           <Button variant="outlined" size="sm" type="button" onClick={onClose}>

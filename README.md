@@ -1,4 +1,4 @@
-# SmartClass RFID — Sistema de Gestión de Asistencia
+# SmartClass RFID - Sistema de Gestion de Asistencia
 
 > Universidad Cooperativa de Colombia · Sede Villavicencio, Meta  
 > Trabajo de grado — Metodología Scrum
@@ -7,7 +7,84 @@ Sistema para controlar asistencia con tarjetas RFID y segundo factor biométrico
 
 ---
 
-## Stack tecnológico
+## Estructura
+
+El repositorio contiene tres aplicaciones coordinadas:
+
+| Carpeta | Funcion |
+|---|---|
+| `backend/` | API Node.js, Express y PostgreSQL |
+| `frontend/` | Panel web administrativo con React y Vite |
+| `mobile/` | App React Native con Expo para Android e iOS |
+
+## Requisitos
+
+- Node.js 20 LTS o superior
+- PostgreSQL 15 o superior
+- Para Android: Android Studio y un dispositivo/emulador
+- Para iOS: macOS, Xcode y Apple ID; Apple Developer es necesario para distribuir o usar TestFlight
+
+## Clonar y preparar
+
+```bash
+git clone https://github.com/JhonPL/Gestor-Asistencia-RFID-2FA.git
+cd Gestor-Asistencia-RFID-2FA
+
+cd backend && npm install
+cd ../frontend && npm install
+cd ../mobile && npm install
+```
+
+Después copia las plantillas de entorno y completa los valores locales:
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+cp mobile/.env.example mobile/.env
+```
+
+En Windows PowerShell, usa `Copy-Item` en lugar de `cp`.
+
+## Ejecutar en desarrollo
+
+Abre tres terminales desde la raiz del repositorio:
+
+```bash
+cd backend && npm run dev
+cd frontend && npm run dev
+cd mobile && npx expo start
+```
+
+La API queda en `http://localhost:3000`, el panel en `http://localhost:5173` y Expo muestra el QR para abrir la app.
+
+## Probar iOS desde una Mac
+
+Para la app completa, incluyendo modulos nativos como Google Sign-In:
+
+```bash
+cd mobile
+npx expo prebuild
+npx expo run:ios --device
+```
+
+Conecta el iPhone por cable, abre el proyecto en Xcode si solicita configurar la firma y selecciona tu equipo Apple en `Signing & Capabilities`. `npx expo prebuild` puede regenerar las carpetas nativas; no edites `ios/` ni `android/` manualmente si permanecen ignoradas.
+
+## Builds EAS
+
+```bash
+cd mobile
+npx eas build --platform android --profile preview
+npx eas build --platform ios --profile development
+npx eas build --platform ios --profile production
+```
+
+La build iOS de desarrollo está configurada para simulador en `eas.json`. Para un iPhone físico hay que usar una build de dispositivo y credenciales de Apple.
+
+## Variables de entorno y secretos
+
+No subas `.env`, `google-services.json`, `GoogleService-Info.plist` ni el JSON de credenciales administrativas de Firebase. Usa las plantillas `.env.example` y configura los secretos en EAS o en el entorno local.
+
+## Stack tecnologico
 
 | Capa | Tecnología | Versión |
 |---|---|---|
@@ -30,80 +107,6 @@ smartclass-rfid/
 ├── src/                        ← Frontend web React
 │   ├── context/AuthContext.jsx
 │   ├── styles/
-│   ├── mocks/
-│   ├── pages/
-│   └── components/{ui,layout,landing,dashboard,attendance,admin}
-├── src/api/                    ← Backend Express
-│   └── src/{routes,controllers,services,middlewares,config,swagger}
-├── mobile/                     ← App Expo
-│   └── app/{screens,components,context,hooks,constants}
-├── database/
-│   ├── script_bd_v5.sql
-│   └── DER_dbdiagram_v5.dbml
-├── DESIGN.md
-├── README.md
-└── README-frontend.md
-```
-
----
-
-## Puesta en marcha
-
-```bash
-# Frontend web
-npm install && npm run dev          # http://localhost:5173
-
-# Backend
-cd src/api && npm install && npm run dev   # http://localhost:3000
-# Swagger: http://localhost:3000/api-docs
-
-# Base de datos
-createdb smartclass_rfid
-psql -d smartclass_rfid -f database/script_bd_v5.sql
-
-# App móvil
-cd mobile && npx expo start
-```
-
----
-
-## Variables de entorno (.env)
-
-```env
-# Base de datos
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=smartclass_rfid
-DB_USER=postgres
-DB_PASSWORD=
-
-# Azure AD (pendiente área de sistemas UCC)
-AZURE_CLIENT_ID=
-AZURE_TENANT_ID=
-AZURE_REDIRECT_URI=http://localhost:5173/login
-
-# Frontend
-VITE_API_URL=http://localhost:3000
-VITE_AZURE_CLIENT_ID=
-VITE_AZURE_TENANT_ID=
-
-# Expo
-EXPO_ACCESS_TOKEN=
-
-# Campus UCC Villavicencio
-CAMPUS_LAT=-4.142900
-CAMPUS_LNG=-73.626700
-CAMPUS_RADIUS_METERS=200
-
-# Servidor
-PORT=3000
-NODE_ENV=development
-JWT_SECRET=
-```
-
----
-
-## Base de datos v5
 
 ### Cambios vs v4
 

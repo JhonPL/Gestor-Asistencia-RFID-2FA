@@ -42,6 +42,6 @@ export async function verificarAsistencia({
  * @param {string} token - JWT del estudiante
  * @returns {Promise<{ historial: object[], stats: object }>}
  */
-export async function getHistorial(token) {
-  return apiFetch('/api/movil/historial', {}, token);
+export async function getHistorial(token, { page = 1, limit = 20 } = {}) {
+  return apiFetch(`/api/movil/historial?page=${page}&limit=${limit}`, {}, token);
 }

@@ -36,7 +36,7 @@ export async function googleCallback(req, res, next) {
     console.log('📨 Headers:', req.headers);
     console.log('📦 Body:', JSON.stringify(req.body, null, 2));
     
-    const { credential } = req.body;
+    const { credential, installation_id: installationId } = req.body;
     if (!credential) {
       console.error('❌ [ERROR] No hay "credential" en el body');
       console.error('   Se esperaba: { credential: "idToken..." }');
@@ -51,7 +51,7 @@ export async function googleCallback(req, res, next) {
     console.log('✅ Token recibido, longitud:', credential.length);
     console.log('🔐 Verificando token contra Google API...');
     
-    const result = await loginWithGoogle({ idToken: credential });
+    const result = await loginWithGoogle({ idToken: credential, installationId });
     
     console.log('✅ Login exitoso');
     console.log('👤 Usuario:', result.user.correo);

@@ -15,8 +15,12 @@ const h = (token) => ({
 
 // ─── CURSOS ───────────────────────────────────────────────────
 
-export const getCursos = (token) =>
-  fetch(`${BASE}/api/cursos`, { headers: h(token) }).then(handleResponse);
+export const getCursos = (token, { page, limit } = {}) => {
+  const params = new URLSearchParams();
+  if (page !== undefined) params.set('page', page);
+  if (limit !== undefined) params.set('limit', limit);
+  return fetch(`${BASE}/api/cursos${params.toString() ? `?${params}` : ''}`, { headers: h(token) }).then(handleResponse);
+};
 
 export const getCurso = (token, id) =>
   fetch(`${BASE}/api/cursos/${id}`, { headers: h(token) }).then(handleResponse);

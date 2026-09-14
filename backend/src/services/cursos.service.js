@@ -194,8 +194,16 @@ async function eliminarSesionesProgramadasFuturas(cursoId, tx) {
 
 // ── CRUD principal ────────────────────────────────────────────────────────────
 
-export async function listarCursos(userId, rol) {
+export async function listarCursos(userId, rol, page, limit) {
+  const paginated = page !== undefined;
+  const safePage = Math.max(1, parseInt(page, 10) || 1);
+  const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+  const offset = (safePage - 1) * safeLimit;
+
   if (rol === 'administrador') {
+    const count = paginated
+      ? await pool.query('SELECT COUNT(*)::int AS total FROM curso')
+      : null;
     const { rows } = await pool.query(
       `SELECT c.id, c.nombre, c.codigo, c.fecha_inicio, c.fecha_fin, c.activo, c.created_at,
               p.nombre || ' ' || p.apellido AS docente, c.persona_id,
@@ -203,22 +211,32 @@ export async function listarCursos(userId, rol) {
                WHERE le.curso_id = c.id AND le.activo = true) AS total_estudiantes
          FROM curso c
          LEFT JOIN persona p ON p.id = c.persona_id
-        ORDER BY c.activo DESC, c.nombre`,
+         ORDER BY c.activo DESC, c.nombre
+         ${paginated ? `LIMIT $1 OFFSET $2` : ''}`,
+      paginated ? [safeLimit, offset] : [],
     );
-    return rows;
+    return paginated
+      ? { items: rows, pagination: { page: safePage, limit: safeLimit, total: count.rows[0].total, totalPages: Math.ceil(count.rows[0].total / safeLimit) } }
+      : rows;
   }
 
   // Docente: solo sus cursos activos
+  const count = paginated
+    ? await pool.query('SELECT COUNT(*)::int AS total FROM curso WHERE persona_id = $1 AND activo = true', [userId])
+    : null;
   const { rows } = await pool.query(
     `SELECT c.id, c.nombre, c.codigo, c.fecha_inicio, c.fecha_fin,
             (SELECT COUNT(*)::int FROM lista_estudiantes le
              WHERE le.curso_id = c.id AND le.activo = true) AS total_estudiantes
        FROM curso c
       WHERE c.persona_id = $1 AND c.activo = true
-      ORDER BY c.nombre`,
-    [userId],
+      ORDER BY c.nombre
+      ${paginated ? 'LIMIT $2 OFFSET $3' : ''}`,
+    paginated ? [userId, safeLimit, offset] : [userId],
   );
-  return rows;
+  return paginated
+    ? { items: rows, pagination: { page: safePage, limit: safeLimit, total: count.rows[0].total, totalPages: Math.ceil(count.rows[0].total / safeLimit) } }
+    : rows;
 }
 
 export async function crearCurso({

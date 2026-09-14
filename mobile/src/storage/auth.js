@@ -5,11 +5,13 @@
 //   npx expo install @react-native-async-storage/async-storage
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 
 const KEYS = {
   TOKEN:     'smartclass_token',
   USER:      'smartclass_user',
   DEVICE_ID: 'smartclass_device_id',
+  INSTALLATION_ID: 'smartclass_installation_id',
 };
 
 /**
@@ -70,4 +72,13 @@ export async function getDeviceId() {
   if (!raw) return null;
   const parsed = parseInt(raw, 10);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+export async function getInstallationId() {
+  const existing = await AsyncStorage.getItem(KEYS.INSTALLATION_ID);
+  if (existing) return existing;
+
+  const installationId = Crypto.randomUUID();
+  await AsyncStorage.setItem(KEYS.INSTALLATION_ID, installationId);
+  return installationId;
 }

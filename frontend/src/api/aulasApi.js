@@ -14,8 +14,9 @@ function authHeaders(token) {
   };
 }
 
-export async function getAulas(token) {
-  const res = await fetch(`${BASE}/api/aulas`, { headers: authHeaders(token) });
+export async function getAulas(token, { page, limit } = {}) {
+  const query = page ? `?page=${page}&limit=${limit}` : '';
+  const res = await fetch(`${BASE}/api/aulas${query}`, { headers: authHeaders(token) });
   return handleResponse(res);
 }
 

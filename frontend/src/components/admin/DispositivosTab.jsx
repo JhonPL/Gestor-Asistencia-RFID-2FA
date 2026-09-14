@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import Button from '../ui/Button';
 import Icon from '../ui/Icon';
+import Pagination from '../ui/Pagination';
 import GenericTable from './GenericTable';
 import { colsDevices } from './tableColumns';
 import {
@@ -14,7 +15,7 @@ import {
 const ESTADOS_FILTRO = ['Todos', 'Activo', 'Inactivo', 'Mantenimiento'];
 
 export function DispositivosTab({ hook, search, setSearch, onEdit }) {
-  const { devices, loading, error, load, cambiarEstado } = hook;
+  const { devices, loading, error, load, pagination, cambiarEstado } = hook;
 
   const [estadoF, setEstadoF] = useMemo(() => {
     // Estado interno del filtro de estado
@@ -27,7 +28,7 @@ export function DispositivosTab({ hook, search, setSearch, onEdit }) {
   return (
     <DispositivosTabInner
       devices={devices} loading={loading} error={error}
-      load={load} cambiarEstado={cambiarEstado}
+      load={load} pagination={pagination} cambiarEstado={cambiarEstado}
       search={search} setSearch={setSearch}
       onEdit={onEdit}
     />
@@ -37,7 +38,7 @@ export function DispositivosTab({ hook, search, setSearch, onEdit }) {
 // Inner con estado propio de filtro de estado
 import { useState } from 'react';
 
-function DispositivosTabInner({ devices, loading, error, load, cambiarEstado, search, setSearch, onEdit }) {
+function DispositivosTabInner({ devices, loading, error, load, pagination, cambiarEstado, search, setSearch, onEdit }) {
   const [estadoF, setEstadoF] = useState('Todos');
 
   const filtrados = useMemo(() => {
@@ -131,6 +132,7 @@ function DispositivosTabInner({ devices, loading, error, load, cambiarEstado, se
             ]}
             emptyMsg={devices.length === 0 ? 'No hay dispositivos registrados.' : 'No hay dispositivos con los filtros actuales.'}
           />
+          <Pagination {...pagination} onPageChange={load} />
         </>
       )}
     </section>

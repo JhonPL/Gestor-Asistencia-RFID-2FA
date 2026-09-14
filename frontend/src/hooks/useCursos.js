@@ -8,20 +8,22 @@ export function useCursos(token) {
   const [cursos,  setCursos]  = useState([]);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (page = 1) => {
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await getCursos(token);
-      setCursos(data);
+      const data = await getCursos(token, { page, limit: pagination.limit });
+      setCursos(data.items);
+      setPagination(data.pagination);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, pagination.limit]);
 
   const loadOne = async (id) => getCurso(token, id);
 
@@ -42,5 +44,5 @@ export function useCursos(token) {
     setCursos(prev => prev.map(c => c.id === item.id ? { ...c, activo: false } : c));
   };
 
-  return { cursos, loading, error, load, loadOne, save, desactivar };
+  return { cursos, loading, error, load, pagination, loadOne, save, desactivar };
 }

@@ -28,10 +28,13 @@ export async function getDias(token) {
 
 // ─── HORARIOS ─────────────────────────────────────────────────
 
-export async function getHorarios(token, diaSemanaId = null) {
+export async function getHorarios(token, diaSemanaId = null, { page, limit } = {}) {
+  const params = new URLSearchParams();
+  if (diaSemanaId) params.set('dia_semana_id', diaSemanaId);
+  if (page) { params.set('page', page); params.set('limit', limit); }
   const url = diaSemanaId
-    ? `${BASE}/api/horarios?dia_semana_id=${diaSemanaId}`
-    : `${BASE}/api/horarios`;
+    ? `${BASE}/api/horarios?${params}`
+    : `${BASE}/api/horarios${params.toString() ? `?${params}` : ''}`;
   const res = await fetch(url, { headers: authHeaders(token) });
   return handleResponse(res);
 }

@@ -20,7 +20,7 @@ const Nav = styled.nav`
   display:flex;justify-content:space-between;align-items:center;padding:0 2rem;
 `;
 const LogoBtn = styled.button`
-  font-family:${theme.fonts.headline};font-size:1.25rem;
+  font-family:${theme.fonts.brand};font-size:1.80rem;
   font-weight:${theme.fontWeights.bold};color:${theme.colors.primaryContainer};
   letter-spacing:-.03em;display:flex;align-items:center;gap:.5rem;
   .highlight{color:${theme.colors.secondary}}
@@ -28,9 +28,12 @@ const LogoBtn = styled.button`
   transition:opacity ${theme.transitions.fast};
 `;
 const LogoBadge = styled.div`
-  width:2rem;height:2rem;background-color:${theme.colors.primary};
+  width:2.5rem;height:2.5rem;background-color:${theme.colors.primary};
   border-radius:${theme.radii.md};display:flex;align-items:center;justify-content:center;
-  color:white;font-size:.875rem;font-weight:800;font-family:${theme.fonts.body};
+  overflow:hidden;
+`;
+const LogoImage = styled.img`
+  width:100%;height:100%;padding:.15rem;object-fit:contain;
 `;
 const NavLinks = styled.div`
   display:none;gap:2rem;align-items:center;
@@ -102,8 +105,8 @@ const Navbar = ({ authenticated = false, user, onLogout, navLinks }) => {
   return (
     <Nav role="navigation" aria-label="Navegación principal">
       <LogoBtn onClick={goHome} aria-label="Ir al inicio">
-        <LogoBadge>SC</LogoBadge>
-        Smart<span className="highlight">Class</span>
+        <LogoBadge><LogoImage src="/LUXALOGO.png" alt="LUXA" /></LogoBadge>
+        LUXA
       </LogoBtn>
 
       <NavLinks>

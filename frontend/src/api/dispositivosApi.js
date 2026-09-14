@@ -18,10 +18,10 @@ function authHeaders(token) {
 }
 
 /** Listar todos los dispositivos (con filtro opcional de estado) */
-export async function getDispositivos(token, estado = null) {
+export async function getDispositivos(token, estado = null, { page, limit } = {}) {
   const url = estado
-    ? `${BASE}/api/dispositivos?estado=${encodeURIComponent(estado)}`
-    : `${BASE}/api/dispositivos`;
+    ? `${BASE}/api/dispositivos?estado=${encodeURIComponent(estado)}${page ? `&page=${page}&limit=${limit}` : ''}`
+    : `${BASE}/api/dispositivos${page ? `?page=${page}&limit=${limit}` : ''}`;
   const res = await fetch(url, { headers: authHeaders(token) });
   return handleResponse(res);
 }

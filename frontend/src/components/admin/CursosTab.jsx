@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import Button from '../ui/Button';
 import Icon from '../ui/Icon';
+import Pagination from '../ui/Pagination';
 import GenericTable, { StatusDot } from './GenericTable';
 import { colsCursos } from './tableColumns';
 import {
@@ -18,7 +19,7 @@ export default function CursosTab({
   estadoF, setEstadoF,
   onEdit, onDesactivar, onNew,
 }) {
-  const { cursos, loading, error, load } = hook;
+  const { cursos, loading, error, load, pagination } = hook;
 
   const filtrados = useMemo(() => {
     let d = cursos;
@@ -101,6 +102,7 @@ export default function CursosTab({
             ]}
             emptyMsg="No hay cursos registrados."
           />
+          <Pagination {...pagination} onPageChange={load} />
         </>
       )}
     </section>

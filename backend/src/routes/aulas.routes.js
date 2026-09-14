@@ -12,21 +12,25 @@ router.use(verifyJwt, requireRole('administrador'));
 router.get('/', async (req, res, next) => {
   try {
     const { search } = req.query;
+    const page = req.query.page !== undefined ? Math.max(1, parseInt(req.query.page, 10) || 1) : null;
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const offset = page ? (page - 1) * limit : 0;
     const params = [];
     let where = '';
     if (search?.trim()) {
       params.push(`%${search.trim()}%`);
       where = `WHERE (a.numero ILIKE $1 OR a.nombre ILIKE $1 OR a.edificio ILIKE $1)`;
     }
+    const count = page ? await pool.query(`SELECT COUNT(*)::int AS total FROM aula a ${where}`, params) : null;
     const { rows } = await pool.query(
       `SELECT
          a.id, a.numero, a.nombre, a.edificio, a.piso, a.capacidad, a.created_at,
          (SELECT COUNT(*)::int FROM aula_curso_horario ach WHERE ach.aula_id = a.id) AS total_cursos,
          (SELECT COUNT(*)::int FROM dispositivo_rfid    dr  WHERE dr.aula_id  = a.id) AS total_dispositivos
-       FROM aula a ${where} ORDER BY a.numero`,
-      params,
+       FROM aula a ${where} ORDER BY a.numero ${page ? `LIMIT $${params.length + 1} OFFSET $${params.length + 2}` : ''}`,
+      page ? [...params, limit, offset] : params,
     );
-    res.json(rows);
+    res.json(page ? { items: rows, pagination: { page, limit, total: count.rows[0].total, totalPages: Math.ceil(count.rows[0].total / limit) } } : rows);
   } catch (err) { next(err); }
 });
 

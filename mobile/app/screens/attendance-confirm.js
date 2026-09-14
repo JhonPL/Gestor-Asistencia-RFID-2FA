@@ -323,13 +323,15 @@ export default function AttendanceConfirmScreen() {
         Alert.alert(
           'Permiso de ubicación bloqueado',
           Platform.OS === 'android'
-            ? 'Ve a Ajustes → Aplicaciones → SmartClass → Permisos → Ubicación y selecciona "Permitir todo el tiempo".'
-            : 'Ve a Ajustes → Privacidad → Servicios de Ubicación → SmartClass y selecciona "Siempre".',
+            ? 'Ve a Ajustes → Aplicaciones → LUXA → Permisos → Ubicación y selecciona "Permitir todo el tiempo".'
+            : 'Ve a Ajustes → Privacidad → Servicios de Ubicación → LUXA y selecciona "Siempre".',
           [
             { text: 'Reintentar', onPress: () => { setFase('idle'); setPasoActual(-1); } },
             { text: 'Cancelar', style: 'cancel', onPress: () => { setFase('idle'); setPasoActual(-1); } },
           ],
         );
+        setTipoFallo('gps_error');
+        setFase('fallido');
         return;
       }
 
@@ -343,6 +345,8 @@ export default function AttendanceConfirmScreen() {
             { text: 'Cancelar', style: 'cancel', onPress: () => { setFase('idle'); setPasoActual(-1); } },
           ],
         );
+        setTipoFallo('gps_error');
+        setFase('fallido');
         return;
       }
 
@@ -356,6 +360,8 @@ export default function AttendanceConfirmScreen() {
             { text: 'Cancelar', style: 'cancel', onPress: () => { setFase('idle'); setPasoActual(-1); } },
           ],
         );
+        setTipoFallo('gps_error');
+        setFase('fallido');
         return;
       }
 
@@ -428,7 +434,9 @@ export default function AttendanceConfirmScreen() {
         // El servidor es la autoridad final sobre la ubicación.
         setMetodoVerificacion(respuesta.metodo);
         registrarFallo(
-          respuesta.dentro_campus === false ? 'gps_fuera' : 'biometria_fallida',
+          respuesta.motivo_rechazo === 'ubicacion' || respuesta.dentro_campus === false
+            ? 'gps_fuera'
+            : 'biometria_fallida',
           respuesta.metodo,
         );
       }
@@ -536,7 +544,7 @@ export default function AttendanceConfirmScreen() {
                   ? 'Huella digital o Face ID'
                   : p.id === 'ubicacion'
                     ? 'Validación GPS · campus UCC'
-                    : 'Registro en el servidor SmartClass'}
+                    : 'Registro en el servidor LUXA'}
               </Text>
             </View>
           ))}
@@ -666,7 +674,7 @@ export default function AttendanceConfirmScreen() {
             <View style={[s.extraInfo, { marginTop: spacing[3] }]}>
               <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.onSurfaceVariant} />
               <Text style={s.extraInfoText}>
-                Muestra esta pantalla a tu docente. Él podrá registrar tu asistencia manualmente desde el portal web SmartClass.
+                Muestra esta pantalla a tu docente. Él podrá registrar tu asistencia manualmente desde el portal web LUXA.
               </Text>
             </View>
           )}

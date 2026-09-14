@@ -6,7 +6,7 @@ import { pool } from '../config/db.js';
 import { createError } from '../middlewares/errorHandler.js';
 
 // Listado con filtros opcionales
-export async function getPersonas({ rol, activo, search } = {}) {
+export async function getPersonas({ rol, activo, search, page, limit } = {}) {
   const conditions = [];
   const params = [];
 
@@ -27,16 +27,54 @@ export async function getPersonas({ rol, activo, search } = {}) {
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
+  if (page !== undefined) {
+    const safePage = Math.max(1, parseInt(page, 10) || 1);
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM persona p JOIN rol r ON r.id = p.rol_id ${where}`,
+      params,
+    );
+    const total = countResult.rows[0].total;
+    const offset = (safePage - 1) * safeLimit;
+    const { rows } = await pool.query(
+      `SELECT
+         p.id, p.nombre, p.apellido, p.correo,
+         p.codigo_tarjeta, p.activo, p.created_at,
+         p.programa_id, r.nombre AS rol, pr.nombre AS programa,
+         (dm.id IS NOT NULL) AS app_movil_vinculada,
+         dm.plataforma AS app_movil_plataforma,
+         dm.activo AS app_movil_activa,
+         dm.ultima_sesion AS app_movil_ultima_sesion
+       FROM persona p
+       JOIN rol r ON r.id = p.rol_id
+       LEFT JOIN programa pr ON pr.id = p.programa_id
+       LEFT JOIN dispositivo_movil dm ON dm.persona_id = p.id
+       ${where}
+       ORDER BY p.apellido, p.nombre
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, safeLimit, offset],
+    );
+    return {
+      items: rows,
+      pagination: { page: safePage, limit: safeLimit, total, totalPages: Math.ceil(total / safeLimit) },
+    };
+  }
+
   const { rows } = await pool.query(
     `SELECT
        p.id, p.nombre, p.apellido, p.correo,
        p.codigo_tarjeta, p.activo, p.created_at,
        p.programa_id,
        r.nombre  AS rol,
-       pr.nombre AS programa
+       pr.nombre AS programa,
+       (dm.id IS NOT NULL) AS app_movil_vinculada,
+       dm.plataforma AS app_movil_plataforma,
+       dm.activo AS app_movil_activa,
+       dm.ultima_sesion AS app_movil_ultima_sesion
      FROM persona p
      JOIN rol r ON r.id = p.rol_id
      LEFT JOIN programa pr ON pr.id = p.programa_id
+     LEFT JOIN dispositivo_movil dm ON dm.persona_id = p.id
      ${where}
      ORDER BY p.apellido, p.nombre`,
     params,
@@ -50,10 +88,15 @@ export async function getPersonaById(id) {
        p.id, p.nombre, p.apellido, p.correo,
        p.codigo_tarjeta, p.activo, p.programa_id,
        r.nombre  AS rol,
-       pr.nombre AS programa
+       pr.nombre AS programa,
+       (dm.id IS NOT NULL) AS app_movil_vinculada,
+       dm.plataforma AS app_movil_plataforma,
+       dm.activo AS app_movil_activa,
+       dm.ultima_sesion AS app_movil_ultima_sesion
      FROM persona p
      JOIN rol r ON r.id = p.rol_id
      LEFT JOIN programa pr ON pr.id = p.programa_id
+     LEFT JOIN dispositivo_movil dm ON dm.persona_id = p.id
      WHERE p.id = $1`,
     [id],
   );
@@ -89,7 +132,7 @@ export async function createPersona({ nombre, apellido, correo, rolNombre, progr
 }
 
 export async function updatePersona(id, campos) {
-  const allowed = ['nombre', 'apellido', 'correo', 'activo', 'programa_id'];
+  const allowed = ['nombre', 'apellido', 'correo', 'activo', 'programa_id', 'codigo_tarjeta'];
   const sets = [];
   const params = [];
 
@@ -99,6 +142,14 @@ export async function updatePersona(id, campos) {
       sets.push(`${key} = $${params.length}`);
     }
   }
+
+  if (campos.rol !== undefined) {
+    const rolRes = await pool.query('SELECT id FROM rol WHERE nombre = $1', [campos.rol]);
+    if (!rolRes.rows.length) throw createError(400, `Rol inválido: ${campos.rol}`);
+    params.push(rolRes.rows[0].id);
+    sets.push(`rol_id = $${params.length}`);
+  }
+
   if (!sets.length) throw createError(400, 'No hay campos válidos para actualizar');
 
   params.push(id);
@@ -106,7 +157,7 @@ export async function updatePersona(id, campos) {
     `UPDATE persona
      SET ${sets.join(', ')}
      WHERE id = $${params.length}
-     RETURNING id, nombre, apellido, correo, activo, programa_id`,
+     RETURNING id, nombre, apellido, correo, activo, programa_id, codigo_tarjeta`,
     params,
   );
   if (!rows.length) throw createError(404, 'Persona no encontrada');
@@ -135,5 +186,17 @@ export async function linkTarjeta(personaId, codigoTarjeta) {
     [codigoTarjeta, personaId],
   );
   if (!rows.length) throw createError(404, 'Persona no encontrada');
+  return rows[0];
+}
+
+export async function resetDevice(personaId) {
+  const { rows } = await pool.query(
+    `UPDATE dispositivo_movil
+     SET installation_id = NULL, activo = false
+     WHERE persona_id = $1
+     RETURNING id, persona_id, activo`,
+    [personaId],
+  );
+  if (!rows.length) throw createError(404, 'La persona no tiene un dispositivo móvil vinculado');
   return rows[0];
 }

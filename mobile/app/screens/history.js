@@ -89,12 +89,14 @@ export default function HistoryScreen() {
   const [stats,     setStats]     = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
+  const [page,      setPage]      = useState(1);
+  const [pagination, setPagination] = useState(null);
 
   // ── Cargar datos al montar ────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
-    async function loadData() {
+    async function loadData(requestedPage = 1) {
       setLoading(true);
       setError(null);
       try {
@@ -105,12 +107,14 @@ export default function HistoryScreen() {
           return;
         }
 
-        const data = await getHistorial(token);
+        const data = await getHistorial(token, { page: requestedPage, limit: 20 });
 
         if (!cancelled) {
           // El backend puede devolver la lista con clave "historial" o "registros"
           const rawList = data.historial ?? data.registros ?? [];
           setHistorial(rawList.map(mapItem));
+          setPage(data.pagination?.page ?? requestedPage);
+          setPagination(data.pagination ?? null);
           setStats(mapStats(data.stats ?? {}));
         }
       } catch (err) {
@@ -123,6 +127,23 @@ export default function HistoryScreen() {
     loadData();
     return () => { cancelled = true; };
   }, []);
+
+  const changePage = async (nextPage) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      const data = await getHistorial(token, { page: nextPage, limit: 20 });
+      const rawList = data.historial ?? data.registros ?? [];
+      setHistorial(rawList.map(mapItem));
+      setPage(data.pagination?.page ?? nextPage);
+      setPagination(data.pagination ?? null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ── Spinner ───────────────────────────────────────────────────
   if (loading) {
@@ -303,6 +324,25 @@ export default function HistoryScreen() {
           })}
         </>
       )}
+      {pagination && pagination.totalPages > 1 && (
+        <View style={s.pagination}>
+          <TouchableOpacity
+            disabled={page <= 1}
+            onPress={() => changePage(page - 1)}
+            style={[s.pageButton, page <= 1 && s.pageButtonDisabled]}
+          >
+            <Text style={s.pageButtonText}>Anterior</Text>
+          </TouchableOpacity>
+          <Text style={s.pageText}>Página {page} de {pagination.totalPages}</Text>
+          <TouchableOpacity
+            disabled={page >= pagination.totalPages}
+            onPress={() => changePage(page + 1)}
+            style={[s.pageButton, page >= pagination.totalPages && s.pageButtonDisabled]}
+          >
+            <Text style={s.pageButtonText}>Siguiente</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -313,6 +353,11 @@ const s = StyleSheet.create({
   loadingTxt:       { marginTop: spacing[3], fontSize: fontSizes.sm, color: colors.onSurfaceVariant, textAlign: 'center', paddingHorizontal: spacing[6] },
   retryBtn:         { marginTop: spacing[5], paddingHorizontal: spacing[6], paddingVertical: spacing[3], backgroundColor: colors.primary, borderRadius: radii.full },
   retryTxt:         { color: 'white', fontWeight: '700', fontSize: fontSizes.base },
+  pagination:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing[2], marginTop: spacing[2] },
+  pageButton:       { paddingHorizontal: spacing[3], paddingVertical: spacing[2], backgroundColor: colors.primary, borderRadius: radii.full },
+  pageButtonDisabled:{ opacity: 0.45 },
+  pageButtonText:   { color: colors.onPrimary, fontSize: fontSizes.xs, fontWeight: '700' },
+  pageText:         { color: colors.onSurfaceVariant, fontSize: fontSizes.xs },
 
   scroll:           { paddingHorizontal: spacing[6] },
   topBar:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[6] },

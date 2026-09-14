@@ -95,6 +95,58 @@ router.get(
     try {
       const personaId = req.user.id;
 
+      const vencidas = await pool.query(
+        `SELECT sc.id
+         FROM sesion_clase sc
+         JOIN aula_curso_horario ach ON ach.id = sc.aula_curso_horario_id
+         JOIN horario h ON h.id = ach.horario_id
+         WHERE sc.estado = 'activa'
+           AND sc.fecha = CURRENT_DATE
+           AND h.hora_fin < CURRENT_TIME`,
+      );
+
+      for (const { id: sesionId } of vencidas.rows) {
+        await pool.query(
+          `UPDATE sesion_clase
+           SET estado = 'cerrada', hora_fin_real = CURRENT_TIME
+           WHERE id = $1 AND estado = 'activa'`,
+          [sesionId],
+        );
+        await pool.query(
+          `UPDATE asistencia
+           SET estado_asistencia_id = (SELECT id FROM estado_asistencia WHERE nombre = 'Ausente'),
+               estado_verificacion_id = (SELECT id FROM estado_verificacion WHERE nombre = 'rechazado')
+           WHERE sesion_clase_id = $1
+             AND estado_verificacion_id = (SELECT id FROM estado_verificacion WHERE nombre = 'pendiente')`,
+          [sesionId],
+        );
+        await pool.query(
+          `INSERT INTO asistencia
+             (lista_estudiantes_id, sesion_clase_id, fecha_registro, hora_registro,
+              estado_asistencia_id, estado_verificacion_id)
+           SELECT le.id, $1, CURRENT_DATE, CURRENT_TIME,
+                  (SELECT id FROM estado_asistencia WHERE nombre = 'Ausente'),
+                  CASE WHEN dm.id IS NULL
+                    THEN (SELECT id FROM estado_verificacion WHERE nombre = 'sin_app')
+                    ELSE (SELECT id FROM estado_verificacion WHERE nombre = 'rechazado')
+                  END
+           FROM lista_estudiantes le
+           LEFT JOIN dispositivo_movil dm ON dm.persona_id = le.persona_id AND dm.activo = true
+           WHERE le.curso_id = (
+             SELECT ach2.curso_id
+             FROM sesion_clase sc2
+             JOIN aula_curso_horario ach2 ON ach2.id = sc2.aula_curso_horario_id
+             WHERE sc2.id = $1
+           )
+             AND le.activo = true
+             AND NOT EXISTS (
+               SELECT 1 FROM asistencia a2
+               WHERE a2.lista_estudiantes_id = le.id AND a2.sesion_clase_id = $1
+             )`,
+          [sesionId],
+        );
+      }
+
       // Verificar si el estudiante tiene app registrada
       const deviceCheck = await pool.query(
         `SELECT id FROM dispositivo_movil 
@@ -119,7 +171,8 @@ router.get(
            sc.fecha,
            sc.estado                     AS sesion_estado,
            COALESCE(a.id, NULL)          AS asistencia_id,
-           ev.nombre                     AS estado_verificacion_real
+           ev.nombre                     AS estado_verificacion_real,
+           ea.nombre                     AS estado_asistencia_real
          FROM lista_estudiantes le
          JOIN aula_curso_horario ach  ON ach.curso_id = le.curso_id
          JOIN sesion_clase sc         ON sc.aula_curso_horario_id = ach.id
@@ -130,6 +183,7 @@ router.get(
          LEFT JOIN asistencia a       ON a.lista_estudiantes_id = le.id 
                                      AND a.sesion_clase_id = sc.id
          LEFT JOIN estado_verificacion ev ON ev.id = a.estado_verificacion_id
+         LEFT JOIN estado_asistencia ea ON ea.id = a.estado_asistencia_id
          WHERE le.persona_id = $1
            AND sc.fecha      = CURRENT_DATE
          ORDER BY h.hora_inicio ASC`,
@@ -163,6 +217,7 @@ router.get(
           sesion_estado:       row.sesion_estado,
           asistencia_id:       row.asistencia_id,
           estado_verificacion: estadoVerificacion,
+          estado_asistencia:   row.estado_asistencia_real,
         };
       });
 
@@ -186,7 +241,7 @@ router.post(
   async (req, res, next) => {
     try {
       const personaId = req.user.id;
-      const { push_token, plataforma } = req.body;
+      const { push_token, plataforma, installation_id: installationId } = req.body;
 
       // Validaciones básicas
       if (!push_token?.trim()) {
@@ -194,6 +249,9 @@ router.post(
       }
       if (!plataforma || !['ios', 'android'].includes(plataforma)) {
         throw createError(400, "El campo plataforma debe ser 'ios' o 'android'");
+      }
+      if (!installationId?.trim()) {
+        throw createError(400, 'El campo installation_id es requerido');
       }
 
       // Desactivar todos los dispositivos anteriores del usuario
@@ -221,16 +279,18 @@ router.post(
       // Si el usuario hace login de nuevo, actualizar el registro existente
       // con el nuevo push_token (puede cambiar si reinstala la app).
       const { rows } = await pool.query(
-        `INSERT INTO dispositivo_movil (persona_id, push_token, plataforma, activo, ultima_sesion)
-         VALUES ($1, $2, $3, true, CURRENT_TIMESTAMP)
+        `INSERT INTO dispositivo_movil
+           (persona_id, push_token, plataforma, installation_id, activo, ultima_sesion)
+         VALUES ($1, $2, $3, $4, true, CURRENT_TIMESTAMP)
          ON CONFLICT (persona_id)
            DO UPDATE SET
              push_token    = EXCLUDED.push_token,
              plataforma    = EXCLUDED.plataforma,
+             installation_id = EXCLUDED.installation_id,
              activo        = true,
              ultima_sesion = CURRENT_TIMESTAMP
          RETURNING id, persona_id, push_token, plataforma, activo, ultima_sesion`,
-        [personaId, push_token.trim(), plataforma],
+        [personaId, push_token.trim(), plataforma, installationId.trim()],
       );
 
       await pool.query(
@@ -271,6 +331,9 @@ router.get(
   async (req, res, next) => {
     try {
       const personaId = req.user.id;
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+      const offset = (page - 1) * limit;
 
       const { rows } = await pool.query(
         `SELECT
@@ -308,8 +371,8 @@ router.get(
          WHERE le.persona_id = $1
            AND sc.estado     = 'cerrada'
          ORDER BY sc.fecha DESC, a.hora_registro DESC
-         LIMIT 50`,
-        [personaId],
+         LIMIT $2 OFFSET $3`,
+        [personaId, limit, offset],
       );
 
       // Calcular stats sobre TODA la historia (no solo los 50 del límite)
@@ -336,6 +399,12 @@ router.get(
 
       res.json({
         registros: rows,
+        pagination: {
+          page,
+          limit,
+          total: s.total,
+          totalPages: Math.ceil(s.total / limit),
+        },
         stats: {
           total:          s.total,
           presentes:      s.presentes,

@@ -9,6 +9,7 @@ import {
   updatePersona,
   toggleActivoPersona,
   linkTarjetaPersona,
+  resetDispositivoPersona,
 } from '../api/personasApi';
 
 function normalizePersona(p) {
@@ -23,27 +24,35 @@ export function usePersonas(token) {
   const [personas,    setPersonas]    = useState([]);
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState(null);
+  const [pagination,  setPagination]  = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (page = 1) => {
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await getPersonas(token);
-      setPersonas(data.map(normalizePersona));
+      const data = await getPersonas(token, { page, limit: pagination.limit });
+      setPersonas(data.items.map(normalizePersona));
+      setPagination(data.pagination);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, pagination.limit]);
 
   const save = async (formData) => {
     const isEdit = formData.id && Number.isInteger(formData.id);
     if (isEdit) {
-      const { nombre, apellido, correo, activo, programa_id } = formData;
+      const { nombre, apellido, correo, rol, activo, programa_id, codigoTarjeta } = formData;
       const updated = await updatePersona(token, formData.id, {
-        nombre, apellido, correo, activo, programa_id: programa_id || null,
+        nombre,
+        apellido,
+        correo,
+        rol,
+        activo,
+        programa_id: programa_id || null,
+        codigo_tarjeta: codigoTarjeta || null,
       });
       setPersonas(prev =>
         prev.map(p => p.id === updated.id ? normalizePersona({ ...p, ...updated }) : p)
@@ -74,5 +83,14 @@ export function usePersonas(token) {
     );
   };
 
-  return { personas, loading, error, load, save, toggleActivo, linkCard };
+  const resetDevice = async (persona) => {
+    const updated = await resetDispositivoPersona(token, persona.id);
+    setPersonas(prev => prev.map(p => p.id === updated.persona_id
+      ? { ...p, dispositivo_liberado: true }
+      : p
+    ));
+    return updated;
+  };
+
+  return { personas, loading, error, load, pagination, save, toggleActivo, linkCard, resetDevice };
 }

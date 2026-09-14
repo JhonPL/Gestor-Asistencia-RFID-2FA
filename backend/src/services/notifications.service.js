@@ -50,6 +50,7 @@ export async function sendPushNotification(pushToken, asistenciaId, cursoInfo = 
         hora_fin: cursoInfo?.hora_fin || '',
       },
       sound: 'default',
+      channelId: 'asistencia',
     };
 
     console.log(

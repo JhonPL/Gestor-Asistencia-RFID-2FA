@@ -2,6 +2,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import Button from '../ui/Button';
 import Icon from '../ui/Icon';
+import Pagination from '../ui/Pagination';
 import GenericTable from './GenericTable';
 import { colsHorarios } from './tableColumns';
 import {
@@ -15,7 +16,7 @@ export default function HorariosTab({
   search, setSearch,
   onNew, onEdit, onDelete,
 }) {
-  const { horarios, loading, error, load } = hook;
+  const { horarios, loading, error, load, pagination } = hook;
 
   useEffect(() => {
     // Cargar horarios cuando el componente se monta
@@ -91,20 +92,23 @@ export default function HorariosTab({
             No hay franjas horarias registradas. Crea la primera.
           </LoadingBox>
         ) : (
-          <GenericTable
-            columns={colsHorarios}
-            rows={filtrados}
-            actions={[
-              { icon: 'edit', title: 'Editar', onClick: onEdit },
-              {
-                icon: 'delete',
-                title: 'Eliminar',
-                danger: true,
-                onClick: onDelete,
-              },
-            ]}
-            emptyMsg={search.trim() ? 'No hay resultados para la búsqueda.' : 'No hay franjas horarias.'}
-          />
+          <>
+            <GenericTable
+              columns={colsHorarios}
+              rows={filtrados}
+              actions={[
+                { icon: 'edit', title: 'Editar', onClick: onEdit },
+                {
+                  icon: 'delete',
+                  title: 'Eliminar',
+                  danger: true,
+                  onClick: onDelete,
+                },
+              ]}
+              emptyMsg={search.trim() ? 'No hay resultados para la búsqueda.' : 'No hay franjas horarias.'}
+            />
+            <Pagination {...pagination} onPageChange={load} />
+          </>
         )
       )}
     </section>

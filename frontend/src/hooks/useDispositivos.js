@@ -11,20 +11,22 @@ export function useDispositivos(token) {
   const [devices,  setDevices]  = useState([]);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (page = 1) => {
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await getDispositivos(token);
-      setDevices(data);
+      const data = await getDispositivos(token, null, { page, limit: pagination.limit });
+      setDevices(data.items);
+      setPagination(data.pagination);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, pagination.limit]);
 
   const save = async (formData) => {
     const isEdit = !!formData.id;
@@ -43,5 +45,5 @@ export function useDispositivos(token) {
     setDevices(prev => prev.map(d => d.id === device.id ? { ...d, estado: nuevoEstado } : d));
   };
 
-  return { devices, loading, error, load, save, cambiarEstado };
+  return { devices, loading, error, load, pagination, save, cambiarEstado };
 }

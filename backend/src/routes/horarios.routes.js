@@ -59,11 +59,15 @@ router.get('/dias', async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     const { dia_semana_id } = req.query;
+    const page = req.query.page !== undefined ? Math.max(1, parseInt(req.query.page, 10) || 1) : null;
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const offset = page ? (page - 1) * limit : 0;
     const params = [];
     const where = dia_semana_id
       ? `WHERE h.dia_semana_id = $${params.push(parseInt(dia_semana_id))}`
       : '';
 
+    const count = page ? await pool.query(`SELECT COUNT(*)::int AS total FROM horario h ${where}`, params) : null;
     const { rows } = await pool.query(
       `SELECT
          h.id,
@@ -75,10 +79,10 @@ router.get('/', async (req, res, next) => {
        FROM horario h
        JOIN dia_semana d ON d.id = h.dia_semana_id
        ${where}
-       ORDER BY d.id, h.hora_inicio`,
-      params,
+       ORDER BY d.id, h.hora_inicio ${page ? `LIMIT $${params.length + 1} OFFSET $${params.length + 2}` : ''}`,
+      page ? [...params, limit, offset] : params,
     );
-    res.json(rows);
+    res.json(page ? { items: rows, pagination: { page, limit, total: count.rows[0].total, totalPages: Math.ceil(count.rows[0].total / limit) } } : rows);
   } catch (err) {
     next(err);
   }

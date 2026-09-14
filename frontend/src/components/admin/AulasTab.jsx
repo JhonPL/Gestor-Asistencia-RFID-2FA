@@ -1,6 +1,7 @@
 // src/components/admin/AulasTab.jsx
 import Button from '../ui/Button';
 import Icon from '../ui/Icon';
+import Pagination from '../ui/Pagination';
 import GenericTable from './GenericTable';
 import { colsAulas } from './tableColumns';
 import {
@@ -9,7 +10,7 @@ import {
 } from './adminUtils';
 
 export default function AulasTab({ hook, onNew, onEdit }) {
-  const { aulas, loading, error, load, deleteById } = hook;
+  const { aulas, loading, error, load, pagination, deleteById } = hook;
 
   const handleDeleteAula = async (item) => {
     const bloqueo = item.total_cursos > 0 || item.total_dispositivos > 0;
@@ -54,15 +55,18 @@ export default function AulasTab({ hook, onNew, onEdit }) {
       )}
 
       {!loading && !error && (
-        <GenericTable
-          columns={colsAulas}
-          rows={aulas}
-          actions={[
-            { icon: 'edit', title: 'Editar', onClick: onEdit },
-            { icon: 'delete', title: 'Eliminar', danger: true, onClick: handleDeleteAula },
-          ]}
-          emptyMsg="No hay aulas registradas."
-        />
+        <>
+          <GenericTable
+            columns={colsAulas}
+            rows={aulas}
+            actions={[
+              { icon: 'edit', title: 'Editar', onClick: onEdit },
+              { icon: 'delete', title: 'Eliminar', danger: true, onClick: handleDeleteAula },
+            ]}
+            emptyMsg="No hay aulas registradas."
+          />
+          <Pagination {...pagination} onPageChange={load} />
+        </>
       )}
     </section>
   );

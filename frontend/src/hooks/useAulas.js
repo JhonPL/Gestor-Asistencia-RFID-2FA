@@ -8,20 +8,22 @@ export function useAulas(token) {
   const [aulas,   setAulas]   = useState([]);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (page = 1) => {
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await getAulas(token);
-      setAulas(data);
+      const data = await getAulas(token, { page, limit: pagination.limit });
+      setAulas(data.items);
+      setPagination(data.pagination);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, pagination.limit]);
 
   const loadOne = async (id) => getAulaById(token, id);
 
@@ -42,5 +44,5 @@ export function useAulas(token) {
     setAulas(prev => prev.filter(a => a.id !== item.id));
   };
 
-  return { aulas, loading, error, load, loadOne, save, deleteById };
+  return { aulas, loading, error, load, pagination, loadOne, save, deleteById };
 }

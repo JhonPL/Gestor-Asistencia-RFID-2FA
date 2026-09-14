@@ -40,12 +40,15 @@ const Main = styled.main`
 `;
 const LogoSection = styled.div`display:flex;flex-direction:column;align-items:center;margin-bottom:3rem;`;
 const LogoBox = styled.div`
-  width:4rem;height:4rem;background-color:${theme.colors.primary};
+  width:6rem;height:6rem;background-color:transparent;
   border-radius:${theme.radii.lg};display:flex;align-items:center;justify-content:center;
-  margin-bottom:1.5rem;box-shadow:0 20px 40px -8px ${theme.colors.primary}33;color:white;
+  margin-bottom:0.2rem;
+`;
+const LogoImage = styled.img`
+  width:100%;height:100%;object-fit:contain;border-radius:inherit;
 `;
 const AppName = styled.h1`
-  font-family:${theme.fonts.headline};font-size:${theme.fontSizes['3xl']};
+  font-family:${theme.fonts.brand};font-size:${theme.fontSizes['3xl']};
   font-weight:${theme.fontWeights.extrabold};color:${theme.colors.primary};letter-spacing:-.03em;
 `;
 const AppSubtitle = styled.p`
@@ -175,14 +178,14 @@ const LoginPage = ({ onLogin }) => {
 
       <Main>
         <LogoSection>
-          <LogoBox><Icon name="school" size="lg" fill={1} /></LogoBox>
-          <AppName>SmartClass</AppName>
+          <LogoBox><LogoImage src="/LUXALOGO.png" alt="LUXA" /></LogoBox>
+          <AppName>LUXA</AppName>
           <AppSubtitle>Gestión de Asistencia · UCC Villavicencio</AppSubtitle>
         </LogoSection>
 
         <Card>
           <CardTitle>Acceso al Sistema</CardTitle>
-          <CardDesc>Inicia sesión con tu cuenta de <strong>Google</strong> para acceder a SmartClass.</CardDesc>
+          <CardDesc>Inicia sesión con tu cuenta de <strong>Google</strong> para acceder a LUXA.</CardDesc>
 
           {/* Mensajes */}
           {error && (
@@ -221,7 +224,7 @@ const LoginPage = ({ onLogin }) => {
         </Card>
 
         <PageFooter>
-          <FooterText>© {new Date().getFullYear()} SmartClass RFID · Universidad Cooperativa de Colombia</FooterText>
+          <FooterText>© {new Date().getFullYear()} LUXA · Universidad Cooperativa de Colombia</FooterText>
           <FooterLinks>
             <FooterLink href="#">Privacidad</FooterLink>
             <FooterLink href="#">Soporte</FooterLink>

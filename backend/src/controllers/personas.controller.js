@@ -4,11 +4,13 @@ import * as personasService from '../services/personas.service.js';
 
 export async function getAll(req, res, next) {
   try {
-    const { rol, activo, search } = req.query;
+    const { rol, activo, search, page, limit } = req.query;
     const data = await personasService.getPersonas({
       rol,
       activo: activo !== undefined ? activo === 'true' : undefined,
       search,
+      page: page !== undefined ? page : undefined,
+      limit,
     });
     res.json(data);
   } catch (err) { next(err); }
@@ -43,6 +45,13 @@ export async function linkCard(req, res, next) {
   try {
     const { codigo_tarjeta } = req.body;
     const data = await personasService.linkTarjeta(parseInt(req.params.id), codigo_tarjeta || null);
+    res.json(data);
+  } catch (err) { next(err); }
+}
+
+export async function resetDevice(req, res, next) {
+  try {
+    const data = await personasService.resetDevice(parseInt(req.params.id));
     res.json(data);
   } catch (err) { next(err); }
 }

@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import Button from '../ui/Button';
 import Icon from '../ui/Icon';
+import Pagination from '../ui/Pagination';
 import PersonasTable from './PersonasTable';
 import {
   SectionHeader, SectionTitle, SectionDesc, ControlsRow,
@@ -22,7 +23,7 @@ export function PersonasTab({
   estadoF, setEstadoF,
   onEdit, onLinkCard,
 }) {
-  const { personas, loading, error, load, toggleActivo } = hook;
+  const { personas, loading, error, load, pagination, toggleActivo } = hook;
 
   const filtradas = useMemo(() => {
     let d = personas;
@@ -114,6 +115,7 @@ export function PersonasTab({
             onToggleActivo={handleToggleActivo}
             onLinkCard={onLinkCard}
           />
+          <Pagination {...pagination} onPageChange={load} />
         </>
       )}
     </section>

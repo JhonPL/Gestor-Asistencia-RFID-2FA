@@ -72,7 +72,7 @@ export async function loginWithAzure({ correo, microsoftId }) {
 // ─── OAuth 2.0 con Google ─────────────────────────────────────
 // El frontend envía el ID token JWT de Google.
 // Backend valida el token directamente contra Google.
-export async function loginWithGoogle({ idToken }) {
+export async function loginWithGoogle({ idToken, installationId }) {
   if (!idToken) {
     throw createError(400, 'Token de Google requerido');
   }
@@ -120,17 +120,8 @@ export async function loginWithGoogle({ idToken }) {
     let persona;
 
     if (rows.length === 0) {
-      console.log('➕ [CREAR NUEVA PERSONA]');
-      // Persona no existe: crear con rol de estudiante (rol_id = 3)
-      const { rows: newPersona } = await pool.query(
-        `INSERT INTO persona (nombre, apellido, correo, google_id, rol_id, activo)
-         VALUES ($1, $2, $3, $4, 3, true)
-         RETURNING id, nombre, apellido, correo, activo`,
-        [nombre, apellido, correo, googleId],
-      );
-      persona = newPersona[0];
-      persona.rol = 'estudiante';
-      console.log('   ✅ Persona creada con ID:', persona.id);
+      console.error('❌ [CORREO NO REGISTRADO]:', correo);
+      throw createError(403, 'Acceso denegado: correo no registrado en el sistema');
     } else {
       persona = rows[0];
       console.log('👤 [PERSONA EXISTENTE] ID:', persona.id);
@@ -147,6 +138,28 @@ export async function loginWithGoogle({ idToken }) {
       if (!persona.activo) {
         console.error('   ❌ CUENTA DESACTIVADA');
         throw createError(403, 'Cuenta desactivada. Contacta al administrador.');
+      }
+
+      if (persona.rol === 'estudiante') {
+        if (!installationId) {
+          throw createError(400, 'La instalación móvil no está identificada');
+        }
+
+        const deviceRes = await pool.query(
+          `SELECT installation_id
+           FROM dispositivo_movil
+           WHERE persona_id = $1
+           LIMIT 1`,
+          [persona.id],
+        );
+        const registeredInstallation = deviceRes.rows[0]?.installation_id;
+
+        if (registeredInstallation && registeredInstallation !== installationId) {
+          throw createError(
+            409,
+            'Este estudiante ya tiene un dispositivo móvil vinculado. Solicita al administrador cambiarlo.',
+          );
+        }
       }
     }
 
@@ -178,6 +191,10 @@ export async function loginWithGoogle({ idToken }) {
     console.error('   Mensaje:', err.message);
     console.error('   Stack:', err.stack, '\n');
     
+    if (err.statusCode) {
+      throw err;
+    }
+
     // Dar más detalles si es error de verificación
     if (err.message.includes('Invalid token') || err.message.includes('Token used too late')) {
       throw createError(401, 'El token de Google expiró o es inválido. Intenta nuevamente.');

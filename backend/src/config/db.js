@@ -21,15 +21,12 @@ export const pool = new Pool({
   connectionTimeoutMillis: 5_000,
 });
 
-// Verifica la conexión al iniciar
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error('❌  Error conectando a PostgreSQL:', err.message);
-    process.exit(1);
-  }
-  release();
+// Verifica la conexión antes de iniciar el servidor HTTP.
+export async function connectDatabase() {
+  const client = await pool.connect();
+  client.release();
   console.log(`✅  PostgreSQL conectado → ${env.db.database}@${env.db.host}:${env.db.port}`);
-});
+}
 
 // Helper para transacciones
 // Uso: const { query, end } = await getTransaction();

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Stack, useRouter } from 'expo-router';
+import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
@@ -26,6 +27,9 @@ Notifications.setNotificationHandler({
  */
 export default function RootLayout() {
   const router = useRouter();
+  useFonts({
+    Miroge: require('../assets/fonts/Miroge.otf'),
+  });
   const notificationListener = useRef(null);
   const responseListener = useRef(null);
 

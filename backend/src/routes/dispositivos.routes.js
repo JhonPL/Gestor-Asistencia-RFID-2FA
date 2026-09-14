@@ -36,11 +36,17 @@ router.use(verifyJwt, requireRole('administrador'));
 router.get('/', async (req, res, next) => {
   try {
     const { estado } = req.query;
+    const page = req.query.page !== undefined ? Math.max(1, parseInt(req.query.page, 10) || 1) : null;
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const offset = page ? (page - 1) * limit : 0;
     const params = [];
     const where = estado
       ? `WHERE ed.nombre = $${params.push(estado)}`
       : '';
 
+    const count = page
+      ? await pool.query(`SELECT COUNT(*)::int AS total FROM dispositivo_rfid d JOIN estado_dispositivo ed ON ed.id = d.estado_dispositivo_id ${where}`, params)
+      : null;
     const { rows } = await pool.query(
       `SELECT
          d.id,
@@ -65,10 +71,12 @@ router.get('/', async (req, res, next) => {
        JOIN estado_dispositivo ed ON ed.id = d.estado_dispositivo_id
        LEFT JOIN aula a ON a.id = d.aula_id
        ${where}
-       ORDER BY d.codigo`,
-      params,
+       ORDER BY d.codigo ${page ? `LIMIT $${params.length + 1} OFFSET $${params.length + 2}` : ''}`,
+      page ? [...params, limit, offset] : params,
     );
-    res.json(rows);
+    res.json(page
+      ? { items: rows, pagination: { page, limit, total: count.rows[0].total, totalPages: Math.ceil(count.rows[0].total / limit) } }
+      : rows);
   } catch (err) { next(err); }
 });
 

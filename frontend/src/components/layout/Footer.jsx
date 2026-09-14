@@ -63,7 +63,7 @@ const DEFAULT_LINKS = [
 const Footer = ({ links = DEFAULT_LINKS }) => (
   <FooterWrapper>
     <Copyright>
-      © {new Date().getFullYear()} SmartClass RFID — Universidad Cooperativa de Colombia, Villavicencio
+      © {new Date().getFullYear()} LUXA — Universidad Cooperativa de Colombia, Villavicencio
     </Copyright>
     <FooterLinks>
       {links.map(({ label, href }) => (

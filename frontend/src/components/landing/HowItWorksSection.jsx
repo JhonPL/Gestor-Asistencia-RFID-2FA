@@ -292,7 +292,7 @@ const STEPS = [
     label: 'Confirma con biometría',
     icon: 'fingerprint',
     steps: [
-      { title: 'Abre la app SmartClass', desc: 'El estudiante toca la notificación y abre la app en su teléfono.' },
+      { title: 'Abre la app LUXA', desc: 'El estudiante toca la notificación y abre la app en su teléfono.' },
       { title: 'Huella o Face ID', desc: 'Android: huella dactilar o reconocimiento facial. iPhone: Face ID.' },
       { title: 'Validación GPS', desc: 'La app verifica que el estudiante está dentro del campus UCC (radio 200m).' },
     ],

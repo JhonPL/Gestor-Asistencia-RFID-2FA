@@ -86,6 +86,9 @@ router.get('/', ctrl.getAll);
  */
 router.get('/:id', ctrl.getOne);
 
+// Libera el dispositivo móvil vinculado para que el estudiante pueda registrar otro.
+router.patch('/:id/dispositivo', ctrl.resetDevice);
+
 /**
  * @openapi
  * /api/personas:

@@ -1,5 +1,5 @@
 /**
- * Design tokens del sistema SmartClass RFID.
+ * Design tokens del sistema LUXA.
  * Basados en Material Design 3 — paleta definida en el boceto.
  * Fuente de verdad para todos los estilos: si cambias un color, cambia en toda la app.
  */
@@ -60,6 +60,7 @@ export const theme = {
      * "Plus Jakarta Sans" para cuerpo: moderno, legible, técnico.
      */
     headline: '"Playfair Display", Georgia, serif',
+    brand: '"Miroge", sans-serif',
     body: '"Plus Jakarta Sans", system-ui, sans-serif',
     label: '"Plus Jakarta Sans", system-ui, sans-serif',
   },
@@ -71,7 +72,7 @@ export const theme = {
     lg: '1.125rem',
     xl: '1.25rem',
     '2xl': '1.5rem',
-    '3xl': '1.875rem',
+    '3xl': '2.05rem',
     '4xl': '2.25rem',
     '5xl': '3rem',
     '6xl': '3.75rem',

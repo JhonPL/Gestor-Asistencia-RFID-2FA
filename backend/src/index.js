@@ -3,12 +3,13 @@
 // Importa la app de Express y arranca el servidor HTTP.
 
 import './config/env.js';    // valida las variables de entorno primero
-import './config/db.js';     // verifica la conexión a PostgreSQL al iniciar
 import app from './app.js';
 import { env } from './config/env.js';
 
-import { getTransaction } from './config/db.js';
+import { connectDatabase, getTransaction } from './config/db.js';
 import { insertarAusentes } from './routes/rfid.routes.js';
+
+await connectDatabase();
 
 app.listen(env.port, '0.0.0.0', () => {
   console.log(`🚀  API corriendo en http://0.0.0.0:${env.port}`);

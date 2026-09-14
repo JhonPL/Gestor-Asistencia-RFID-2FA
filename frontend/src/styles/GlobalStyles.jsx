@@ -6,6 +6,14 @@ import theme from './theme';
  * Se monta una sola vez en el árbol de la aplicación.
  */
 const GlobalStyles = createGlobalStyle`
+  @font-face {
+    font-family: 'Miroge';
+    src: url('/fonts/Miroge.otf') format('opentype');
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+  }
+
   /* ── Reset ── */
   *, *::before, *::after {
     box-sizing: border-box;

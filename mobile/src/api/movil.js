@@ -7,15 +7,15 @@ import { apiFetch } from './index.js';
  * Registra o actualiza el dispositivo push del estudiante.
  * Solo un dispositivo puede estar activo por persona.
  * @param {string} token                    - JWT del estudiante
- * @param {{ push_token: string, plataforma: 'ios'|'android' }} body
+ * @param {{ push_token: string, plataforma: 'ios'|'android', installation_id: string }} body
  * @returns {Promise<{ id: number, persona_id: number, push_token: string, plataforma: string, activo: boolean }>}
  */
-export async function registrarDispositivo(token, { push_token, plataforma }) {
+export async function registrarDispositivo(token, { push_token, plataforma, installation_id }) {
   return apiFetch(
     '/api/movil/dispositivo',
     {
       method: 'POST',
-      body: JSON.stringify({ push_token, plataforma }),
+      body: JSON.stringify({ push_token, plataforma, installation_id }),
     },
     token,
   );

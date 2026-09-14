@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, ScrollView, Alert, Platform,
+  ActivityIndicator, ScrollView, Alert, Platform, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -13,7 +13,7 @@ import { Button, Divider, BodyText, Label } from '../../components/ui';
 
 import { loginWithGoogle } from '../../src/api/auth';
 import { registrarDispositivo } from '../../src/api/movil';
-import { saveAuth, saveDeviceId } from '../../src/storage/auth';
+import { saveAuth, saveDeviceId, getInstallationId } from '../../src/storage/auth';
 import { getPushToken } from '../../src/notifications/setup';
 import env from '../../src/config/env';
 
@@ -24,8 +24,8 @@ const GoogleIcon = () => (
 // ── Helper: mensaje de acceso denegado según el rol ───────────
 function mensajeAccesoDenegado(rol) {
   const roles = {
-    docente: 'Los docentes deben acceder desde el portal web SmartClass.',
-    administrador: 'Los administradores deben acceder desde el portal web SmartClass.',
+    docente: 'Los docentes deben acceder desde el portal web LUXA.',
+    administrador: 'Los administradores deben acceder desde el portal web LUXA.',
   };
   return roles[rol] ?? 'Tu cuenta no tiene permiso para acceder a esta aplicación.';
 }
@@ -80,7 +80,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       // 1. Enviar el token de Google al backend
-      const { token, user } = await loginWithGoogle(googleResponse);
+      const installationId = await getInstallationId();
+      const { token, user } = await loginWithGoogle(googleResponse, installationId);
 
       // 2. Verificar que sea estudiante — si no, bloquear acceso
       if (!verificarRolEstudiante(user)) {
@@ -89,8 +90,6 @@ export default function LoginScreen() {
       }
 
       // 3. Persistir sesión en AsyncStorage
-      await saveAuth(token, user);
-
       // 4. Obtener el push token real de Expo
       const expoPushToken = await getPushToken();
       const pushToken = expoPushToken ?? ('OFFLINE_' + Date.now());
@@ -100,8 +99,10 @@ export default function LoginScreen() {
       const dispositivo = await registrarDispositivo(token, {
         push_token: pushToken,
         plataforma,
+        installation_id: installationId,
       });
 
+      await saveAuth(token, user);
       // 6. Guardar el dispositivo_movil_id para usarlo en verificarAsistencia
       await saveDeviceId(dispositivo.id);
 
@@ -136,7 +137,7 @@ export default function LoginScreen() {
             <Ionicons name="lock-closed" size={34} color="white" />
           </View>
           <Text style={[s.appName, { color: colors.error }]}>Acceso denegado</Text>
-          <Label>SmartClass · UCC Villavicencio</Label>
+          <Label>LUXA · UCC Villavicencio</Label>
         </View>
 
         <View style={[s.card, { borderColor: colors.errorContainer }]}>
@@ -155,7 +156,7 @@ export default function LoginScreen() {
 
           <View style={s.deniedBox}>
             <Ionicons name="information-circle" size={20} color={colors.primary} style={{ marginBottom: spacing[2] }} />
-            <Text style={s.deniedTitle}>Esta app es solo para estudiantes</Text>
+            <Text style={s.deniedTitle}>Permisos insuficientes</Text>
             <Text style={s.deniedDesc}>{mensajeAccesoDenegado(accessDenied.rol)}</Text>
           </View>
 
@@ -186,7 +187,7 @@ export default function LoginScreen() {
         </View>
 
         <Text style={s.footer}>
-          © {new Date().getFullYear()} SmartClass RFID · Universidad Cooperativa de Colombia
+          © {new Date().getFullYear()} LUXA · Universidad Cooperativa de Colombia
         </Text>
       </ScrollView>
     );
@@ -207,10 +208,8 @@ export default function LoginScreen() {
       <View style={s.blobBR} pointerEvents="none" />
 
       <View style={s.logoSection}>
-        <View style={s.logoBox}>
-          <Ionicons name="school" size={34} color="white" />
-        </View>
-        <Text style={s.appName}>SmartClass</Text>
+        <Image source={require('../../assets/LUXALOGO.png')} style={s.logoImage} resizeMode="contain" />
+        <Text style={s.appName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>LUXA</Text>
         <Label>Acceso Institucional · UCC Villavicencio</Label>
       </View>
 
@@ -253,7 +252,7 @@ export default function LoginScreen() {
       </View>
 
       <Text style={s.footer}>
-        © {new Date().getFullYear()} SmartClass RFID · Universidad Cooperativa de Colombia
+        © {new Date().getFullYear()} LUXA · Universidad Cooperativa de Colombia
       </Text>
     </ScrollView>
   );
@@ -264,9 +263,9 @@ const s = StyleSheet.create({
   blobTL:       { position: 'absolute', top: -50, left: -50, width: 180, height: 180, borderRadius: 90, backgroundColor: colors.primaryContainer, opacity: 0.05 },
   blobBR:       { position: 'absolute', bottom: -70, right: -70, width: 220, height: 220, borderRadius: 110, backgroundColor: colors.secondaryContainer, opacity: 0.08 },
 
-  logoSection:  { alignItems: 'center', marginBottom: spacing[8] },
-  logoBox:      { width: 72, height: 72, borderRadius: radii.xl, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: spacing[4], ...shadows.lg },
-  appName:      { fontSize: fontSizes['3xl'], fontWeight: '800', color: colors.primary, letterSpacing: -1, marginBottom: spacing[1] },
+  logoSection:  { width: '100%', alignItems: 'center', alignSelf: 'center', marginBottom: spacing[8] },
+  logoImage:    { width: 96, height: 96, borderRadius: radii.xl, alignSelf: 'center', marginBottom: 3 },
+  appName:      { width: '100%', fontFamily: 'Miroge', fontSize: fontSizes['3xl'], lineHeight: 34, fontWeight: '400', color: colors.primary, textAlign: 'center', maxWidth: '100%', marginBottom: spacing[1] },
 
   card:         { backgroundColor: colors.surfaceContainerLowest, borderRadius: radii['2xl'], padding: spacing[6], ...shadows.md, borderWidth: 1, borderColor: colors.outlineVariant + '26' },
   cardTitle:    { fontSize: fontSizes['2xl'], fontWeight: '800', color: colors.primary, letterSpacing: -0.5, marginBottom: spacing[2] },

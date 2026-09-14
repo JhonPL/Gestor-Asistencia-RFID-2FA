@@ -36,7 +36,7 @@ function getGoogleRequest() {
  * @returns {Promise<{ token: string, user: object }>}
  * @throws {Error} Si el token de Google es inválido o no se puede conectar al backend
  */
-export async function loginWithGoogle(response) {
+export async function loginWithGoogle(response, installationId) {
   if (response.type !== 'success') {
     throw new Error('Autenticación de Google cancelada');
   }
@@ -48,7 +48,10 @@ export async function loginWithGoogle(response) {
   // Enviar el ID token al backend para validación
   const result = await apiFetch('/api/auth/google/callback', {
     method: 'POST',
-    body: JSON.stringify({ credential: response.authentication.idToken }),
+    body: JSON.stringify({
+      credential: response.authentication.idToken,
+      installation_id: installationId,
+    }),
   });
 
   return result;

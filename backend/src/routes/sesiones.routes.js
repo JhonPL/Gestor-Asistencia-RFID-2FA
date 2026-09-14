@@ -23,6 +23,10 @@ router.get('/', verifyJwt, requireRole('docente', 'administrador'), async (req, 
     if (!curso_id) throw createError(400, 'El parámetro curso_id es requerido');
 
     const cursoIdInt = parseInt(curso_id);
+    const paginated = req.query.page !== undefined;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const offset = (page - 1) * limit;
 
     // Los docentes solo pueden ver sus propios cursos
     if (req.user.rol === 'docente') {
@@ -33,6 +37,13 @@ router.get('/', verifyJwt, requireRole('docente', 'administrador'), async (req, 
       if (!check.rows.length) throw createError(403, 'No tienes acceso a este curso');
     }
 
+    const count = paginated ? await pool.query(
+      `SELECT COUNT(*)::int AS total
+       FROM sesion_clase sc
+       JOIN aula_curso_horario ach ON ach.id = sc.aula_curso_horario_id
+       WHERE ach.curso_id = $1`,
+      [cursoIdInt],
+    ) : null;
     const { rows } = await pool.query(
       `SELECT
          sc.id,
@@ -59,11 +70,14 @@ router.get('/', verifyJwt, requireRole('docente', 'administrador'), async (req, 
        LEFT JOIN estado_asistencia ea ON ea.id = ast.estado_asistencia_id
        WHERE ach.curso_id = $1
        GROUP BY sc.id, a.numero, a.nombre, h.hora_inicio, h.hora_fin, d.nombre
-       ORDER BY sc.fecha ASC, h.hora_inicio ASC`,
-      [cursoIdInt],
+       ORDER BY sc.fecha ASC, h.hora_inicio ASC
+       ${paginated ? 'LIMIT $2 OFFSET $3' : ''}`,
+      paginated ? [cursoIdInt, limit, offset] : [cursoIdInt],
     );
 
-    res.json(rows);
+    res.json(paginated
+      ? { items: rows, pagination: { page, limit, total: count.rows[0].total, totalPages: Math.ceil(count.rows[0].total / limit) } }
+      : rows);
   } catch (err) { next(err); }
 });
 

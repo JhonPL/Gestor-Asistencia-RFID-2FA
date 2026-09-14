@@ -15,8 +15,8 @@ const h = (token) => ({
 });
 
 /** Listar sesiones de un curso (con stats de asistencia) */
-export const getSesionesByCurso = (token, cursoId) =>
-  fetch(`${BASE}/api/sesiones?curso_id=${cursoId}`, { headers: h(token) }).then(handleResponse);
+export const getSesionesByCurso = (token, cursoId, { page = 1, limit = 20 } = {}) =>
+  fetch(`${BASE}/api/sesiones?curso_id=${cursoId}&page=${page}&limit=${limit}`, { headers: h(token) }).then(handleResponse);
 
 /** Obtener detalle de una sesión */
 export const getSesionById = (token, sesionId) =>

@@ -243,6 +243,14 @@ const AdminPage = ({ onLogout }) => {
     catch (err) { alert(`Error al vincular tarjeta: ${err.message}`); }
   };
 
+  const handleResetPersonaDevice = async (persona) => {
+    await personasHook.resetDevice(persona);
+    setModal(current => current.data?.id === persona.id
+      ? { ...current, data: { ...current.data, app_movil_vinculada: false, app_movil_activa: false } }
+      : current
+    );
+  };
+
   const handleSaveCurso = async (id, payload) => {
     try {
       await cursosHook.save(id, payload);
@@ -324,7 +332,7 @@ const AdminPage = ({ onLogout }) => {
     <AppLayout user={user} onLogout={onLogout}>
       <PageHeader>
         <Title>Panel de Administración</Title>
-        <Subtitle>Gestión completa de la base de datos — SmartClass RFID</Subtitle>
+        <Subtitle>Gestión completa de la base de datos — LUXA</Subtitle>
       </PageHeader>
 
       {/* Stats reales */}
@@ -408,6 +416,7 @@ const AdminPage = ({ onLogout }) => {
         isOpen={modal.type === 'persona'} onClose={closeM}
         persona={modal.data} onSave={handleSavePersona}
         programas={academicoHook.programas} facultades={academicoHook.facultades}
+        onResetDevice={handleResetPersonaDevice}
       />
       <LinkCardModal
         isOpen={modal.type === 'linkCard'} onClose={closeM}

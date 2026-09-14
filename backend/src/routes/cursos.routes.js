@@ -18,8 +18,8 @@ const router = Router();
 
 router.get('/', verifyJwt, async (req, res, next) => {
   try {
-    const rows = await cursosService.listarCursos(req.user.id, req.user.rol);
-    res.json(rows);
+    const data = await cursosService.listarCursos(req.user.id, req.user.rol, req.query.page, req.query.limit);
+    res.json(data);
   } catch (err) { next(err); }
 });
 

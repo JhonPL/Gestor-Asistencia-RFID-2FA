@@ -14,6 +14,7 @@
       "backgroundColor": "#ffffff"
     },
     "extra": {
+      "IP": "172.13.0.147",
       "router": {},
       "eas": {
         "projectId": "4bb62ef7-86f4-4405-9a07-331b47dca6fb"

@@ -14,20 +14,22 @@ export function useHorarios(token) {
   const [horarios, setHorarios] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (page = 1) => {
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await getHorarios(token);
-      setHorarios(data);
+      const data = await getHorarios(token, null, { page, limit: pagination.limit });
+      setHorarios(data.items);
+      setPagination(data.pagination);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, pagination.limit]);
 
   const loadOne = async (id) => getHorarioById(token, id);
 
@@ -48,5 +50,5 @@ export function useHorarios(token) {
     setHorarios(prev => prev.filter(h => h.id !== item.id));
   };
 
-  return { horarios, loading, error, load, loadOne, save, deleteById };
+  return { horarios, loading, error, load, pagination, loadOne, save, deleteById };
 }
