@@ -13,6 +13,7 @@ const extra = {
   API_BASE_URL: process.env.API_BASE_URL ?? configuredExtra.API_BASE_URL ?? '',
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? configuredExtra.GOOGLE_CLIENT_ID ?? '',
   GOOGLE_ANDROID_CLIENT_ID: process.env.GOOGLE_ANDROID_CLIENT_ID ?? configuredExtra.GOOGLE_ANDROID_CLIENT_ID ?? '',
+  GOOGLE_IOS_CLIENT_ID: process.env.GOOGLE_IOS_CLIENT_ID ?? configuredExtra.GOOGLE_IOS_CLIENT_ID ?? '',
 };
 
 const config = {

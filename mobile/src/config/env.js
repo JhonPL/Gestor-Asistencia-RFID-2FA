@@ -24,6 +24,7 @@ export const env = {
   // Google OAuth
   GOOGLE_CLIENT_ID: required('GOOGLE_CLIENT_ID'),
   GOOGLE_ANDROID_CLIENT_ID: required('GOOGLE_ANDROID_CLIENT_ID'),
+  GOOGLE_IOS_CLIENT_ID: required('GOOGLE_IOS_CLIENT_ID'),
 
   // Expo
   PROJECT_ID: Constants.expoConfig?.extra?.eas?.projectId,

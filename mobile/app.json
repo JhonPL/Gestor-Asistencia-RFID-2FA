@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "LUXA",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,9 +9,9 @@
     "projectId": "4bb62ef7-86f4-4405-9a07-331b47dca6fb",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#080E8C"
     },
     "extra": {
       "IP": "172.13.0.147",
@@ -31,14 +31,14 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#080E8C"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.jhonp.mobile",
       "googleServicesFile": "./google-services.json"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icon.png"
     },
     "plugins": [
       "expo-font",
