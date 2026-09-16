@@ -21,25 +21,17 @@ const GoogleIcon = () => (
   <Ionicons name="logo-google" size={20} color="white" />
 );
 
-// ── Helper: mensaje de acceso denegado según el rol ───────────
-function mensajeAccesoDenegado(rol) {
-  const roles = {
-    docente: 'Los docentes deben acceder desde el portal web LUXA.',
-    administrador: 'Los administradores deben acceder desde el portal web LUXA.',
-  };
-  return roles[rol] ?? 'Tu cuenta no tiene permiso para acceder a esta aplicación.';
-}
-
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
-  const [accessDenied, setAccessDenied] = useState(null); // { rol, nombre }
+  const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
     GoogleSignin.configure({
       webClientId: env.GOOGLE_CLIENT_ID,
       iosClientId: env.GOOGLE_IOS_CLIENT_ID,
+      iosUrlScheme: env.GOOGLE_IOS_URL_SCHEME,
       offlineAccess: false,
     });
   }, []);
@@ -47,7 +39,7 @@ export default function LoginScreen() {
   // ── Verificar que el usuario tenga rol estudiante ──────────
   const verificarRolEstudiante = (user) => {
     if (user.rol !== 'estudiante') {
-      setAccessDenied({ rol: user.rol, nombre: user.nombre });
+      setAccessDenied(true);
       return false;
     }
     return true;
@@ -82,10 +74,22 @@ export default function LoginScreen() {
     try {
       // 1. Enviar el token de Google al backend
       const installationId = await getInstallationId();
-      const { token, user } = await loginWithGoogle(googleResponse, installationId);
+      let result;
+      try {
+        result = await loginWithGoogle(googleResponse, installationId);
+      } catch (err) {
+        if (err.status === 403 || err.statusCode === 403) {
+          setAccessDenied(true);
+          await GoogleSignin.signOut().catch(() => {});
+          return;
+        }
+        throw err;
+      }
+      const { token, user } = result;
 
       // 2. Verificar que sea estudiante — si no, bloquear acceso
       if (!verificarRolEstudiante(user)) {
+        await GoogleSignin.signOut().catch(() => {});
         setLoading(false);
         return;
       }
@@ -143,22 +147,14 @@ export default function LoginScreen() {
 
         <View style={[s.card, { borderColor: colors.errorContainer }]}>
           <View style={s.deniedHeader}>
-            <Ionicons name="person-circle-outline" size={48} color={colors.error} />
-            <View style={{ flex: 1, marginLeft: spacing[4] }}>
-              <Text style={s.deniedName}>{accessDenied.nombre}</Text>
-              <View style={s.deniedRolBadge}>
-                <Ionicons name="shield-outline" size={12} color={colors.error} />
-                <Text style={s.deniedRolText}>
-                  {accessDenied.rol.charAt(0).toUpperCase() + accessDenied.rol.slice(1)}
-                </Text>
-              </View>
-            </View>
+            <Ionicons name="information-circle-outline" size={48} color={colors.error} />
+            <Text style={s.deniedName}>No tienes permisos para acceder a esta aplicación.</Text>
           </View>
 
           <View style={s.deniedBox}>
             <Ionicons name="information-circle" size={20} color={colors.primary} style={{ marginBottom: spacing[2] }} />
             <Text style={s.deniedTitle}>Permisos insuficientes</Text>
-            <Text style={s.deniedDesc}>{mensajeAccesoDenegado(accessDenied.rol)}</Text>
+            <Text style={s.deniedDesc}>Usa una cuenta autorizada para iniciar sesión.</Text>
           </View>
 
           <View style={s.deniedSteps}>

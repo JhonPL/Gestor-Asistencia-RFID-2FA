@@ -14,7 +14,7 @@
       "backgroundColor": "#080E8C"
     },
     "extra": {
-      "IP": "172.13.0.147",
+      "IP": "172.13.0.190",
       "router": {},
       "eas": {
         "projectId": "4bb62ef7-86f4-4405-9a07-331b47dca6fb"
@@ -25,7 +25,15 @@
       "bundleIdentifier": "com.jhonp.mobile",
       "scheme": "smartclass",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "Google Sign-In",
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.547526822972-016lvotaoihg5pn6i6cmp006dg50dvbg"
+            ]
+          }
+        ]
       }
     },
     "android": {

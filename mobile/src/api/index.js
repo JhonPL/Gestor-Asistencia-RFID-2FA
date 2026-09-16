@@ -30,19 +30,24 @@ export async function apiFetch(path, options = {}, token = null) {
     // Si response.ok es false pero no hay JSON, devolver error genérico
     if (!response.ok) {
       const errorMsg = data?.error ?? data?.mensaje ?? `Error ${response.status}`;
-      throw new Error(errorMsg);
+      const error = new Error(errorMsg);
+      error.status = response.status;
+      error.statusCode = response.status;
+      throw error;
     }
 
     // Si la respuesta fue ok pero no hay data, retornar {}
     return data ?? {};
   } catch (error) {
-    console.error('🔴 API Error:', {
-      url: `${BASE_URL}${path}`,
-      method: options.method ?? 'GET',
-      message: error.message,
-      statusCode: error.statusCode,
-      errorName: error.name,
-    });
+    if (error.statusCode !== 403) {
+      console.error('🔴 API Error:', {
+        url: `${BASE_URL}${path}`,
+        method: options.method ?? 'GET',
+        message: error.message,
+        statusCode: error.statusCode,
+        errorName: error.name,
+      });
+    }
     throw error;
   }
 }

@@ -15,6 +15,9 @@ function required(name) {
 /**
  * Obtiene variables del archivo .env y app.json
  */
+const googleIosClientId = required('GOOGLE_IOS_CLIENT_ID');
+const googleIosUrlScheme = `com.googleusercontent.apps.${googleIosClientId.split('.apps.googleusercontent.com')[0]}`;
+
 export const env = {
   // API Backend
   API_HOST: required('API_HOST'),
@@ -24,7 +27,8 @@ export const env = {
   // Google OAuth
   GOOGLE_CLIENT_ID: required('GOOGLE_CLIENT_ID'),
   GOOGLE_ANDROID_CLIENT_ID: required('GOOGLE_ANDROID_CLIENT_ID'),
-  GOOGLE_IOS_CLIENT_ID: required('GOOGLE_IOS_CLIENT_ID'),
+  GOOGLE_IOS_CLIENT_ID: googleIosClientId,
+  GOOGLE_IOS_URL_SCHEME: googleIosUrlScheme,
 
   // Expo
   PROJECT_ID: Constants.expoConfig?.extra?.eas?.projectId,
