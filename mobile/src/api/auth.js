@@ -18,7 +18,7 @@ function getGoogleRequest() {
   if (!googleRequest) {
     const [request] = Google.useAuthRequest({
       clientId: env.GOOGLE_CLIENT_ID,
-      iosClientId: env.GOOGLE_CLIENT_ID,
+      iosClientId: env.GOOGLE_IOS_CLIENT_ID || env.GOOGLE_CLIENT_ID,
       androidClientId: env.GOOGLE_ANDROID_CLIENT_ID,
       scopes: ['openid', 'email', 'profile'],
     });
@@ -68,7 +68,7 @@ export function promptGoogleAsync() {
   }
   return Google.useAuthRequest({
     clientId: env.GOOGLE_CLIENT_ID,
-    iosClientId: env.GOOGLE_CLIENT_ID,
+    iosClientId: env.GOOGLE_IOS_CLIENT_ID || env.GOOGLE_CLIENT_ID,
     androidClientId: env.GOOGLE_ANDROID_CLIENT_ID,
     scopes: ['openid', 'email', 'profile'],
   });

@@ -6,15 +6,8 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "projectId": "4bb62ef7-86f4-4405-9a07-331b47dca6fb",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#080E8C"
-    },
     "extra": {
-      "IP": "172.13.0.190",
+      "IP": "172.13.1.30",
       "router": {},
       "eas": {
         "projectId": "4bb62ef7-86f4-4405-9a07-331b47dca6fb"
@@ -41,7 +34,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#080E8C"
       },
-      "edgeToEdgeEnabled": true,
       "package": "com.jhonp.mobile",
       "googleServicesFile": "./google-services.json"
     },
@@ -51,11 +43,22 @@
     "plugins": [
       "expo-font",
       "expo-router",
+      "expo-status-bar",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#080E8C"
+        }
+      ],
       [
         "expo-build-properties",
         {
           "ios": {
-            "useFrameworks": "dynamic"
+            "useFrameworks": "dynamic",
+            "deploymentTarget": "16.4"
           },
           "android": {
             "usesCleartextTraffic": true

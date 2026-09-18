@@ -28,6 +28,8 @@ export default function LoginScreen() {
   const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
+    const iosClientId = env.GOOGLE_IOS_CLIENT_ID || env.GOOGLE_CLIENT_ID;
+
     GoogleSignin.configure({
       webClientId: env.GOOGLE_CLIENT_ID,
       iosClientId: env.GOOGLE_IOS_CLIENT_ID,
