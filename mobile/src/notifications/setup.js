@@ -14,12 +14,13 @@ import Constants          from 'expo-constants';
 /**
  * Solicita permisos de notificación y devuelve el ExponentPushToken del dispositivo.
  *
+ * @param {string|null} installationId - Identificador persistente de esta instalación.
  * @returns {Promise<string|null>}
  *   - "ExponentPushToken[xxxxxxxx]" si el usuario concedió permisos
  *   - null si negó los permisos
  *   - "SIMULATOR_DEV_TOKEN" si se está corriendo en simulador iOS
  */
-export async function getPushToken() {
+export async function getPushToken(installationId = null) {
   // ── Android: crear canal antes de pedir permisos ──────────
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('asistencia', {
@@ -62,7 +63,9 @@ export async function getPushToken() {
 
   } catch (err) {
     console.warn('[notifications] No se pudo obtener token real:', err.message);
-    if (__DEV__) return 'SIMULATOR_DEV_TOKEN';
+    if (__DEV__) {
+      return `DEV_${Platform.OS}_${installationId ?? Date.now()}`;
+    }
     return null;
   }
 }

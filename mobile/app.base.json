@@ -43,8 +43,8 @@
     "plugins": [
       "expo-font",
       "expo-router",
-      "expo-status-bar",
       "expo-web-browser",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {

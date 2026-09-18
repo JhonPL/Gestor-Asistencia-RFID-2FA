@@ -98,7 +98,7 @@ export default function LoginScreen() {
 
       // 3. Persistir sesión en AsyncStorage
       // 4. Obtener el push token real de Expo
-      const expoPushToken = await getPushToken();
+      const expoPushToken = await getPushToken(installationId);
       const pushToken = expoPushToken ?? ('OFFLINE_' + Date.now());
 
       // 5. Registrar el dispositivo móvil en el backend con el token real
