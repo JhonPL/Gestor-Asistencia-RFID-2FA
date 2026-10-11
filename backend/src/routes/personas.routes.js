@@ -121,6 +121,41 @@ router.patch('/:id/dispositivo', ctrl.resetDevice);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+/**
+ * @openapi
+ * /api/personas/importar:
+ *   post:
+ *     tags: [Personas]
+ *     summary: Importar personas masivamente
+ *     description: Importa hasta 500 personas en una transacción. Si alguna fila es inválida, no se inserta ninguna.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [personas]
+ *             properties:
+ *               personas:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required: [nombre, apellido, correo, rol]
+ *                   properties:
+ *                     nombre: { type: string }
+ *                     apellido: { type: string }
+ *                     correo: { type: string, format: email }
+ *                     rol: { type: string, enum: [estudiante, docente, administrador] }
+ *                     programa_id: { type: integer, nullable: true }
+ *     responses:
+ *       201:
+ *         description: Personas importadas
+ *       400:
+ *         description: Fila inválida o programa no encontrado
+ *       409:
+ *         description: Correo ya registrado
+ */
+router.post('/importar', ctrl.importMany);
 router.post('/', ctrl.create);
 
 /**

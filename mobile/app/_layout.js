@@ -4,6 +4,7 @@ import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
+import { setupNotificationChannel } from '../src/notifications/setup';
 import { colors } from '../constants/tokens';
 
 /**
@@ -34,6 +35,9 @@ export default function RootLayout() {
   const responseListener = useRef(null);
 
   useEffect(() => {
+    // ── Configurar canal prioritario de Android ────────────────
+    setupNotificationChannel();
+
     // ── Listener 1: Notificación recibida con app en primer plano ──
     notificationListener.current = Notifications.addNotificationReceivedListener(
       (notification) => {

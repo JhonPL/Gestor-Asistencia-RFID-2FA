@@ -251,6 +251,19 @@ const AdminPage = ({ onLogout }) => {
     );
   };
 
+  const handleResetPersonaCard = async (persona) => {
+    try {
+      await personasHook.linkCard(persona.id, null);
+      setModal(current => current.data?.id === persona.id
+        ? { ...current, data: { ...current.data, codigo_tarjeta: null, codigoTarjeta: null } }
+        : current
+      );
+    } catch (err) {
+      alert(`Error al liberar la tarjeta RFID: ${err.message}`);
+      return false;
+    }
+  };
+
   const handleSaveCurso = async (id, payload) => {
     try {
       await cursosHook.save(id, payload);
@@ -332,7 +345,7 @@ const AdminPage = ({ onLogout }) => {
     <AppLayout user={user} onLogout={onLogout}>
       <PageHeader>
         <Title>Panel de Administración</Title>
-        <Subtitle>Gestión completa de la base de datos — LUXA</Subtitle>
+        <Subtitle>Gestión completa de la base de datos — SmartClass RFID</Subtitle>
       </PageHeader>
 
       {/* Stats reales */}
@@ -415,8 +428,10 @@ const AdminPage = ({ onLogout }) => {
       <PersonaFormModal
         isOpen={modal.type === 'persona'} onClose={closeM}
         persona={modal.data} onSave={handleSavePersona}
+        onImport={personasHook.importMany}
         programas={academicoHook.programas} facultades={academicoHook.facultades}
         onResetDevice={handleResetPersonaDevice}
+        onResetCard={handleResetPersonaCard}
       />
       <LinkCardModal
         isOpen={modal.type === 'linkCard'} onClose={closeM}

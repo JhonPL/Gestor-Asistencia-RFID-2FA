@@ -2,14 +2,16 @@
 // Pestaña "Datos" del modal de gestión de curso.
 // SRP: solo maneja el formulario de datos del curso y las asignaciones aula-horario.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import styled, { keyframes } from 'styled-components';
+import * as XLSX from 'xlsx';
 import Button from '../ui/Button';
 import Icon from '../ui/Icon';
 import {
   FormGroup, Label, Input, Select,
   FormRow, FormActions, HelperText,
 } from '../ui/FormElements';
+import { getPersonas } from '../../api/personasApi';
 import theme from '../../styles/theme';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -82,6 +84,22 @@ const AddAsignBtn = styled.button`
   &:hover { background: ${theme.colors.primaryFixed}; }
 `;
 
+const InitialStudentsSection = styled.div`
+  margin-top: 1.25rem;
+  padding: 1.25rem 0;
+  border-top: 1px solid ${theme.colors.outlineVariant}26;
+`;
+
+const InitialStudentResult = styled.button`
+  display: block;
+  width: 100%;
+  padding: .625rem .75rem;
+  text-align: left;
+  color: ${theme.colors.onSurface};
+  background: ${theme.colors.surfaceContainerLowest};
+  &:hover { background: ${theme.colors.primaryFixed}; }
+`;
+
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
@@ -93,13 +111,26 @@ const EMPTY_ACH = { aula_id: '', horario_id: '' };
 // ── Componente ────────────────────────────────────────────────────────────────
 
 const CursoGestionDatosTab = ({
-  item, isEditing, onSave, onClose,
+  item, isEditing, onSave, onClose, token,
   docentes = [], aulas = [], horarios = [],
 }) => {
   const [form,    setForm]    = useState(EMPTY_FORM);
   const [asigns,  setAsigns]  = useState([{ ...EMPTY_ACH }]);
   const [saving,  setSaving]  = useState(false);
   const [formErr, setFormErr] = useState(null);
+  const [showInitialStudents, setShowInitialStudents] = useState(false);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentResults, setStudentResults] = useState([]);
+  const [studentSearchLoading, setStudentSearchLoading] = useState(false);
+  const [studentError, setStudentError] = useState(null);
+  const [selectedStudents, setSelectedStudents] = useState([]);
+  const [importedEmails, setImportedEmails] = useState([]);
+  const [importedFile, setImportedFile] = useState('');
+  const [importError, setImportError] = useState(null);
+  const studentSearchTimer = useRef(null);
+  const studentFileInput = useRef(null);
+
+  useEffect(() => () => clearTimeout(studentSearchTimer.current), []);
 
   useEffect(() => {
     if (item) {
@@ -136,6 +167,92 @@ const CursoGestionDatosTab = ({
   const setA = (idx, k) => (e) =>
     setAsigns(p => p.map((a, i) => i === idx ? { ...a, [k]: e.target.value } : a));
 
+  const handleStudentSearch = (e) => {
+    const query = e.target.value;
+    setStudentSearch(query);
+    setStudentError(null);
+    clearTimeout(studentSearchTimer.current);
+    if (query.trim().length < 2) {
+      setStudentResults([]);
+      return;
+    }
+
+    studentSearchTimer.current = setTimeout(async () => {
+      setStudentSearchLoading(true);
+      try {
+        const data = await getPersonas(token, {
+          rol: 'estudiante', activo: true, search: query.trim(), page: 1, limit: 50,
+        });
+        const selectedIds = new Set(selectedStudents.map(student => student.id));
+        setStudentResults((data.items ?? []).filter(student => !selectedIds.has(student.id)));
+      } catch (err) {
+        setStudentError(err.message);
+        setStudentResults([]);
+      } finally {
+        setStudentSearchLoading(false);
+      }
+    }, 300);
+  };
+
+  const handleSelectStudent = (student) => {
+    setSelectedStudents(current => current.some(item => item.id === student.id)
+      ? current
+      : [...current, student]
+    );
+    setStudentSearch('');
+    setStudentResults([]);
+  };
+
+  const handleInitialStudentsFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setImportError(null);
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      if (!rows.length) throw new Error('El archivo no contiene filas de estudiantes.');
+
+      const normalizedRows = rows.map(row => Object.fromEntries(
+        Object.entries(row).map(([key, value]) => [
+          key.toLowerCase().trim().replace(/\s+/g, '_'), value,
+        ]),
+      ));
+      const emails = normalizedRows.map(row =>
+        String(row.correo ?? row.email ?? '').trim().toLowerCase()
+      );
+      if (emails.some(email => !email)) {
+        throw new Error('Todas las filas deben incluir la columna correo.');
+      }
+
+      setImportedEmails([...new Set(emails)]);
+      setImportedFile(file.name);
+    } catch (err) {
+      setImportedEmails([]);
+      setImportedFile('');
+      setImportError(err.message || 'No se pudo leer el archivo.');
+    }
+  };
+
+  const downloadInitialStudentsCsvTemplate = () => {
+    const blob = new Blob(['\uFEFFcorreo\n'], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'plantilla_estudiantes_curso.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadInitialStudentsExcelTemplate = () => {
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet([['correo']]);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Estudiantes');
+    XLSX.writeFile(workbook, 'plantilla_estudiantes_curso.xlsx');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim() || !form.fecha_inicio || !form.fecha_fin) {
@@ -159,6 +276,10 @@ const CursoGestionDatosTab = ({
         asignaciones: asigns
           .filter(a => a.aula_id && a.horario_id)
           .map(a => ({ aula_id: Number(a.aula_id), horario_id: Number(a.horario_id) })),
+        ...(isEditing ? {} : {
+          estudiantes_ids: selectedStudents.map(student => student.id),
+          correos_estudiantes: importedEmails,
+        }),
       };
       await onSave(item?.id || null, payload);
     } catch (err) {
@@ -250,6 +371,136 @@ const CursoGestionDatosTab = ({
           <span style={{ fontSize: '.875rem', fontWeight: 500 }}>Curso activo</span>
         </label>
       </FormGroup>
+
+      {!isEditing && (
+        <InitialStudentsSection>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.75rem' }}>
+            <div>
+              <AsignSectionLabel>Estudiantes iniciales (opcional)</AsignSectionLabel>
+              <HelperText>Inscríbelos ahora o deja el curso sin estudiantes para agregarlos después.</HelperText>
+            </div>
+            <Button
+              type="button"
+              variant="outlined"
+              size="sm"
+              onClick={() => setShowInitialStudents(show => !show)}
+            >
+              <Icon name="group_add" size="sm" />
+              {showInitialStudents ? 'Ocultar' : 'Agregar ahora'}
+            </Button>
+          </div>
+
+          {showInitialStudents && (
+            <div style={{ display: 'grid', gap: '.875rem', marginTop: '.875rem' }}>
+              <FormGroup style={{ marginBottom: 0 }}>
+                <Label htmlFor="cg-estudiante-buscar">Inscribir individualmente</Label>
+                <div style={{ position: 'relative' }}>
+                  <Input
+                    id="cg-estudiante-buscar"
+                    value={studentSearch}
+                    onChange={handleStudentSearch}
+                    placeholder="Buscar estudiante por nombre o correo…"
+                    autoComplete="off"
+                  />
+                  {studentSearchLoading && (
+                    <Spinner style={{ position: 'absolute', right: '.875rem', top: '.875rem' }} />
+                  )}
+                  {studentResults.length > 0 && (
+                    <div role="listbox" style={{
+                      position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                      zIndex: 10, maxHeight: '13rem', overflowY: 'auto',
+                      background: theme.colors.surfaceContainerLowest,
+                      border: `1px solid ${theme.colors.outlineVariant}`,
+                      borderRadius: theme.radii.md, boxShadow: theme.shadows.md,
+                    }}>
+                      {studentResults.map(student => (
+                        <InitialStudentResult
+                          key={student.id}
+                          type="button"
+                          role="option"
+                          onClick={() => handleSelectStudent(student)}
+                        >
+                          <strong>{student.nombre} {student.apellido}</strong>
+                          <span style={{ display: 'block', fontSize: theme.fontSizes.xs, color: theme.colors.outline }}>
+                            {student.correo}
+                          </span>
+                        </InitialStudentResult>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {studentError && <ErrorMsg>{studentError}</ErrorMsg>}
+              </FormGroup>
+
+              {selectedStudents.length > 0 && (
+                <div style={{ display: 'grid', gap: '.375rem' }}>
+                  {selectedStudents.map(student => (
+                    <div key={student.id} style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+                      <span style={{ flex: 1, fontSize: theme.fontSizes.sm }}>
+                        {student.nombre} {student.apellido}
+                        <span style={{ display: 'block', fontSize: theme.fontSizes.xs, color: theme.colors.outline }}>
+                          {student.correo}
+                        </span>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedStudents(current => current.filter(item => item.id !== student.id))}
+                        title={`Quitar a ${student.nombre} ${student.apellido}`}
+                      >
+                        <Icon name="close" size="sm" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ borderTop: `1px solid ${theme.colors.outlineVariant}26`, paddingTop: '.875rem' }}>
+                <Label>Inscribir varios desde archivo</Label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.625rem', flexWrap: 'wrap' }}>
+                  <Button type="button" variant="outlined" size="sm" onClick={() => studentFileInput.current?.click()}>
+                    <Icon name="upload_file" size="sm" />Seleccionar CSV o Excel
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={downloadInitialStudentsCsvTemplate}>
+                    <Icon name="download" size="sm" />Plantilla CSV
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={downloadInitialStudentsExcelTemplate}>
+                    <Icon name="download" size="sm" />Plantilla Excel
+                  </Button>
+                  {importedFile && (
+                    <span style={{ fontSize: theme.fontSizes.xs, color: theme.colors.onSurfaceVariant }}>
+                      {importedFile}: {importedEmails.length} correo(s)
+                    </span>
+                  )}
+                  {importedFile && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setImportedEmails([]); setImportedFile(''); }}
+                    >
+                      <Icon name="close" size="sm" />Quitar archivo
+                    </Button>
+                  )}
+                </div>
+                <HelperText>
+                  Primera hoja del Excel o encabezado CSV: <code>correo</code>. Agrega un correo institucional de un estudiante registrado por fila.
+                  Ejemplo: <code>ana@campusucc.edu.co</code>. No agregues títulos ni otras columnas.
+                </HelperText>
+                {importError && <ErrorMsg>{importError}</ErrorMsg>}
+                <input
+                  ref={studentFileInput}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleInitialStudentsFile}
+                  style={{ display: 'none' }}
+                />
+              </div>
+            </div>
+          )}
+        </InitialStudentsSection>
+      )}
 
       {/* ── Asignaciones aula-horario ── */}
       <div style={{

@@ -6,6 +6,7 @@ import { useState, useCallback } from 'react';
 import {
   getPersonas,
   createPersona,
+  importPersonas,
   updatePersona,
   toggleActivoPersona,
   linkTarjetaPersona,
@@ -66,6 +67,12 @@ export function usePersonas(token) {
     }
   };
 
+  const importMany = async (rows) => {
+    const result = await importPersonas(token, rows);
+    await load(pagination.page);
+    return result;
+  };
+
   const toggleActivo = async (persona) => {
     const updated = await toggleActivoPersona(token, persona.id, !persona.activo);
     setPersonas(prev =>
@@ -92,5 +99,5 @@ export function usePersonas(token) {
     return updated;
   };
 
-  return { personas, loading, error, load, pagination, save, toggleActivo, linkCard, resetDevice };
+  return { personas, loading, error, load, pagination, save, importMany, toggleActivo, linkCard, resetDevice };
 }

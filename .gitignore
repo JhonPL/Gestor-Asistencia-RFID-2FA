@@ -72,3 +72,5 @@ mobile/dist/
 *.tsbuildinfo
 
 smartclass-app-450b5-firebase-adminsdk-fbsvc-f34b44a351.json
+
+.agents/

@@ -51,6 +51,16 @@ export async function createPersona(token, { nombre, apellido, correo, rol, prog
   return handleResponse(res);
 }
 
+/** Importa varias personas de forma atómica. */
+export async function importPersonas(token, personas) {
+  const res = await fetch(`${BASE}/api/personas/importar`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ personas }),
+  });
+  return handleResponse(res);
+}
+
 /** Actualiza campos de una persona (PATCH parcial) */
 export async function updatePersona(token, id, campos) {
   const res = await fetch(`${BASE}/api/personas/${id}`, {

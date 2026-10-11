@@ -40,8 +40,13 @@ export const env = {
 
   google: {
     clientId:     process.env.GOOGLE_CLIENT_ID     || '',
+    iosClientId:  process.env.GOOGLE_IOS_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     redirectUri:  process.env.GOOGLE_REDIRECT_URI  || 'http://localhost:3000/api/auth/google/callback',
+    validAudience: [
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_IOS_CLIENT_ID,
+    ].filter(Boolean),
   },
 
   // JWT propio

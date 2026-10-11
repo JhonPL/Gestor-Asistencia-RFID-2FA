@@ -93,10 +93,12 @@ const CursoGestionModal = ({
       {/* Tab Datos */}
       {activeTab === 'datos' && (
         <CursoGestionDatosTab
+          key={`${isOpen}-${item?.id ?? 'nuevo'}`}
           item={item}
           isEditing={isEditing}
           onSave={onSave}
           onClose={onClose}
+          token={token}
           docentes={docentes}
           aulas={aulas}
           horarios={horarios}

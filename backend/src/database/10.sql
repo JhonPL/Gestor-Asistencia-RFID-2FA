@@ -209,7 +209,7 @@ CREATE TABLE IF NOT EXISTS public.aula_curso_horario (
     horario_id INTEGER   NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT aula_curso_horario_pkey      PRIMARY KEY (id),
-    CONSTRAINT uq_aula_horario              UNIQUE (aula_id, horario_id),
+    CONSTRAINT uq_aula_curso_horario        UNIQUE (aula_id, curso_id, horario_id),
     CONSTRAINT aula_curso_horario_aula_fkey FOREIGN KEY (aula_id)
         REFERENCES public.aula (id) ON DELETE CASCADE,
     CONSTRAINT aula_curso_horario_curso_fkey FOREIGN KEY (curso_id)

@@ -34,7 +34,8 @@ router.get('/admin', async (req, res, next) => {
           AS personas_este_mes,
 
         -- Cursos activos
-        (SELECT COUNT(*)::int FROM curso WHERE activo = true)
+        (SELECT COUNT(*)::int FROM curso
+          WHERE activo = true AND fecha_fin >= CURRENT_DATE)
           AS cursos_activos,
 
         -- Dispositivos totales y activos

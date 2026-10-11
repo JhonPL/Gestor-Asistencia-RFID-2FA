@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --test test/rfid.routes.test.js",
+    "test:push": "node scripts/test_push.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

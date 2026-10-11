@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -24,6 +23,7 @@ import { Badge, Card, BodyText, Label } from "../../components/ui";
 // ── Capa de API y storage ─────────────────────────────────────
 import { getSesionActiva, getClasesHoy } from "../../src/api/sesiones";
 import { getToken, getUser, clearAuth } from "../../src/storage/auth";
+import { syncPushTokenWithBackend } from "../../src/notifications/setup";
 
 
 // ── Helper: formatea 'HH:MM:SS' → '8:00 AM' ──────────────────
@@ -150,6 +150,8 @@ export default function HomeScreen() {
             correo: savedUser.correo,
             programa: savedUser.programa ?? savedUser.rol ?? "",
           });
+          // Sincronizar token push con el backend de fondo (fire-and-forget)
+          syncPushTokenWithBackend(token);
         }
 
         const [sesion, clases] = await Promise.all([
@@ -257,10 +259,6 @@ export default function HomeScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={s.brandHeader}>
-        <Image source={require('../../assets/LUXALOGO.png')} style={s.brandLogo} resizeMode="contain" />
-        <Text style={s.brandName}>LUXA</Text>
-      </View>
       {/* Header */}
       <View style={s.header}>
         <View>
@@ -460,9 +458,6 @@ const s = StyleSheet.create({
   },
 
   scroll: { paddingHorizontal: spacing[6] },
-  brandHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginBottom: spacing[4] },
-  brandLogo: { width: 40, height: 40, borderRadius: radii.md },
-  brandName: { fontFamily: 'Miroge', fontSize: fontSizes.xl, color: colors.primary },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",

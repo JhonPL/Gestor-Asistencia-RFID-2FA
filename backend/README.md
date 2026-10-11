@@ -77,6 +77,12 @@ createdb smartclass_rfid
 psql -d smartclass_rfid -f ./src/database/script_bd_google_oauth.sql
 ```
 
+Si la base de datos ya existe, aplica la migración de reutilización de aulas y horarios:
+
+```bash
+psql -d smartclass_rfid -f ./src/database/11.sql
+```
+
 **Nota**: Este script es para Google OAuth 2.0. Para migrar de una versión anterior, consulta la documentación en `GOOGLE_OAUTH_SETUP.md`.
 
 ### 4️⃣ Iniciar el servidor

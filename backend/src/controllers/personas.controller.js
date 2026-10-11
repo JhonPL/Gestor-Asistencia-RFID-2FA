@@ -34,6 +34,13 @@ export async function create(req, res, next) {
   } catch (err) { next(err); }
 }
 
+export async function importMany(req, res, next) {
+  try {
+    const data = await personasService.importarPersonas(req.body.personas);
+    res.status(201).json(data);
+  } catch (err) { next(err); }
+}
+
 export async function update(req, res, next) {
   try {
     const data = await personasService.updatePersona(parseInt(req.params.id), req.body);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, ScrollView, Alert, Platform, Image,
+  ActivityIndicator, ScrollView, Alert, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -21,19 +21,24 @@ const GoogleIcon = () => (
   <Ionicons name="logo-google" size={20} color="white" />
 );
 
+// ── Helper: mensaje de acceso denegado según el rol ───────────
+function mensajeAccesoDenegado(rol) {
+  const roles = {
+    docente: 'Los docentes deben acceder desde el portal web SmartClass.',
+    administrador: 'Los administradores deben acceder desde el portal web SmartClass.',
+  };
+  return roles[rol] ?? 'Tu cuenta no tiene permiso para acceder a esta aplicación.';
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
-  const [accessDenied, setAccessDenied] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(null); // { rol, nombre }
 
   useEffect(() => {
-    const iosClientId = env.GOOGLE_IOS_CLIENT_ID || env.GOOGLE_CLIENT_ID;
-
     GoogleSignin.configure({
       webClientId: env.GOOGLE_CLIENT_ID,
-      iosClientId: env.GOOGLE_IOS_CLIENT_ID,
-      iosUrlScheme: env.GOOGLE_IOS_URL_SCHEME,
       offlineAccess: false,
     });
   }, []);
@@ -41,7 +46,7 @@ export default function LoginScreen() {
   // ── Verificar que el usuario tenga rol estudiante ──────────
   const verificarRolEstudiante = (user) => {
     if (user.rol !== 'estudiante') {
-      setAccessDenied(true);
+      setAccessDenied({ rol: user.rol, nombre: user.nombre });
       return false;
     }
     return true;
@@ -76,29 +81,17 @@ export default function LoginScreen() {
     try {
       // 1. Enviar el token de Google al backend
       const installationId = await getInstallationId();
-      let result;
-      try {
-        result = await loginWithGoogle(googleResponse, installationId);
-      } catch (err) {
-        if (err.status === 403 || err.statusCode === 403) {
-          setAccessDenied(true);
-          await GoogleSignin.signOut().catch(() => {});
-          return;
-        }
-        throw err;
-      }
-      const { token, user } = result;
+      const { token, user } = await loginWithGoogle(googleResponse, installationId);
 
       // 2. Verificar que sea estudiante — si no, bloquear acceso
       if (!verificarRolEstudiante(user)) {
-        await GoogleSignin.signOut().catch(() => {});
         setLoading(false);
         return;
       }
 
       // 3. Persistir sesión en AsyncStorage
       // 4. Obtener el push token real de Expo
-      const expoPushToken = await getPushToken(installationId);
+      const expoPushToken = await getPushToken();
       const pushToken = expoPushToken ?? ('OFFLINE_' + Date.now());
 
       // 5. Registrar el dispositivo móvil en el backend con el token real
@@ -144,19 +137,27 @@ export default function LoginScreen() {
             <Ionicons name="lock-closed" size={34} color="white" />
           </View>
           <Text style={[s.appName, { color: colors.error }]}>Acceso denegado</Text>
-          <Label>LUXA · UCC Villavicencio</Label>
+          <Label>SmartClass · UCC Villavicencio</Label>
         </View>
 
         <View style={[s.card, { borderColor: colors.errorContainer }]}>
           <View style={s.deniedHeader}>
-            <Ionicons name="information-circle-outline" size={48} color={colors.error} />
-            <Text style={s.deniedName}>No tienes permisos para acceder a esta aplicación.</Text>
+            <Ionicons name="person-circle-outline" size={48} color={colors.error} />
+            <View style={{ flex: 1, marginLeft: spacing[4] }}>
+              <Text style={s.deniedName}>{accessDenied.nombre}</Text>
+              <View style={s.deniedRolBadge}>
+                <Ionicons name="shield-outline" size={12} color={colors.error} />
+                <Text style={s.deniedRolText}>
+                  {accessDenied.rol.charAt(0).toUpperCase() + accessDenied.rol.slice(1)}
+                </Text>
+              </View>
+            </View>
           </View>
 
           <View style={s.deniedBox}>
             <Ionicons name="information-circle" size={20} color={colors.primary} style={{ marginBottom: spacing[2] }} />
             <Text style={s.deniedTitle}>Permisos insuficientes</Text>
-            <Text style={s.deniedDesc}>Usa una cuenta autorizada para iniciar sesión.</Text>
+            <Text style={s.deniedDesc}>{mensajeAccesoDenegado(accessDenied.rol)}</Text>
           </View>
 
           <View style={s.deniedSteps}>
@@ -186,7 +187,7 @@ export default function LoginScreen() {
         </View>
 
         <Text style={s.footer}>
-          © {new Date().getFullYear()} LUXA · Universidad Cooperativa de Colombia
+          © {new Date().getFullYear()} SmartClass RFID · Universidad Cooperativa de Colombia
         </Text>
       </ScrollView>
     );
@@ -207,8 +208,10 @@ export default function LoginScreen() {
       <View style={s.blobBR} pointerEvents="none" />
 
       <View style={s.logoSection}>
-        <Image source={require('../../assets/LUXALOGO.png')} style={s.logoImage} resizeMode="contain" />
-        <Text style={s.appName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>LUXA</Text>
+        <View style={s.logoBox}>
+          <Ionicons name="school" size={34} color="white" />
+        </View>
+        <Text style={s.appName}>SmartClass</Text>
         <Label>Acceso Institucional · UCC Villavicencio</Label>
       </View>
 
@@ -251,7 +254,7 @@ export default function LoginScreen() {
       </View>
 
       <Text style={s.footer}>
-        © {new Date().getFullYear()} LUXA · Universidad Cooperativa de Colombia
+        © {new Date().getFullYear()} SmartClass RFID · Universidad Cooperativa de Colombia
       </Text>
     </ScrollView>
   );
@@ -262,9 +265,9 @@ const s = StyleSheet.create({
   blobTL:       { position: 'absolute', top: -50, left: -50, width: 180, height: 180, borderRadius: 90, backgroundColor: colors.primaryContainer, opacity: 0.05 },
   blobBR:       { position: 'absolute', bottom: -70, right: -70, width: 220, height: 220, borderRadius: 110, backgroundColor: colors.secondaryContainer, opacity: 0.08 },
 
-  logoSection:  { width: '100%', alignItems: 'center', alignSelf: 'center', marginBottom: spacing[8] },
-  logoImage:    { width: 96, height: 96, borderRadius: radii.xl, alignSelf: 'center', marginBottom: 3 },
-  appName:      { width: '100%', fontFamily: 'Miroge', fontSize: fontSizes['3xl'], lineHeight: 34, fontWeight: '400', color: colors.primary, textAlign: 'center', maxWidth: '100%', marginBottom: spacing[1] },
+  logoSection:  { alignItems: 'center', marginBottom: spacing[8] },
+  logoBox:      { width: 72, height: 72, borderRadius: radii.xl, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: spacing[4], ...shadows.lg },
+  appName:      { fontSize: fontSizes['3xl'], fontWeight: '800', color: colors.primary, letterSpacing: -1, marginBottom: spacing[1] },
 
   card:         { backgroundColor: colors.surfaceContainerLowest, borderRadius: radii['2xl'], padding: spacing[6], ...shadows.md, borderWidth: 1, borderColor: colors.outlineVariant + '26' },
   cardTitle:    { fontSize: fontSizes['2xl'], fontWeight: '800', color: colors.primary, letterSpacing: -0.5, marginBottom: spacing[2] },

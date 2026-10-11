@@ -323,8 +323,8 @@ export default function AttendanceConfirmScreen() {
         Alert.alert(
           'Permiso de ubicación bloqueado',
           Platform.OS === 'android'
-            ? 'Ve a Ajustes → Aplicaciones → LUXA → Permisos → Ubicación y selecciona "Permitir todo el tiempo".'
-            : 'Ve a Ajustes → Privacidad → Servicios de Ubicación → LUXA y selecciona "Siempre".',
+            ? 'Ve a Ajustes → Aplicaciones → SmartClass → Permisos → Ubicación y selecciona "Permitir todo el tiempo".'
+            : 'Ve a Ajustes → Privacidad → Servicios de Ubicación → SmartClass y selecciona "Siempre".',
           [
             { text: 'Reintentar', onPress: () => { setFase('idle'); setPasoActual(-1); } },
             { text: 'Cancelar', style: 'cancel', onPress: () => { setFase('idle'); setPasoActual(-1); } },
@@ -544,7 +544,7 @@ export default function AttendanceConfirmScreen() {
                   ? 'Huella digital o Face ID'
                   : p.id === 'ubicacion'
                     ? 'Validación GPS · campus UCC'
-                    : 'Registro en el servidor LUXA'}
+                    : 'Registro en el servidor SmartClass'}
               </Text>
             </View>
           ))}
@@ -674,7 +674,7 @@ export default function AttendanceConfirmScreen() {
             <View style={[s.extraInfo, { marginTop: spacing[3] }]}>
               <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.onSurfaceVariant} />
               <Text style={s.extraInfoText}>
-                Muestra esta pantalla a tu docente. Él podrá registrar tu asistencia manualmente desde el portal web LUXA.
+                Muestra esta pantalla a tu docente. Él podrá registrar tu asistencia manualmente desde el portal web SmartClass.
               </Text>
             </View>
           )}

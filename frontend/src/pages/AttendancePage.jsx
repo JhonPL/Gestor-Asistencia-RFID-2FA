@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import theme from '../styles/theme';
@@ -86,6 +87,15 @@ const SearchInput = styled.input`
   &:focus{box-shadow:0 0 0 2px ${theme.colors.primary}33}
 `;
 const RightActions = styled.div`display:flex;align-items:center;gap:.75rem;`;
+const SortSelect = styled.select`
+  min-height: 2.5rem;
+  padding: .5rem .75rem;
+  border: 1px solid ${theme.colors.outlineVariant};
+  border-radius: ${theme.radii.lg};
+  background: ${theme.colors.surfaceContainerLowest};
+  color: ${theme.colors.onSurface};
+  font: inherit;
+`;
 const FilterBar = styled.div`display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;`;
 const FilterChip = styled.button`
   padding:.375rem 1rem;border-radius:${theme.radii.full};
@@ -179,6 +189,7 @@ const AttendancePage = ({ onLogout }) => {
   // ── UI exclusivo de la página ─────────────────────────────────────────────
   const [search,           setSearch]           = useState('');
   const [filter,           setFilter]           = useState('Todos');
+  const [studentSort,      setStudentSort]      = useState('apellido');
   const [sesiones,         setSesiones]         = useState([]);
   const [sesionesLoading,  setSesionesLoading]  = useState(true);
   const [sesionesError,    setSesionesError]    = useState(null);
@@ -259,8 +270,18 @@ const AttendancePage = ({ onLogout }) => {
   }, [records]);
 
   // ── Filtrado de la tabla ──────────────────────────────────────────────────
+  const sortedRecords = useMemo(() => {
+    const collator = new Intl.Collator('es', { sensitivity: 'base' });
+    return [...records].sort((left, right) => {
+      const primary = studentSort === 'nombre' ? 'nombre' : 'apellido';
+      const secondary = primary === 'apellido' ? 'nombre' : 'apellido';
+      return collator.compare(left[primary] ?? '', right[primary] ?? '')
+        || collator.compare(left[secondary] ?? '', right[secondary] ?? '');
+    });
+  }, [records, studentSort]);
+
   const filtered = useMemo(() => {
-    let data = records;
+    let data = sortedRecords;
     if (filter === 'Pendientes') {
       data = data.filter(r => ['pendiente', 'sin_app'].includes(r.estadoVerificacion));
     } else if (filter !== 'Todos') {
@@ -274,7 +295,36 @@ const AttendancePage = ({ onLogout }) => {
       );
     }
     return data;
-  }, [records, filter, search]);
+  }, [sortedRecords, filter, search]);
+
+  const sortedFullTableRecords = useMemo(() => {
+    const source = fullTableData[0]?.records ?? [];
+    const collator = new Intl.Collator('es', { sensitivity: 'base' });
+    const primary = studentSort === 'nombre' ? 'nombre' : 'apellido';
+    const secondary = primary === 'apellido' ? 'nombre' : 'apellido';
+    return [...source].sort((left, right) =>
+      collator.compare(left[primary] ?? '', right[primary] ?? '')
+      || collator.compare(left[secondary] ?? '', right[secondary] ?? '')
+    );
+  }, [fullTableData, studentSort]);
+
+  const handleExportAttendance = () => {
+    if (!currentSesion || sortedRecords.length === 0) return;
+    const rows = sortedRecords.map(record => ({
+      Apellido: record.apellido,
+      Nombre: record.nombre,
+      Correo: record.codigoEstudiante,
+      Asistencia: record.estado,
+      Verificacion: record.estadoVerificacion,
+      'Hora de registro': record.horaRegistro ?? '',
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Asistencia');
+    const safeCourse = (cursoCodigo || cursoNombre).replace(/[^a-z0-9_-]/gi, '_');
+    const safeDate = String(currentSesion.fecha).slice(0, 10);
+    XLSX.writeFile(workbook, `asistencia_${safeCourse}_${safeDate}.xlsx`);
+  };
 
   // ── Render: carga de sesiones ─────────────────────────────────────────────
   if (sesionesLoading) {
@@ -395,6 +445,22 @@ const AttendancePage = ({ onLogout }) => {
           />
         </SearchWrapper>
         <RightActions>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: theme.fontSizes.xs }}>
+            Ordenar:
+            <SortSelect value={studentSort} onChange={e => setStudentSort(e.target.value)} aria-label="Ordenar estudiantes">
+              <option value="apellido">Apellido A-Z</option>
+              <option value="nombre">Nombre A-Z</option>
+            </SortSelect>
+          </label>
+          <Button
+            variant="outlined"
+            size="sm"
+            onClick={handleExportAttendance}
+            disabled={!currentSesion || sortedRecords.length === 0}
+            title="Exportar asistencia de la sesión seleccionada a Excel"
+          >
+            <Icon name="download" size="sm" />Exportar
+          </Button>
           <Button variant="outlined" size="sm" onClick={reload} title="Recargar desde la BD">
             <Icon name="refresh" size="sm" />
           </Button>
@@ -471,7 +537,7 @@ const AttendancePage = ({ onLogout }) => {
                         </tr>
                       </THead>
                       <tbody>
-                        {fullTableData.length > 0 && fullTableData[0].records.map((estudiante, idx) => (
+                        {sortedFullTableRecords.map((estudiante, idx) => (
                           <Tr key={`row-${estudiante.listaEstudiantesId}`}>
                             <Td style={{ position:'sticky', left:0, zIndex:9, backgroundColor:theme.colors.surface, minWidth:'200px' }}>
                               <StudentCell>

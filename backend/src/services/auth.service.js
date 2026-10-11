@@ -126,11 +126,6 @@ export async function loginWithGoogle({ idToken, installationId }) {
       persona = rows[0];
       console.log('👤 [PERSONA EXISTENTE] ID:', persona.id);
 
-      if (persona.rol !== 'estudiante') {
-        console.error('   ❌ ROL SIN ACCESO A LA APP MÓVIL');
-        throw createError(403, 'No tienes permisos para acceder a esta aplicación.');
-      }
-
       // Actualiza google_id si no lo tenía
       if (!persona.google_id && googleId) {
         await pool.query(
@@ -145,24 +140,26 @@ export async function loginWithGoogle({ idToken, installationId }) {
         throw createError(403, 'Cuenta desactivada. Contacta al administrador.');
       }
 
-      if (!installationId) {
-        throw createError(400, 'La instalación móvil no está identificada');
-      }
+      if (persona.rol === 'estudiante') {
+        if (!installationId) {
+          throw createError(400, 'La instalación móvil no está identificada');
+        }
 
-      const deviceRes = await pool.query(
-        `SELECT installation_id
-         FROM dispositivo_movil
-         WHERE persona_id = $1
-         LIMIT 1`,
-        [persona.id],
-      );
-      const registeredInstallation = deviceRes.rows[0]?.installation_id;
-
-      if (registeredInstallation && registeredInstallation !== installationId) {
-        throw createError(
-          409,
-          'Este estudiante ya tiene un dispositivo móvil vinculado. Solicita al administrador cambiarlo.',
+        const deviceRes = await pool.query(
+          `SELECT installation_id
+           FROM dispositivo_movil
+           WHERE persona_id = $1
+           LIMIT 1`,
+          [persona.id],
         );
+        const registeredInstallation = deviceRes.rows[0]?.installation_id;
+
+        if (registeredInstallation && registeredInstallation !== installationId) {
+          throw createError(
+            409,
+            'Este estudiante ya tiene un dispositivo móvil vinculado. Solicita al administrador cambiarlo.',
+          );
+        }
       }
     }
 

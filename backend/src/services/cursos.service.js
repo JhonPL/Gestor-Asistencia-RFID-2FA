@@ -10,7 +10,8 @@ import { createError } from '../middlewares/errorHandler.js';
 export async function getCursoConHorarios(id, client = pool) {
   console.log('[getCursoConHorarios] Obteniendo curso', id);
   const { rows } = await client.query(
-    `SELECT c.id, c.nombre, c.codigo, c.fecha_inicio, c.fecha_fin, c.activo, c.persona_id,
+    `SELECT c.id, c.nombre, c.codigo, c.fecha_inicio, c.fecha_fin,
+          (c.activo AND c.fecha_fin >= CURRENT_DATE) AS activo, c.persona_id,
             p.nombre || ' ' || p.apellido AS docente,
             (SELECT COUNT(*)::int FROM lista_estudiantes le
              WHERE le.curso_id = c.id AND le.activo = true) AS total_estudiantes,
@@ -72,6 +73,12 @@ async function insertAsignaciones(cursoId, asignaciones, tx) {
   const aulasValidas = new Set(aulasExistentes.map(a => a.id));
   console.log('[insertAsignaciones] Aulas válidas:', aulasValidas.size, 'de', aulaIds.length);
 
+  const { rows: cursosActuales } = await tx.query(
+    'SELECT fecha_inicio, fecha_fin FROM curso WHERE id = $1', [cursoId],
+  );
+  if (!cursosActuales.length) throw createError(404, 'Curso no encontrado');
+  const { fecha_inicio, fecha_fin } = cursosActuales[0];
+
   let insertadas = 0;
   for (const { aula_id, horario_id } of asignaciones) {
     if (!aula_id || !horario_id) {
@@ -82,15 +89,78 @@ async function insertAsignaciones(cursoId, asignaciones, tx) {
       console.log('[insertAsignaciones] Aula no válida:', aula_id);
       continue;
     }
+
+    const { rows: conflictos } = await tx.query(
+      `SELECT c.nombre
+         FROM aula_curso_horario ach
+         JOIN curso c ON c.id = ach.curso_id
+        WHERE ach.aula_id = $1
+          AND ach.horario_id = $2
+          AND ach.curso_id <> $3
+          AND c.fecha_inicio <= $5
+          AND c.fecha_fin >= $4
+        LIMIT 1`,
+      [aula_id, horario_id, cursoId, fecha_inicio, fecha_fin],
+    );
+    if (conflictos.length) {
+      throw createError(
+        409,
+        `El aula y horario ya están asignados al curso "${conflictos[0].nombre}" durante esas fechas`,
+      );
+    }
+
     await tx.query(
       `INSERT INTO aula_curso_horario (aula_id, curso_id, horario_id)
        VALUES ($1, $2, $3)
-       ON CONFLICT (aula_id, horario_id) DO NOTHING`,
+       ON CONFLICT (aula_id, curso_id, horario_id) DO NOTHING`,
       [aula_id, cursoId, horario_id],
     );
     insertadas++;
   }
   console.log('[insertAsignaciones] Insertadas:', insertadas, 'asignaciones');
+}
+
+async function inscribirEstudiantesIniciales(cursoId, estudiantesIds, correosEstudiantes, tx) {
+  if (!Array.isArray(estudiantesIds) || !Array.isArray(correosEstudiantes)) {
+    throw createError(400, 'Las listas de estudiantes iniciales deben ser arreglos');
+  }
+
+  const ids = [...new Set(estudiantesIds.map(Number))];
+  if (ids.some(id => !Number.isInteger(id) || id <= 0)) {
+    throw createError(400, 'Hay identificadores de estudiante inválidos');
+  }
+
+  const correos = [...new Set(correosEstudiantes
+    .map(correo => String(correo).trim().toLowerCase())
+    .filter(Boolean))];
+  if (!ids.length && !correos.length) return 0;
+
+  const { rows: estudiantes } = await tx.query(
+    `SELECT DISTINCT p.id, LOWER(p.correo) AS correo
+       FROM persona p
+       JOIN rol r ON r.id = p.rol_id
+      WHERE r.nombre = 'estudiante'
+        AND (p.id = ANY($1::int[]) OR LOWER(p.correo) = ANY($2::text[]))`,
+    [ids, correos],
+  );
+
+  const idsEncontrados = new Set(estudiantes.map(estudiante => estudiante.id));
+  const correosEncontrados = new Set(estudiantes.map(estudiante => estudiante.correo));
+  const idsNoEncontrados = ids.filter(id => !idsEncontrados.has(id));
+  const correosNoEncontrados = correos.filter(correo => !correosEncontrados.has(correo));
+  if (idsNoEncontrados.length || correosNoEncontrados.length) {
+    const faltantes = [...idsNoEncontrados.map(id => `ID ${id}`), ...correosNoEncontrados].slice(0, 10);
+    throw createError(400, `No se encontraron estudiantes registrados: ${faltantes.join(', ')}`);
+  }
+
+  const idsInscritos = [...idsEncontrados];
+  await tx.query(
+    `INSERT INTO lista_estudiantes (persona_id, curso_id, activo)
+      SELECT DISTINCT unnest($1::int[]), $2::int, true
+     ON CONFLICT (persona_id, curso_id) DO NOTHING`,
+    [idsInscritos, cursoId],
+  );
+  return idsInscritos.length;
 }
 
 // ── Generar sesiones para TODO el rango de fechas ────────────────────────────
@@ -205,13 +275,14 @@ export async function listarCursos(userId, rol, page, limit) {
       ? await pool.query('SELECT COUNT(*)::int AS total FROM curso')
       : null;
     const { rows } = await pool.query(
-      `SELECT c.id, c.nombre, c.codigo, c.fecha_inicio, c.fecha_fin, c.activo, c.created_at,
+      `SELECT c.id, c.nombre, c.codigo, c.fecha_inicio, c.fecha_fin,
+              (c.activo AND c.fecha_fin >= CURRENT_DATE) AS activo, c.created_at,
               p.nombre || ' ' || p.apellido AS docente, c.persona_id,
               (SELECT COUNT(*)::int FROM lista_estudiantes le
                WHERE le.curso_id = c.id AND le.activo = true) AS total_estudiantes
          FROM curso c
          LEFT JOIN persona p ON p.id = c.persona_id
-         ORDER BY c.activo DESC, c.nombre
+         ORDER BY (c.activo AND c.fecha_fin >= CURRENT_DATE) DESC, c.nombre
          ${paginated ? `LIMIT $1 OFFSET $2` : ''}`,
       paginated ? [safeLimit, offset] : [],
     );
@@ -222,14 +293,17 @@ export async function listarCursos(userId, rol, page, limit) {
 
   // Docente: solo sus cursos activos
   const count = paginated
-    ? await pool.query('SELECT COUNT(*)::int AS total FROM curso WHERE persona_id = $1 AND activo = true', [userId])
+    ? await pool.query(
+      'SELECT COUNT(*)::int AS total FROM curso WHERE persona_id = $1 AND activo = true AND fecha_fin >= CURRENT_DATE',
+      [userId],
+    )
     : null;
   const { rows } = await pool.query(
     `SELECT c.id, c.nombre, c.codigo, c.fecha_inicio, c.fecha_fin,
             (SELECT COUNT(*)::int FROM lista_estudiantes le
              WHERE le.curso_id = c.id AND le.activo = true) AS total_estudiantes
        FROM curso c
-      WHERE c.persona_id = $1 AND c.activo = true
+      WHERE c.persona_id = $1 AND c.activo = true AND c.fecha_fin >= CURRENT_DATE
       ORDER BY c.nombre
       ${paginated ? 'LIMIT $2 OFFSET $3' : ''}`,
     paginated ? [userId, safeLimit, offset] : [userId],
@@ -242,6 +316,7 @@ export async function listarCursos(userId, rol, page, limit) {
 export async function crearCurso({
   nombre, codigo, fecha_inicio, fecha_fin,
   persona_id, activo = true, asignaciones = [],
+  estudiantes_ids = [], correos_estudiantes = [],
 }) {
   if (!nombre?.trim())          throw createError(400, 'El campo nombre es requerido');
   if (!fecha_inicio)            throw createError(400, 'La fecha de inicio es requerida');
@@ -275,6 +350,10 @@ export async function crearCurso({
     await insertAsignaciones(cursoId, asignaciones, tx);
     console.log('[CURSO CREATE] Asignaciones insertadas');
 
+    const estudiantesInscritos = await inscribirEstudiantesIniciales(
+      cursoId, estudiantes_ids, correos_estudiantes, tx,
+    );
+
     // 3. Generar TODAS las sesiones del rango si hay docente + asignaciones
     if (persona_id && asignaciones.length) {
       console.log('[CURSO CREATE] Generando sesiones...');
@@ -284,7 +363,10 @@ export async function crearCurso({
     }
 
     await tx.commit();
-    return getCursoConHorarios(cursoId);
+    return {
+      ...await getCursoConHorarios(cursoId),
+      estudiantes_inscritos: estudiantesInscritos,
+    };
   } catch (err) {
     await tx.rollback();
     throw err;
