@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Arquitectura de SmartClass RFID: clientes web, móvil y RFID conectados a la API, PostgreSQL y servicios externos.">
+  <title>Arquitectura · SmartClass RFID</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #f5f5f5;
+      --paper-2: #ececec;
+      --ink: #2d3142;
+      --muted: #4f5d75;
+      --soft: #5a6580;
+      --accent: #bf4520;
+      --link: #2e5aa8;
+      --rule: rgba(45, 49, 66, 0.12);
+      --sans: 'Geist', system-ui, sans-serif;
+      --serif: 'Instrument Serif', 'Noto Serif', serif;
+      --mono: 'Geist Mono', ui-monospace, monospace;
+    }
+    body {
+      min-height: 100vh;
+      padding: 44px 32px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+    }
+    .frame { width: 100%; max-width: 1400px; margin: 0 auto; }
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font: 500 11px var(--mono);
+      letter-spacing: 0.16em;
+    }
+    h1 {
+      margin-bottom: 24px;
+      font: 400 clamp(30px, 3vw, 40px)/1.05 var(--serif);
+      letter-spacing: -0.02em;
+    }
+    .diagram-container { width: 100%; overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 1280px; }
+    .note {
+      max-width: 760px;
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    @media print {
+      body { padding: 12px; }
+      .diagram-container { overflow-x: visible; }
+      svg { min-width: 0; }
+      .note { margin-top: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <p class="eyebrow">SMARTCLASS RFID · ARQUITECTURA</p>
+    <h1>Asistencia universitaria con doble verificación</h1>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="smartclass-architecture-title smartclass-architecture-desc">
+        <title id="smartclass-architecture-title">Arquitectura de SmartClass RFID</title>
+        <desc id="smartclass-architecture-desc">Los clientes web, móvil y lectores RFID se comunican con una API Express que valida usuarios, registra asistencias en PostgreSQL y se integra con Google OAuth y Expo Push.</desc>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#bf4520"/>
+          </marker>
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+          </marker>
+        </defs>
+
+        <rect width="1280" height="720" fill="#f5f5f5"/>
+
+        <!-- Zones -->
+        <rect x="40" y="72" width="344" height="548" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="1"/>
+        <rect x="424" y="72" width="408" height="548" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="1"/>
+        <rect x="872" y="72" width="368" height="548" rx="8" fill="rgba(45,49,66,0.02)" stroke="rgba(45,49,66,0.10)" stroke-width="1"/>
+        <rect x="154" y="76" width="116" height="16" rx="2" fill="#f5f5f5"/>
+        <text x="212" y="88" fill="#5a6580" font-size="8" font-family="'Geist Mono', monospace" font-weight="500" text-anchor="middle" letter-spacing="0.12em">CLIENTES</text>
+        <rect x="556" y="76" width="144" height="16" rx="2" fill="#f5f5f5"/>
+        <text x="628" y="88" fill="#5a6580" font-size="8" font-family="'Geist Mono', monospace" font-weight="500" text-anchor="middle" letter-spacing="0.12em">PLATAFORMA CENTRAL</text>
+        <rect x="986" y="76" width="140" height="16" rx="2" fill="#f5f5f5"/>
+        <text x="1056" y="88" fill="#5a6580" font-size="8" font-family="'Geist Mono', monospace" font-weight="500" text-anchor="middle" letter-spacing="0.12em">SERVICIOS EXTERNOS</text>
+
+        <!-- Flows -->
+        <path d="M352 176 H416 Q424 176 424 184 V296 Q424 304 432 304 H496" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <path d="M352 344 H496" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <path d="M352 504 H448 Q456 504 456 496 V384 Q456 376 464 376 H496" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <path d="M636 392 V476" fill="none" stroke="#bf4520" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <path d="M776 304 H1048 Q1056 304 1056 296 V224" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <path d="M776 368 H1048 Q1056 368 1056 376 V440" fill="none" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+
+        <!-- Arrow labels with opaque masks and clear gaps -->
+        <rect x="364" y="236" width="52" height="16" rx="2" fill="#f5f5f5"/>
+        <text x="390" y="247" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">GESTIÓN</text>
+        <rect x="392" y="320" width="64" height="16" rx="2" fill="#f5f5f5"/>
+        <text x="424" y="331" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">REST + JWT</text>
+        <rect x="376" y="428" width="72" height="16" rx="2" fill="#f5f5f5"/>
+        <text x="412" y="439" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">LECTURA RFID</text>
+        <rect x="596" y="420" width="32" height="16" rx="2" fill="#f5f5f5"/>
+        <text x="612" y="431" fill="#bf4520" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">SQL</text>
+        <rect x="876" y="280" width="88" height="16" rx="2" fill="#f5f5f5"/>
+        <text x="920" y="291" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">VALIDA TOKEN</text>
+        <rect x="856" y="344" width="80" height="16" rx="2" fill="#f5f5f5"/>
+        <text x="896" y="355" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ENVÍA PUSH</text>
+
+        <!-- Client nodes -->
+        <g>
+          <rect x="72" y="136" width="280" height="80" rx="6" fill="rgba(79,93,117,0.10)" stroke="#5a6580" stroke-width="1"/>
+          <rect x="88" y="148" width="60" height="16" rx="2" fill="rgba(79,93,117,0.10)" stroke="rgba(90,101,128,0.36)" stroke-width="0.8"/>
+          <text x="118" y="159" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">WEB</text>
+          <text x="88" y="184" fill="#2d3142" font-size="14" font-family="'Geist', system-ui, sans-serif" font-weight="600">Panel administrativo</text>
+          <text x="88" y="202" fill="#5a6580" font-size="9" font-family="'Geist Mono', monospace">React · Vite · gestión académica</text>
+        </g>
+        <g>
+          <rect x="72" y="296" width="280" height="92" rx="6" fill="rgba(79,93,117,0.10)" stroke="#5a6580" stroke-width="1"/>
+          <rect x="88" y="308" width="76" height="16" rx="2" fill="rgba(79,93,117,0.10)" stroke="rgba(90,101,128,0.36)" stroke-width="0.8"/>
+          <text x="126" y="319" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">MÓVIL</text>
+          <text x="88" y="344" fill="#2d3142" font-size="14" font-family="'Geist', system-ui, sans-serif" font-weight="600">App de estudiante</text>
+          <text x="88" y="364" fill="#5a6580" font-size="9" font-family="'Geist Mono', monospace">Expo · biometría local + GPS</text>
+          <text x="88" y="378" fill="#5a6580" font-size="9" font-family="'Geist Mono', monospace">confirma asistencia pendiente</text>
+        </g>
+        <g>
+          <rect x="72" y="464" width="280" height="80" rx="6" fill="rgba(79,93,117,0.10)" stroke="#5a6580" stroke-width="1"/>
+          <rect x="88" y="476" width="72" height="16" rx="2" fill="rgba(79,93,117,0.10)" stroke="rgba(90,101,128,0.36)" stroke-width="0.8"/>
+          <text x="124" y="487" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">HARDWARE</text>
+          <text x="88" y="512" fill="#2d3142" font-size="14" font-family="'Geist', system-ui, sans-serif" font-weight="600">Lector ESP32 + RFID</text>
+          <text x="88" y="530" fill="#5a6580" font-size="9" font-family="'Geist Mono', monospace">tarjeta → aula → sesión de clase</text>
+        </g>
+
+        <!-- Central platform -->
+        <g>
+          <rect x="496" y="280" width="280" height="112" rx="6" fill="rgba(191,69,32,0.08)" stroke="#bf4520" stroke-width="1.2"/>
+          <rect x="512" y="292" width="64" height="16" rx="2" fill="rgba(191,69,32,0.12)" stroke="rgba(191,69,32,0.45)" stroke-width="0.8"/>
+          <text x="544" y="303" fill="#bf4520" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+          <text x="512" y="331" fill="#2d3142" font-size="16" font-family="'Geist', system-ui, sans-serif" font-weight="600">Backend Express</text>
+          <text x="512" y="351" fill="#5a6580" font-size="9" font-family="'Geist Mono', monospace">Node.js · REST · JWT · roles</text>
+          <text x="512" y="371" fill="#5a6580" font-size="9" font-family="'Geist Mono', monospace">valida lecturas y verificaciones</text>
+        </g>
+        <g>
+          <rect x="496" y="476" width="280" height="80" rx="6" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+          <rect x="512" y="488" width="96" height="16" rx="2" fill="rgba(45,49,66,0.05)" stroke="rgba(79,93,117,0.34)" stroke-width="0.8"/>
+          <text x="560" y="499" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ALMACENAMIENTO</text>
+          <text x="512" y="524" fill="#2d3142" font-size="14" font-family="'Geist', system-ui, sans-serif" font-weight="600">PostgreSQL</text>
+          <text x="512" y="542" fill="#5a6580" font-size="9" font-family="'Geist Mono', monospace">personas · cursos · sesiones · asistencia</text>
+        </g>
+
+        <!-- External services -->
+        <g>
+          <rect x="920" y="144" width="272" height="80" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+          <rect x="936" y="156" width="80" height="16" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.18)" stroke-width="0.8"/>
+          <text x="976" y="167" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">IDENTIDAD</text>
+          <text x="936" y="192" fill="#2d3142" font-size="14" font-family="'Geist', system-ui, sans-serif" font-weight="600">Google OAuth 2.0</text>
+          <text x="936" y="210" fill="#5a6580" font-size="9" font-family="'Geist Mono', monospace">credencial validada · JWT de sesión propio</text>
+        </g>
+        <g>
+          <rect x="920" y="440" width="272" height="92" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+          <rect x="936" y="452" width="80" height="16" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.18)" stroke-width="0.8"/>
+          <text x="976" y="463" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">NOTIFICACIONES</text>
+          <text x="936" y="488" fill="#2d3142" font-size="14" font-family="'Geist', system-ui, sans-serif" font-weight="600">Expo Push Service</text>
+          <text x="936" y="508" fill="#5a6580" font-size="9" font-family="'Geist Mono', monospace">entrega al móvil · asistencia pendiente</text>
+        </g>
+
+        <!-- Horizontal legend strip -->
+        <line x1="72" y1="648" x2="1208" y2="648" stroke="rgba(45,49,66,0.12)" stroke-width="1"/>
+        <rect x="72" y="668" width="16" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#5a6580" stroke-width="1"/>
+        <text x="96" y="678" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">CLIENTE</text>
+        <rect x="192" y="668" width="16" height="12" rx="2" fill="rgba(191,69,32,0.08)" stroke="#bf4520" stroke-width="1"/>
+        <text x="216" y="678" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">API</text>
+        <rect x="280" y="668" width="16" height="12" rx="2" fill="rgba(45,49,66,0.05)" stroke="#4f5d75" stroke-width="1"/>
+        <text x="304" y="678" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">DATOS</text>
+        <rect x="384" y="668" width="16" height="12" rx="2" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+        <text x="408" y="678" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">EXTERNO</text>
+        <line x1="520" y1="674" x2="552" y2="674" stroke="#2e5aa8" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <text x="564" y="678" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">HTTP / OAUTH</text>
+        <line x1="704" y1="674" x2="736" y2="674" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <text x="748" y="678" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">RFID</text>
+        <line x1="824" y1="674" x2="856" y2="674" stroke="#bf4520" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+        <text x="868" y="678" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace">PERSISTENCIA</text>
+      </svg>
+    </div>
+    <p class="note">El registro se inicia con la lectura RFID y queda pendiente hasta que el estudiante confirme desde el móvil con biometría y ubicación. La infraestructura de alojamiento no se representa porque no está especificada en el proyecto.</p>
+  </main>
+</body>
+</html>
